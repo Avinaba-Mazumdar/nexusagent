@@ -22,7 +22,7 @@ describe('Home Page - Layout and Header Controls', () => {
         expect(screen.getByRole('button', { name: /^sign in$/i })).toBeInTheDocument();
 
         // 2. Workspace Panel
-        expect(screen.getByRole('complementary', { name: /workspace & tools/i })).toBeInTheDocument();
+        expect(screen.getByRole('complementary', { name: /^workspace$/i })).toBeInTheDocument();
         expect(screen.queryByText('Zone 1')).not.toBeInTheDocument();
 
         // 3. Active Chat Canvas
@@ -32,6 +32,27 @@ describe('Home Page - Layout and Header Controls', () => {
         // 4. Observability Panel
         expect(screen.getByRole('complementary', { name: /agent telemetry & observability/i })).toBeInTheDocument();
         expect(screen.queryByText('Zone 3')).not.toBeInTheDocument();
+    });
+
+    it('toggles agent observability panel from header button and collapse chevron', async () => {
+        const user = userEvent.setup();
+        render(<Home />);
+
+        const obsPanel = screen.getByRole('complementary', { name: /agent telemetry & observability/i });
+        // Initially default collapsed
+        expect(obsPanel.className).toContain('hidden');
+        expect(obsPanel.className).not.toContain('hidden xl:flex');
+
+        // Click header toggle button to open
+        const toggleBtn = screen.getByRole('button', { name: /toggle agent telemetry and observability panel/i });
+        await user.click(toggleBtn);
+        expect(obsPanel.className).toContain('hidden xl:flex');
+
+        // Click panel header collapse button to close
+        const collapseBtn = screen.getByRole('button', { name: /collapse observability panel/i });
+        await user.click(collapseBtn);
+        expect(obsPanel.className).toContain('hidden');
+        expect(obsPanel.className).not.toContain('hidden xl:flex');
     });
 
     it('opens sign in dialog with google and guest sign in options when clicking sign in', async () => {

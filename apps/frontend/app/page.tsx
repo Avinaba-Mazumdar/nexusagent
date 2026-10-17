@@ -71,12 +71,14 @@ export default function Home() {
     const [mobileActiveTab, setMobileActiveTab] = React.useState<'workspace' | 'chat' | 'observability'>('chat');
     const [selectedCitationDoc, setSelectedCitationDoc] = React.useState<string | null>(null);
 
+    const [isObservabilityOpen, setIsObservabilityOpen] = React.useState(false);
+
     const [openCategories, setOpenCategories] = React.useState<{
         documents: boolean;
         chats: boolean;
         mcp: boolean;
     }>({
-        documents: true,
+        documents: false,
         chats: true,
         mcp: false
     });
@@ -575,6 +577,24 @@ export default function Home() {
                         {isDarkTheme ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </Button>
 
+                    {/* Observability Panel Toggle Button */}
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        onClick={() => setIsObservabilityOpen((prev) => !prev)}
+                        className={`relative rounded-xl border-border h-9 w-9 shrink-0 cursor-pointer transition-colors ${
+                            isObservabilityOpen ? 'bg-secondary text-primary border-primary/40' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title={isObservabilityOpen ? 'Hide Observability Panel' : 'Show Observability Panel'}
+                        aria-label="Toggle agent telemetry and observability panel"
+                    >
+                        <Activity className="h-4 w-4" aria-hidden="true" />
+                        {agentStream.isStreaming && (
+                            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
+                        )}
+                    </Button>
+
                     {/* BYOK CTA Button */}
                     <Button
                         variant={byokKey ? 'default' : 'outline'}
@@ -855,7 +875,7 @@ export default function Home() {
                 {/* 2. Workspace Panel (Left) */}
                 <aside
                     role="complementary"
-                    aria-label="Workspace & Tools"
+                    aria-label="Workspace"
                     className={`w-full xl:w-72 2xl:w-80 bg-card border-r border-border flex flex-col shrink-0 h-full overflow-hidden ${
                         mobileActiveTab === 'workspace' ? 'flex' : 'hidden xl:flex'
                     }`}
@@ -863,7 +883,7 @@ export default function Home() {
                     <div className="flex items-center justify-between p-3.5 pb-2.5 border-b border-border shrink-0">
                         <h2 className="flex items-center gap-1.5 text-xs font-heading font-bold text-foreground">
                             <Database className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                            <span>Workspace &amp; Tools</span>
+                            <span>Workspace</span>
                         </h2>
                     </div>
 
@@ -1215,12 +1235,21 @@ export default function Home() {
 
                 {/* 4. Observability Panel (Right) */}
                 <ObservabilityPanel
+                    metrics={metrics}
                     logs={logs}
                     currentNode={agentStream.currentNode}
                     plan={agentStream.plan}
                     reflectionScore={agentStream.reflectionScore}
                     isStreaming={agentStream.isStreaming}
-                    className={mobileActiveTab === 'observability' ? 'flex' : 'hidden xl:flex'}
+                    isOpen={isObservabilityOpen}
+                    onClose={() => setIsObservabilityOpen(false)}
+                    className={
+                        mobileActiveTab === 'observability'
+                            ? 'flex'
+                            : isObservabilityOpen
+                              ? 'hidden xl:flex'
+                              : 'hidden'
+                    }
                 />
             </div>
 

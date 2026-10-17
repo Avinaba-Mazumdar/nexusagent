@@ -10,7 +10,7 @@ vi.mock('mermaid', () => ({
                 throw new Error('Parse error on line 1');
             }
             return {
-                svg: `<svg data-testid="mock-mermaid-svg" id="${id}"><text>Architecture Diagram</text></svg>`
+                svg: `<svg data-testid="mock-mermaid-svg" id="${id}"><g class="node"><foreignObject width="100" height="40"><div xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel">Client App</span></div></foreignObject></g><text>Architecture Diagram</text></svg>`
             };
         })
     }
@@ -37,6 +37,14 @@ flowchart TD
 
         await waitFor(() => {
             expect(screen.getByTestId('mock-mermaid-svg')).toBeInTheDocument();
+        });
+    });
+
+    it('preserves foreignObject node labels and does not strip them', async () => {
+        render(<MermaidViewer chart={validChart} />);
+
+        await waitFor(() => {
+            expect(screen.getByText('Client App')).toBeInTheDocument();
         });
     });
 

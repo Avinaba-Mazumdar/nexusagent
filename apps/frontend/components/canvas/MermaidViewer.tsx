@@ -7,16 +7,18 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 /**
- * Strip active content from rendered SVG output: script tags, foreignObject
- * HTML labels, inline event handlers, and javascript: URLs. Mermaid already
- * runs in 'strict' mode; this is defense-in-depth against diagram-sourced XSS.
+ * Strip active executable content from rendered SVG output: script tags,
+ * iframe/object/embed tags, inline event handlers, and javascript: URLs.
+ * Keeps foreignObject intact so Mermaid node labels render properly.
+ * Mermaid already runs in 'strict' mode; this is defense-in-depth against SVG XSS.
  */
 const sanitizeSvg = (svg: string): string =>
     svg
         .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
-        .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
-        .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '')
+        .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+        .replace(/<object[\s\S]*?<\/object>/gi, '')
+        .replace(/<embed[\s\S]*?<\/embed>/gi, '')
+        .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
         .replace(/javascript:/gi, '');
 
 export interface MermaidViewerProps {
@@ -279,7 +281,7 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
                             transformOrigin: 'center center',
                             transition: isPanActive ? 'none' : 'transform 0.15s ease-out'
                         }}
-                        className="w-full flex justify-center [&_svg]:max-w-full [&_svg]:h-auto transition-transform"
+                        className="w-full flex justify-center [&_svg]:max-w-full [&_svg]:h-auto [&_svg_foreignObject]:overflow-visible transition-transform"
                         dangerouslySetInnerHTML={{ __html: svgContent }}
                     />
                 )}

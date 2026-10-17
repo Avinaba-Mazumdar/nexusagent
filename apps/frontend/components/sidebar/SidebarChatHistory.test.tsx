@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { SidebarChatHistory } from '@/components/sidebar/SidebarChatHistory';
+import { SidebarChatHistory } from './SidebarChatHistory';
 
 describe('SidebarChatHistory Component', () => {
     beforeEach(() => {
@@ -177,3 +177,4 @@ describe('SidebarChatHistory Component', () => {
         expect(handleDelete).toHaveBeenCalledTimes(1);
     });
 });
+
