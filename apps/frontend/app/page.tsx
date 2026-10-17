@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import Script from 'next/script';
 import {
     Activity,
@@ -484,6 +485,17 @@ export default function Home() {
                                     <Switch checked={isDarkTheme} onCheckedChange={handleToggleTheme} aria-label="Toggle dark mode theme" />
                                 </div>
 
+                                {/* Legal & Policy Links */}
+                                <div className="py-2.5 border-b border-border flex items-center justify-between text-[11px] text-muted-foreground px-0.5">
+                                    <Link href="/privacy" className="hover:text-primary transition-colors">
+                                        Privacy Policy
+                                    </Link>
+                                    <span>•</span>
+                                    <Link href="/terms" className="hover:text-primary transition-colors">
+                                        Terms of Service
+                                    </Link>
+                                </div>
+
                                 {/* Sign Out */}
                                 <div className="pt-3">
                                     <Button
@@ -618,6 +630,17 @@ export default function Home() {
                                             </Button>
                                         </div>
                                     </div>
+                                    <p className="text-[11px] text-muted-foreground text-center pt-1">
+                                        By continuing, you agree to our{' '}
+                                        <Link href="/terms" onClick={() => setDialogOpen(false)} className="text-primary hover:underline">
+                                            Terms &amp; Conditions
+                                        </Link>{' '}
+                                        and{' '}
+                                        <Link href="/privacy" onClick={() => setDialogOpen(false)} className="text-primary hover:underline">
+                                            Privacy Policy
+                                        </Link>
+                                        .
+                                    </p>
                                     {error && <p className="text-[11px] text-destructive text-center pt-1">{error}</p>}
                                 </DialogContent>
                             </Dialog>
@@ -709,6 +732,18 @@ export default function Home() {
                     </Card>
 
                     <McpInspector apiBase={API_BASE} authToken={token} />
+
+                    <div className="pt-2 pb-1 text-center text-[10px] text-muted-foreground flex items-center justify-center gap-2.5">
+                        <Link href="/privacy" className="hover:text-primary transition-colors">
+                            Privacy
+                        </Link>
+                        <span>•</span>
+                        <Link href="/terms" className="hover:text-primary transition-colors">
+                            Terms
+                        </Link>
+                        <span>•</span>
+                        <span className="font-mono">nexusagent.avinaba.com</span>
+                    </div>
                 </aside>
 
                 {/* 3. Synthesis Canvas (Center) */}

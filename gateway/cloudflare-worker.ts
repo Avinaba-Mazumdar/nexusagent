@@ -39,9 +39,17 @@ function checkAndIncrementRpm(): { allow: boolean; count: number } {
 
 export default {
     async fetch(request: Request, env: Env): Promise<Response> {
-        const origin = request.headers.get('Origin') || '*';
+        const origin = request.headers.get('Origin');
+        const allowedList = (env.ALLOWED_ORIGINS || 'https://nexusagent.avinaba.com,http://localhost:3000,http://127.0.0.1:3000')
+            .split(',')
+            .map((o) => o.trim())
+            .filter(Boolean);
+
+        const allowOriginHeader =
+            origin && (allowedList.includes('*') || allowedList.includes(origin)) ? origin : allowedList[0] || 'https://nexusagent.avinaba.com';
+
         const corsHeaders = {
-            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Origin': allowOriginHeader,
             'Access-Control-Allow-Methods': 'POST, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-User-API-Key, X-User-Provider',
             'Access-Control-Expose-Headers': 'X-Selected-Model, X-Routing-Stage, X-RateLimit-RPM-Remaining'
@@ -152,7 +160,7 @@ async function handleByokRequest(body: any, apiKey: string, provider: string, co
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${apiKey}`,
-                'HTTP-Referer': 'https://nexusagent.io',
+                'HTTP-Referer': 'https://nexusagent.avinaba.com',
                 'X-Title': 'NexusAgent Showcase'
             },
             body: JSON.stringify({
