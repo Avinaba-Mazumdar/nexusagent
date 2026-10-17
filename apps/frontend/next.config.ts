@@ -1,5 +1,15 @@
 import type { NextConfig } from 'next';
 
+const apiOrigin = process.env.NEXT_PUBLIC_API_URL
+    ? (() => {
+          try {
+              return new URL(process.env.NEXT_PUBLIC_API_URL).origin;
+          } catch {
+              return '';
+          }
+      })()
+    : '';
+
 const cspHeader = `
     default-src 'self';
     script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com;
@@ -11,7 +21,7 @@ const cspHeader = `
     form-action 'self';
     frame-ancestors 'none';
     frame-src 'self' https://accounts.google.com;
-    connect-src 'self' https://nexusagent.avinaba.com https://*.avinaba.com https://accounts.google.com https://generativelanguage.googleapis.com https://openrouter.ai http://localhost:* http://127.0.0.1:* ws: wss:;
+    connect-src 'self' ${apiOrigin} https://nexusagent-oss.onrender.com https://*.onrender.com https://nexusagent.avinaba.com https://*.avinaba.com https://accounts.google.com https://generativelanguage.googleapis.com https://openrouter.ai http://localhost:* http://127.0.0.1:* ws: wss:;
     upgrade-insecure-requests;
 `
     .replace(/\s{2,}/g, ' ')
