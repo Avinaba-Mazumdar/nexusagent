@@ -60,4 +60,43 @@ describe('MarkdownRenderer Component', () => {
 
         expect(screen.getByText('Grounding Citations:')).toBeInTheDocument();
     });
+
+    it('renders structured markdown tables with headers and rows', () => {
+        const markdown = `
+| Dimension | Opus 5.5 | Gemini 3.8 Flash |
+| :--- | :---: | ---: |
+| Latency | 2800ms | 250ms |
+| Cost | High | Low |
+`;
+        render(<MarkdownRenderer content={markdown} />);
+
+        expect(screen.getByRole('table')).toBeInTheDocument();
+        expect(screen.getByText('Dimension')).toBeInTheDocument();
+        expect(screen.getByText('Opus 5.5')).toBeInTheDocument();
+        expect(screen.getByText('Gemini 3.8 Flash')).toBeInTheDocument();
+        expect(screen.getByText('Latency')).toBeInTheDocument();
+        expect(screen.getByText('250ms')).toBeInTheDocument();
+    });
+
+    it('renders styled callout boxes with alert badges', () => {
+        const markdown = `
+> [!NOTE]
+> This is a key architectural takeaway.
+`;
+        render(<MarkdownRenderer content={markdown} />);
+
+        expect(screen.getByText('NOTE')).toBeInTheDocument();
+        expect(screen.getByText('This is a key architectural takeaway.')).toBeInTheDocument();
+    });
+
+    it('renders categorized section headers with numbered badges', () => {
+        const markdown = `
+### 1. STRUCTURAL METRIC & WORKLOAD COMPARISON
+Detailed analysis here.
+`;
+        render(<MarkdownRenderer content={markdown} />);
+
+        expect(screen.getByText('1')).toBeInTheDocument();
+        expect(screen.getByText('STRUCTURAL METRIC & WORKLOAD COMPARISON')).toBeInTheDocument();
+    });
 });

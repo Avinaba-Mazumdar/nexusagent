@@ -865,10 +865,10 @@ export default function Home() {
                                             </div>
                                         )}
                                         <div
-                                            className={`p-3.5 rounded-2xl max-w-2xl ${
+                                            className={`p-3.5 rounded-2xl ${
                                                 msg.role === 'user'
-                                                    ? 'bg-primary text-primary-foreground font-medium rounded-tr-xs whitespace-pre-wrap'
-                                                    : 'bg-card border border-border text-foreground shadow-2xs rounded-tl-xs w-full'
+                                                    ? 'max-w-2xl bg-primary text-primary-foreground font-medium rounded-tr-xs whitespace-pre-wrap'
+                                                    : 'max-w-3xl xl:max-w-4xl bg-card border border-border text-foreground shadow-2xs rounded-tl-xs w-full'
                                             }`}
                                         >
                                             {msg.role === 'user' ? (

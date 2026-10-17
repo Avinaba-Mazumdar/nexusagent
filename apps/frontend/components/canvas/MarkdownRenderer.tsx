@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Check, Copy, Terminal } from 'lucide-react';
+import { Check, Copy, Terminal, Info } from 'lucide-react';
 import type { Citation } from '@nexusagent/contracts';
 import { CitationPill } from './CitationPill';
 import { MermaidViewer } from './MermaidViewer';
@@ -14,6 +14,56 @@ export interface MarkdownRendererProps {
     isDark?: boolean;
     onCitationClick?: (citation: { filename: string; startLine?: number | null; endLine?: number | null }) => void;
     className?: string;
+}
+
+interface TableBlockProps {
+    headers: string[];
+    alignments: ('left' | 'center' | 'right')[];
+    rows: string[][];
+    renderCell: (cell: string) => React.ReactNode;
+}
+
+function TableBlock({ headers, alignments, rows, renderCell }: TableBlockProps) {
+    return (
+        <div className="my-3.5 overflow-x-auto rounded-xl border border-border bg-card/60 shadow-2xs">
+            <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-secondary/70 text-foreground font-semibold border-b border-border">
+                    <tr>
+                        {headers.map((h, idx) => {
+                            const align = alignments[idx] || 'left';
+                            const alignClass = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left';
+                            return (
+                                <th
+                                    key={`th-${idx}`}
+                                    className={`px-3.5 py-2.5 font-heading font-semibold text-[11px] tracking-tight border-r border-border/30 last:border-r-0 ${alignClass}`}
+                                >
+                                    {renderCell(h)}
+                                </th>
+                            );
+                        })}
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40 text-foreground/90">
+                    {rows.map((row, rIdx) => (
+                        <tr key={`tr-${rIdx}`} className="hover:bg-secondary/20 transition-colors">
+                            {row.map((cell, cIdx) => {
+                                const align = alignments[cIdx] || 'left';
+                                const alignClass = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left';
+                                return (
+                                    <td
+                                        key={`td-${rIdx}-${cIdx}`}
+                                        className={`px-3.5 py-2.5 text-xs leading-relaxed border-r border-border/30 last:border-r-0 ${alignClass}`}
+                                    >
+                                        {renderCell(cell)}
+                                    </td>
+                                );
+                            })}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
 }
 
 interface CodeBlockProps {
@@ -184,14 +234,14 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
 
             // Horizontal Rule
             if (line.trim() === '---' || line.trim() === '***') {
-                result.push(<hr key={`hr-${i}`} className="my-3 border-t border-border" />);
+                result.push(<hr key={`hr-${i}`} className="my-4 border-t border-border" />);
                 continue;
             }
 
             // Headings
             if (line.startsWith('# ')) {
                 result.push(
-                    <h1 key={`h1-${i}`} className="text-base font-heading font-extrabold text-foreground mt-3 mb-1.5 tracking-tight">
+                    <h1 key={`h1-${i}`} className="text-base font-heading font-extrabold text-foreground mt-4 mb-2 tracking-tight">
                         {renderInlineWithCitations(line.slice(2))}
                     </h1>
                 );
@@ -199,17 +249,129 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
             }
             if (line.startsWith('## ')) {
                 result.push(
-                    <h2 key={`h2-${i}`} className="text-sm font-heading font-bold text-foreground mt-3 mb-1 border-b border-border pb-1 tracking-tight">
+                    <h2
+                        key={`h2-${i}`}
+                        className="text-sm font-heading font-bold text-foreground mt-4 mb-2 border-b border-border/80 pb-1.5 tracking-tight flex items-center gap-2"
+                    >
                         {renderInlineWithCitations(line.slice(3))}
                     </h2>
                 );
                 continue;
             }
             if (line.startsWith('### ')) {
+                const headingText = line.slice(4).trim();
+                const catMatch = headingText.match(/^(\d+)\.\s*(.*)/);
+                if (catMatch) {
+                    result.push(
+                        <div key={`cat-h-${i}`} className="mt-4.5 mb-2 flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md bg-primary/15 text-primary text-[10px] font-mono font-bold uppercase tracking-wider border border-primary/25">
+                                {catMatch[1]}
+                            </span>
+                            <h3 className="text-xs font-heading font-bold text-foreground tracking-wide uppercase">{renderInlineWithCitations(catMatch[2])}</h3>
+                        </div>
+                    );
+                } else {
+                    result.push(
+                        <h3 key={`h3-${i}`} className="text-xs font-heading font-bold text-primary mt-3.5 mb-1.5 uppercase tracking-wider">
+                            {renderInlineWithCitations(headingText)}
+                        </h3>
+                    );
+                }
+                continue;
+            }
+
+            // Table detection
+            const isTableLine = (l: string) => {
+                const trimmed = l.trim();
+                return trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.includes('|');
+            };
+            const isDelimiterRow = (l: string) => {
+                const trimmed = l.trim();
+                if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) return false;
+                const cells = trimmed
+                    .slice(1, -1)
+                    .split('|')
+                    .map((c) => c.trim());
+                return cells.length > 0 && cells.every((c) => /^:?-{2,}:?$/.test(c));
+            };
+            const parseRowCells = (rowLine: string) => {
+                return rowLine
+                    .trim()
+                    .slice(1, -1)
+                    .split(/(?<!\\)\|/)
+                    .map((c) => c.replace(/\\\|/g, '|').trim());
+            };
+
+            if (isTableLine(line) && i + 1 < lines.length && isDelimiterRow(lines[i + 1])) {
+                const headerCells = parseRowCells(line);
+                const delimiterCells = parseRowCells(lines[i + 1]);
+                const alignments = delimiterCells.map((c) => {
+                    const starts = c.startsWith(':');
+                    const ends = c.endsWith(':');
+                    if (starts && ends) return 'center' as const;
+                    if (ends) return 'right' as const;
+                    return 'left' as const;
+                });
+
+                const bodyRows: string[][] = [];
+                i += 2;
+                while (i < lines.length && isTableLine(lines[i])) {
+                    bodyRows.push(parseRowCells(lines[i]));
+                    i++;
+                }
+                i--; // Adjust for loop increment
+
                 result.push(
-                    <h3 key={`h3-${i}`} className="text-xs font-heading font-bold text-primary mt-2 mb-0.5 uppercase tracking-wider">
-                        {renderInlineWithCitations(line.slice(4))}
-                    </h3>
+                    <TableBlock
+                        key={`table-${i}`}
+                        headers={headerCells}
+                        alignments={alignments}
+                        rows={bodyRows}
+                        renderCell={(cell) => renderInlineWithCitations(cell)}
+                    />
+                );
+                continue;
+            }
+
+            // Blockquotes & Callouts
+            if (line.trim().startsWith('>')) {
+                const quoteLines: string[] = [];
+                while (i < lines.length && lines[i].trim().startsWith('>')) {
+                    quoteLines.push(lines[i].trim().replace(/^>\s?/, ''));
+                    i++;
+                }
+                i--; // Adjust for loop increment
+
+                const firstLine = quoteLines[0] || '';
+                const alertMatch = firstLine.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+                const alertType = alertMatch ? alertMatch[1].toUpperCase() : null;
+                const displayLines = alertMatch
+                    ? [firstLine.replace(/^\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i, ''), ...quoteLines.slice(1)].filter((l) => l.length > 0)
+                    : quoteLines;
+
+                result.push(
+                    <div
+                        key={`quote-${i}`}
+                        className={`my-3 p-3.5 rounded-xl border-l-4 text-xs leading-relaxed ${
+                            alertType === 'WARNING' || alertType === 'CAUTION'
+                                ? 'border-amber-500/80 bg-amber-500/10 text-foreground'
+                                : alertType === 'TIP'
+                                  ? 'border-emerald-500/80 bg-emerald-500/10 text-foreground'
+                                  : 'border-primary/80 bg-primary/10 text-foreground'
+                        }`}
+                    >
+                        {alertType && (
+                            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[11px] mb-1.5 text-primary">
+                                <Info className="h-3.5 w-3.5" />
+                                <span>{alertType}</span>
+                            </div>
+                        )}
+                        {displayLines.map((ql, qIdx) => (
+                            <p key={`qp-${qIdx}`} className="my-1 leading-relaxed text-foreground/90">
+                                {renderInlineWithCitations(ql)}
+                            </p>
+                        ))}
+                    </div>
                 );
                 continue;
             }
@@ -218,18 +380,30 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
             if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
                 const itemText = line.trim().slice(2);
                 result.push(
-                    <li key={`li-${i}`} className="ml-4 list-disc text-xs leading-relaxed text-foreground my-0.5">
+                    <li key={`li-${i}`} className="ml-4 list-disc text-xs leading-relaxed text-foreground/90 my-1">
                         {renderInlineWithCitations(itemText)}
                     </li>
                 );
                 continue;
             }
 
-            // Numbered list item
+            // Numbered list item & Category header fallback
             const numMatch = line.trim().match(/^(\d+)\.\s+(.*)/);
             if (numMatch) {
+                const text = numMatch[2].trim();
+                if (text.length > 3 && text === text.toUpperCase() && !text.includes(':') && !text.endsWith('.')) {
+                    result.push(
+                        <div key={`cat-h-${i}`} className="mt-4.5 mb-2 flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md bg-primary/15 text-primary text-[10px] font-mono font-bold uppercase tracking-wider border border-primary/25">
+                                {numMatch[1]}
+                            </span>
+                            <h3 className="text-xs font-heading font-bold text-foreground tracking-wide uppercase">{renderInlineWithCitations(text)}</h3>
+                        </div>
+                    );
+                    continue;
+                }
                 result.push(
-                    <li key={`ol-${i}`} className="ml-4 list-decimal text-xs leading-relaxed text-foreground my-0.5">
+                    <li key={`ol-${i}`} className="ml-4 list-decimal text-xs leading-relaxed text-foreground/90 my-1">
                         {renderInlineWithCitations(numMatch[2])}
                     </li>
                 );
@@ -238,13 +412,13 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
 
             // Empty line
             if (!line.trim()) {
-                result.push(<div key={`empty-${i}`} className="h-1.5" />);
+                result.push(<div key={`empty-${i}`} className="h-2" />);
                 continue;
             }
 
             // Standard paragraph
             result.push(
-                <p key={`p-${i}`} className="text-xs leading-relaxed text-foreground my-1">
+                <p key={`p-${i}`} className="text-xs leading-relaxed text-foreground/90 my-1.5">
                     {renderInlineWithCitations(line)}
                 </p>
             );
@@ -274,7 +448,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
     }, [content, isDark, renderInlineWithCitations]);
 
     return (
-        <div className={`markdown-content space-y-1 ${className}`}>
+        <div className={`markdown-content space-y-2.5 text-xs leading-relaxed ${className}`}>
             {blocks}
             {isStreaming && (
                 <span
