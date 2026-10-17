@@ -56,7 +56,7 @@ export function ObservabilityPanel({ metrics, logs, currentNode, plan = [], refl
         <aside
             role="complementary"
             aria-label="Agent Telemetry & Observability"
-            className={cn('w-full xl:w-80 lg:w-88 bg-card border-l border-border flex flex-col shrink-0 overflow-y-auto p-4 space-y-4', className)}
+            className={cn('w-full xl:w-72 lg:w-80 bg-card border-l border-border flex flex-col shrink-0 overflow-y-auto p-4 space-y-4', className)}
         >
             {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-border">

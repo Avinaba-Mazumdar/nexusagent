@@ -7,6 +7,8 @@ import {
     Activity,
     Bot,
     Briefcase,
+    ChevronDown,
+    ChevronRight,
     Database,
     FileText,
     KeyRound,
@@ -15,10 +17,11 @@ import {
     LogOut,
     MessageSquare,
     Moon,
-    Menu,
+    Plus,
     Send,
     Sparkles,
     Sun,
+    Terminal,
     UploadCloud
 } from 'lucide-react';
 import { NexusLogo } from '@/components/icons';
@@ -31,15 +34,15 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { useAuthStore } from '@/lib/auth-store';
-import { API_BASE } from '@/lib/api-client';
+import { API_BASE, apiClient } from '@/lib/api-client';
 import { HireMeModal } from '@/components/hire-me-modal';
 import { ObservabilityPanel, type LogEntry, type TelemetryMetrics } from '@/components/observability-panel';
 import { useAgentStream } from '@/hooks/useAgentStream';
 import { MarkdownRenderer } from '@/components/canvas';
 import { McpInspector } from '@/components/mcp';
 import { ApprovalModal } from '@/components/approval';
-import { ChatHistorySidebar } from '@/components/chat-history';
-import type { Citation, ChatMessageRecord } from '@nexusagent/contracts';
+import { SidebarChatHistory } from '@/components/sidebar';
+import type { Citation, ChatMessageRecord, ChatConversation, ChatHistoryResponse, ChatConversationDetailResponse } from '@nexusagent/contracts';
 
 interface ChatItem {
     id: string;
@@ -64,10 +67,26 @@ export default function Home() {
     const [hireMeModalOpen, setHireMeModalOpen] = React.useState(false);
     const [seededDocs, setSeededDocs] = React.useState<SeededDoc[]>([]);
     const [messages, setMessages] = React.useState<ChatItem[]>([]);
-    const [isHistoryOpen, setIsHistoryOpen] = React.useState(false);
     const [activeSessionId, setActiveSessionId] = React.useState<string | null>(null);
     const [mobileActiveTab, setMobileActiveTab] = React.useState<'workspace' | 'chat' | 'observability'>('chat');
     const [selectedCitationDoc, setSelectedCitationDoc] = React.useState<string | null>(null);
+
+    const [openCategories, setOpenCategories] = React.useState<{
+        documents: boolean;
+        chats: boolean;
+        mcp: boolean;
+    }>({
+        documents: true,
+        chats: true,
+        mcp: false
+    });
+
+    const toggleCategory = React.useCallback((category: 'documents' | 'chats' | 'mcp') => {
+        setOpenCategories((prev) => ({
+            ...prev,
+            [category]: !prev[category]
+        }));
+    }, []);
 
     const [metrics, setMetrics] = React.useState<TelemetryMetrics>({
         activeModel: 'gemini-2.5-flash',
@@ -109,7 +128,6 @@ export default function Home() {
         setIsGoogleLoading,
         error,
         byokKey,
-        byokProvider,
         loginGuest,
         loginGoogle,
         logout,
@@ -119,9 +137,98 @@ export default function Home() {
 
     const isGoogleUser = Boolean(user && !user.isGuest);
 
-    const handleCloseHistory = React.useCallback(() => {
-        setIsHistoryOpen(false);
+    const storageKey = React.useMemo(() => `nexusagent_chat_history_${user?.id || 'anonymous'}`, [user?.id]);
+    const [conversations, setConversations] = React.useState<ChatConversation[]>(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            const cached = localStorage.getItem(`nexusagent_chat_history_${user?.id || 'anonymous'}`);
+            return cached ? JSON.parse(cached) : [];
+        } catch {
+            return [];
+        }
+    });
+    const [isLoadingConversations, setIsLoadingConversations] = React.useState(false);
+    const [chatSearchQuery, setChatSearchQuery] = React.useState('');
+    const inFlightConversationsRef = React.useRef(false);
+    const lastFetchConversationsRef = React.useRef<number>(0);
+    const memoryMessageCache = React.useRef(new Map<string, ChatMessageRecord[]>());
+
+    const prefetchMessages = React.useCallback((convId: string) => {
+        if (memoryMessageCache.current.has(convId)) return;
+        try {
+            const cached = localStorage.getItem(`nexusagent_msgs_${convId}`);
+            if (cached) {
+                memoryMessageCache.current.set(convId, JSON.parse(cached));
+                return;
+            }
+        } catch {
+            // Ignore
+        }
+
+        apiClient<ChatConversationDetailResponse>(`/api/chat/history/${convId}`)
+            .then((detail) => {
+                if (detail?.messages) {
+                    memoryMessageCache.current.set(convId, detail.messages);
+                    try {
+                        localStorage.setItem(`nexusagent_msgs_${convId}`, JSON.stringify(detail.messages));
+                    } catch {
+                        // Ignore
+                    }
+                }
+            })
+            .catch(() => {
+                // Silently ignore
+            });
     }, []);
+
+    const loadConversations = React.useCallback(
+        async (force = false) => {
+            if (!isGoogleUser || inFlightConversationsRef.current) return;
+            const now = Date.now();
+            if (!force && now - lastFetchConversationsRef.current < 8000) return;
+
+            inFlightConversationsRef.current = true;
+            try {
+                const cached = localStorage.getItem(storageKey);
+                if (cached) {
+                    setConversations((prev) => (prev.length === 0 ? JSON.parse(cached) : prev));
+                }
+            } catch {
+                // Ignore
+            }
+
+            try {
+                const data = await apiClient<ChatHistoryResponse>('/api/chat/history');
+                if (data?.conversations) {
+                    lastFetchConversationsRef.current = Date.now();
+                    setConversations(data.conversations);
+                    try {
+                        localStorage.setItem(storageKey, JSON.stringify(data.conversations));
+                    } catch {
+                        // Ignore quota
+                    }
+
+                    data.conversations.slice(0, 5).forEach((conv) => {
+                        prefetchMessages(conv.id);
+                    });
+                }
+            } catch {
+                // Fallback to local cache
+            } finally {
+                inFlightConversationsRef.current = false;
+                setIsLoadingConversations(false);
+            }
+        },
+        [isGoogleUser, storageKey, prefetchMessages]
+    );
+
+    React.useEffect(() => {
+        if (isGoogleUser) {
+            loadConversations();
+        } else {
+            setConversations([]);
+        }
+    }, [isGoogleUser, loadConversations]);
 
     const handleSelectConversation = React.useCallback((conversationId: string, _title: string, historyMessages?: ChatMessageRecord[], isLoading?: boolean) => {
         setActiveSessionId(conversationId);
@@ -142,6 +249,70 @@ export default function Home() {
         setActiveSessionId(null);
         setMessages([]);
     }, []);
+
+    const handleSelectConversationItem = React.useCallback(
+        (conv: ChatConversation) => {
+            let initialMessages: ChatMessageRecord[] | undefined = memoryMessageCache.current.get(conv.id);
+            if (!initialMessages) {
+                try {
+                    const cached = localStorage.getItem(`nexusagent_msgs_${conv.id}`);
+                    if (cached) {
+                        initialMessages = JSON.parse(cached);
+                        if (initialMessages) memoryMessageCache.current.set(conv.id, initialMessages);
+                    }
+                } catch {
+                    // Ignore
+                }
+            }
+
+            const hasCached = Boolean(initialMessages && initialMessages.length > 0);
+            handleSelectConversation(conv.id, conv.title, initialMessages, !hasCached);
+
+            apiClient<ChatConversationDetailResponse>(`/api/chat/history/${conv.id}`)
+                .then((detail) => {
+                    if (detail?.messages) {
+                        memoryMessageCache.current.set(conv.id, detail.messages);
+                        try {
+                            localStorage.setItem(`nexusagent_msgs_${conv.id}`, JSON.stringify(detail.messages));
+                        } catch {
+                            // Ignore
+                        }
+                        handleSelectConversation(conv.id, conv.title, detail.messages, false);
+                    }
+                })
+                .catch(() => {
+                    // Ignore
+                });
+        },
+        [handleSelectConversation]
+    );
+
+    const handleDeleteConversation = React.useCallback(
+        (e: React.MouseEvent, convId: string) => {
+            e.stopPropagation();
+            memoryMessageCache.current.delete(convId);
+
+            setConversations((prev) => {
+                const updated = prev.filter((c) => c.id !== convId);
+                try {
+                    localStorage.setItem(storageKey, JSON.stringify(updated));
+                    localStorage.removeItem(`nexusagent_msgs_${convId}`);
+                } catch {
+                    // Ignore
+                }
+                return updated;
+            });
+
+            if (activeSessionId === convId) {
+                handleNewChat();
+            }
+
+            apiClient(`/api/chat/history/${convId}`, { method: 'DELETE' }).catch(() => {
+                // Background fail
+            });
+        },
+        [storageKey, activeSessionId, handleNewChat]
+    );
 
     const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
@@ -303,6 +474,36 @@ export default function Home() {
             const currentSessionId = result?.sessionId || activeSessionId;
             if (result?.sessionId && !activeSessionId) {
                 setActiveSessionId(result.sessionId);
+            }
+
+            if (currentSessionId && isGoogleUser) {
+                setConversations((prev) => {
+                    const existing = prev.find((c) => c.id === currentSessionId);
+                    const updatedItem: ChatConversation = existing
+                        ? {
+                              ...existing,
+                              lastSnippet: query,
+                              messageCount: (existing.messageCount || 0) + 2,
+                              createdAt: new Date().toISOString()
+                          }
+                        : {
+                              id: currentSessionId,
+                              userId: user?.id || '',
+                              title: query.slice(0, 45) + (query.length > 45 ? '...' : ''),
+                              createdAt: new Date().toISOString(),
+                              messageCount: 2,
+                              lastSnippet: query
+                          };
+                    const filtered = prev.filter((c) => c.id !== currentSessionId);
+                    const nextList = [updatedItem, ...filtered];
+                    try {
+                        localStorage.setItem(storageKey, JSON.stringify(nextList));
+                    } catch {
+                        // Ignore
+                    }
+                    return nextList;
+                });
+                void loadConversations(true);
             }
 
             if (result?.response) {
@@ -655,139 +856,212 @@ export default function Home() {
                 <aside
                     role="complementary"
                     aria-label="Workspace & Tools"
-                    className={`w-full xl:w-80 2xl:w-88 bg-card border-r border-border flex-col shrink-0 overflow-y-auto p-4 space-y-4 ${
+                    className={`w-full xl:w-72 2xl:w-80 bg-card border-r border-border flex flex-col shrink-0 h-full overflow-hidden ${
                         mobileActiveTab === 'workspace' ? 'flex' : 'hidden xl:flex'
                     }`}
                 >
-                    <div className="flex items-center justify-between pb-2 border-b border-border">
+                    <div className="flex items-center justify-between p-3.5 pb-2.5 border-b border-border shrink-0">
                         <h2 className="flex items-center gap-1.5 text-xs font-heading font-bold text-foreground">
                             <Database className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                             <span>Workspace &amp; Tools</span>
                         </h2>
                     </div>
 
-                    {/* Document Vault with Seeded Documents */}
-                    <Card className="shadow-2xs border-border">
-                        <CardHeader className="p-3 pb-2">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-xs font-heading">Document Vault</CardTitle>
-                                <Badge variant="soft" className="text-[10px] font-mono">
-                                    {seededDocs.length} Seeded
-                                </Badge>
-                            </div>
-                            <CardDescription className="text-xs text-muted-foreground">Pre-indexed AI benchmarks (Neon pgvector)</CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-0 space-y-2">
-                            <div className="space-y-1.5 max-h-35 overflow-y-auto">
-                                {seededDocs.map((doc) => {
-                                    const isSelected = Boolean(selectedCitationDoc && doc.filename.toLowerCase().includes(selectedCitationDoc.toLowerCase()));
-                                    return (
-                                        <div
-                                            key={doc.id}
-                                            className={`flex items-center justify-between p-2 rounded-lg border text-[11px] transition-all ${
-                                                isSelected ? 'bg-primary/15 border-primary shadow-xs ring-1 ring-primary' : 'bg-secondary/40 border-border/70'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-1.5 truncate">
-                                                <FileText className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-primary font-bold' : 'text-primary'}`} />
-                                                <span className={`truncate font-mono ${isSelected ? 'text-primary font-bold' : 'text-foreground'}`}>
-                                                    {doc.filename}
-                                                </span>
-                                            </div>
-                                            {isSelected ? (
-                                                <Badge variant="default" className="text-[9px] px-1 py-0 shrink-0 font-mono">
-                                                    Source
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="text-[9px] px-1 py-0 shrink-0">
-                                                    {doc.total_chunks} chunks
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Hidden native file input for Markdown documents */}
-                            {/* Document Upload Button */}
-                            <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => setHireMeModalOpen(true)}
-                                className="w-full justify-center gap-1.5 text-xs font-bold rounded-xl mt-2 shadow-2xs h-9 cursor-pointer"
-                            >
-                                <UploadCloud className="h-3.5 w-3.5" />
-                                <span>Upload Markdown (.md)</span>
-                            </Button>
-
-                            {/* Lead Magnet Link */}
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0">
+                        {/* a. Documents Collapsible Category */}
+                        <div className="rounded-xl border border-border/70 bg-card overflow-hidden shadow-2xs">
                             <button
                                 type="button"
-                                onClick={() => setHireMeModalOpen(true)}
-                                className="w-full text-center text-[10px] text-muted-foreground hover:text-primary transition-colors cursor-pointer pt-0.5"
+                                onClick={() => toggleCategory('documents')}
+                                aria-expanded={openCategories.documents}
+                                aria-controls="category-documents-content"
+                                className="w-full h-10 px-3 flex items-center justify-between text-xs font-medium text-foreground hover:bg-secondary/50 transition-colors cursor-pointer select-none"
                             >
-                                Need custom ETL pipelines? Inquire with author &rarr;
-                            </button>
-                        </CardContent>
-                    </Card>
-
-                    <McpInspector apiBase={API_BASE} authToken={token} />
-
-                    <div className="pt-2 pb-1 text-center text-[10px] text-muted-foreground flex items-center justify-center gap-2.5">
-                        <Link href="/privacy" className="hover:text-primary transition-colors">
-                            Privacy
-                        </Link>
-                        <span>•</span>
-                        <Link href="/terms" className="hover:text-primary transition-colors">
-                            Terms
-                        </Link>
-                        <span>•</span>
-                        <span className="font-mono">nexusagent.avinaba.com</span>
-                    </div>
-                </aside>
-
-                {/* 3. Synthesis Canvas (Center) */}
-                <main
-                    role="main"
-                    aria-label="Active Synthesis Canvas"
-                    className={`relative flex-1 flex-col overflow-hidden bg-background ${mobileActiveTab === 'chat' ? 'flex' : 'hidden xl:flex'}`}
-                >
-                    {/* Slide-over sidebar for Google Auth users */}
-                    <ChatHistorySidebar
-                        isOpen={isHistoryOpen}
-                        onClose={handleCloseHistory}
-                        activeSessionId={activeSessionId}
-                        onSelectConversation={handleSelectConversation}
-                        onNewChat={handleNewChat}
-                        isGoogleUser={isGoogleUser}
-                        userId={user?.id}
-                    />
-
-                    <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
-                        <div className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-2.5 shadow-2xs">
-                            <div className="flex items-center gap-2 text-xs">
-                                {isGoogleUser && (
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        onClick={() => setIsHistoryOpen((prev) => !prev)}
-                                        aria-label="Toggle chat history"
-                                        title="Toggle chat history"
-                                        className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer -ml-1 mr-0.5"
-                                    >
-                                        <Menu className="h-4 w-4" />
-                                    </Button>
+                                <div className="flex items-center gap-2">
+                                    <FileText className="h-3.5 w-3.5 text-primary" />
+                                    <span className="font-heading font-semibold text-xs text-foreground">Documents</span>
+                                    <Badge variant="soft" className="text-[10px] font-mono py-0 px-1.5">
+                                        {seededDocs.length}
+                                    </Badge>
+                                </div>
+                                {openCategories.documents ? (
+                                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                ) : (
+                                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                                 )}
-                                <span className="font-bold text-foreground">Synthesis Canvas</span>
-                                <Badge variant="soft">Ready</Badge>
-                            </div>
-                            {byokKey && (
-                                <Badge variant="outline" className="text-[10px] text-primary border-primary/40 font-mono">
-                                    BYOK: {byokProvider.toUpperCase()}
-                                </Badge>
+                            </button>
+                            {openCategories.documents && (
+                                <div id="category-documents-content" className="p-3 pt-1 border-t border-border/50 space-y-2">
+                                    <p className="text-[11px] text-muted-foreground">Pre-indexed AI benchmarks (Neon pgvector)</p>
+                                    <div className="space-y-1.5 max-h-35 overflow-y-auto">
+                                        {seededDocs.map((doc) => {
+                                            const isSelected = Boolean(
+                                                selectedCitationDoc && doc.filename.toLowerCase().includes(selectedCitationDoc.toLowerCase())
+                                            );
+                                            return (
+                                                <div
+                                                    key={doc.id}
+                                                    className={`flex items-center justify-between p-2 rounded-lg border text-[11px] transition-all ${
+                                                        isSelected
+                                                            ? 'bg-primary/15 border-primary shadow-xs ring-1 ring-primary'
+                                                            : 'bg-secondary/40 border-border/70'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-1.5 truncate">
+                                                        <FileText
+                                                            className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-primary font-bold' : 'text-primary'}`}
+                                                        />
+                                                        <span className={`truncate font-mono ${isSelected ? 'text-primary font-bold' : 'text-foreground'}`}>
+                                                            {doc.filename}
+                                                        </span>
+                                                    </div>
+                                                    {isSelected ? (
+                                                        <Badge variant="default" className="text-[9px] px-1 py-0 shrink-0 font-mono">
+                                                            Source
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-[9px] px-1 py-0 shrink-0">
+                                                            {doc.total_chunks} chunks
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Document Upload Button */}
+                                    <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => setHireMeModalOpen(true)}
+                                        className="w-full justify-center gap-1.5 text-xs font-bold rounded-xl mt-2 shadow-2xs h-9 cursor-pointer"
+                                    >
+                                        <UploadCloud className="h-3.5 w-3.5" />
+                                        <span>Upload Markdown (.md)</span>
+                                    </Button>
+
+                                    {/* Lead Magnet Link */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setHireMeModalOpen(true)}
+                                        className="w-full text-center text-[10px] text-muted-foreground hover:text-primary transition-colors cursor-pointer pt-0.5"
+                                    >
+                                        Need custom ETL pipelines? Inquire with author &rarr;
+                                    </button>
+                                </div>
                             )}
                         </div>
 
+                        {/* b. Chats Collapsible Category */}
+                        <div className="rounded-xl border border-border/70 bg-card overflow-hidden shadow-2xs">
+                            <button
+                                type="button"
+                                onClick={() => toggleCategory('chats')}
+                                aria-expanded={openCategories.chats}
+                                aria-controls="category-chats-content"
+                                className="w-full h-10 px-3 flex items-center justify-between text-xs font-medium text-foreground hover:bg-secondary/50 transition-colors cursor-pointer select-none"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                                    <span className="font-heading font-semibold text-xs text-foreground">Chats</span>
+                                    {isGoogleUser && conversations.length > 0 && (
+                                        <Badge variant="soft" className="text-[10px] font-mono py-0 px-1.5">
+                                            {conversations.length}
+                                        </Badge>
+                                    )}
+                                </div>
+                                {openCategories.chats ? (
+                                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                ) : (
+                                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                            </button>
+
+                            {openCategories.chats && (
+                                <div id="category-chats-content" className="p-2.5 pt-1 border-t border-border/50">
+                                    <SidebarChatHistory
+                                        isGoogleUser={isGoogleUser}
+                                        activeSessionId={activeSessionId}
+                                        conversations={conversations}
+                                        isLoading={isLoadingConversations}
+                                        searchQuery={chatSearchQuery}
+                                        onSearchChange={setChatSearchQuery}
+                                        onSelectConversation={handleSelectConversationItem}
+                                        onDeleteConversation={handleDeleteConversation}
+                                        onPrefetchConversation={prefetchMessages}
+                                        onOpenSignIn={() => setDialogOpen(true)}
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* c. MCP Collapsible Category */}
+                        <div className="rounded-xl border border-border/70 bg-card overflow-hidden shadow-2xs">
+                            <button
+                                type="button"
+                                onClick={() => toggleCategory('mcp')}
+                                aria-expanded={openCategories.mcp}
+                                aria-controls="category-mcp-content"
+                                className="w-full h-10 px-3 flex items-center justify-between text-xs font-medium text-foreground hover:bg-secondary/50 transition-colors cursor-pointer select-none"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Terminal className="h-3.5 w-3.5 text-primary" />
+                                    <span className="font-heading font-semibold text-xs text-foreground">MCP Protocol</span>
+                                    <Badge variant="soft" className="text-[9px] font-mono py-0 px-1.5">
+                                        v2
+                                    </Badge>
+                                </div>
+                                {openCategories.mcp ? (
+                                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                ) : (
+                                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                            </button>
+                            {openCategories.mcp && (
+                                <div id="category-mcp-content" className="p-1 pt-0 border-t border-border/50">
+                                    <McpInspector apiBase={API_BASE} authToken={token} />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* d. Bottom Footer (always on bottom) */}
+                    <div className="shrink-0 p-3 border-t border-border bg-card/80 text-[11px] text-muted-foreground flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Link href="/privacy" className="hover:text-primary transition-colors">
+                                Privacy Policy
+                            </Link>
+                            <span>•</span>
+                            <Link href="/terms" className="hover:text-primary transition-colors">
+                                Terms
+                            </Link>
+                        </div>
+                        <span className="font-mono text-[10px] text-muted-foreground/75">nexusagent.avinaba.com</span>
+                    </div>
+                </aside>
+
+                {/* 3. Active Chat Canvas (Center) */}
+                <main
+                    role="main"
+                    aria-label="Active Chat Canvas"
+                    className={`relative flex-1 flex-col overflow-hidden bg-background ${mobileActiveTab === 'chat' ? 'flex' : 'hidden xl:flex'}`}
+                >
+                    {/* Floating New Chat Action Button */}
+                    <div className="absolute top-4 right-4 z-20">
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleNewChat}
+                            title="Start New Chat"
+                            aria-label="New Chat"
+                            className="h-9 px-3 rounded-xl border border-border/80 bg-card/90 hover:bg-secondary text-foreground shadow-sm backdrop-blur-xs flex items-center gap-1.5 font-medium text-xs cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                            <Plus className="h-3.5 w-3.5 text-primary" />
+                            <span>New Chat</span>
+                        </Button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
                         {/* Quota Depleted Lead Magnet Alert */}
                         {!byokKey && quotaRemaining <= 0 && (
                             <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">

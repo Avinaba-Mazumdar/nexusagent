@@ -19,14 +19,14 @@ describe('Home Page - Layout and Header Controls', () => {
         expect(screen.getByText('NexusAgent')).toBeInTheDocument();
         expect(screen.queryByText('v0.1.0')).not.toBeInTheDocument();
         expect(screen.queryByText(/quota/i)).not.toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^sign in$/i })).toBeInTheDocument();
 
         // 2. Workspace Panel
         expect(screen.getByRole('complementary', { name: /workspace & tools/i })).toBeInTheDocument();
         expect(screen.queryByText('Zone 1')).not.toBeInTheDocument();
 
-        // 3. Synthesis Canvas
-        expect(screen.getByRole('main', { name: /active synthesis canvas/i })).toBeInTheDocument();
+        // 3. Active Chat Canvas
+        expect(screen.getByRole('main', { name: /active chat canvas/i })).toBeInTheDocument();
         expect(screen.queryByText('Zone 2')).not.toBeInTheDocument();
 
         // 4. Observability Panel
@@ -38,7 +38,7 @@ describe('Home Page - Layout and Header Controls', () => {
         const user = userEvent.setup();
         render(<Home />);
 
-        const signInButton = screen.getByRole('button', { name: /sign in/i });
+        const signInButton = screen.getByRole('button', { name: /^sign in$/i });
         await user.click(signInButton);
 
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe('Home Page - Layout and Header Controls', () => {
         render(<Home />);
 
         // Open Dialog
-        const signInButton = screen.getByRole('button', { name: /sign in/i });
+        const signInButton = screen.getByRole('button', { name: /^sign in$/i });
         await user.click(signInButton);
 
         // Click Guest Sign In
@@ -96,14 +96,15 @@ describe('Home Page - Layout and Header Controls', () => {
         expect(await screen.findByText('Guest Architect #111111')).toBeInTheDocument();
         expect(screen.getByText('5/5 Quota')).toBeInTheDocument();
 
-        // Chat history hamburger is absent for guest users
+        // Left sidebar Chats category prompts guest user to sign in
+        expect(screen.getByText('Sign in to save chat history')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /toggle chat history/i })).not.toBeInTheDocument();
 
         // Sign out restores Sign In button
         const signOutButton = screen.getByRole('button', { name: /sign out/i });
         await user.click(signOutButton);
 
-        expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: /^sign in$/i })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /user profile menu/i })).not.toBeInTheDocument();
 
         global.fetch = originalFetch;
@@ -135,7 +136,7 @@ describe('Home Page - Layout and Header Controls', () => {
         render(<Home />);
 
         // Open Dialog
-        await user.click(screen.getByRole('button', { name: /sign in/i }));
+        await user.click(screen.getByRole('button', { name: /^sign in$/i }));
 
         // Click Google Sign In
         await user.click(screen.getByRole('button', { name: /continue with google/i }));
@@ -147,13 +148,10 @@ describe('Home Page - Layout and Header Controls', () => {
         // Verify cookie persistence
         expect(document.cookie).toContain('nexusagent_token=google.jwt.token');
 
-        // Chat history hamburger is visible only for Google auth users
-        const hamburgerBtn = screen.getByRole('button', { name: /toggle chat history/i });
-        expect(hamburgerBtn).toBeInTheDocument();
-
-        // Clicking hamburger opens the slide-over history drawer
-        await user.click(hamburgerBtn);
-        expect(screen.getByRole('complementary', { name: /chat history and search/i })).toBeInTheDocument();
+        // Collapsible Chats category displays search input and new chat button in sidebar
+        expect(await screen.findByRole('searchbox', { name: /search conversation history/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /new chat/i })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /toggle chat history/i })).not.toBeInTheDocument();
 
         global.fetch = originalFetch;
     });
@@ -188,7 +186,7 @@ describe('Home Page - Layout and Header Controls', () => {
         render(<Home />);
 
         // Login guest
-        await user.click(screen.getByRole('button', { name: /sign in/i }));
+        await user.click(screen.getByRole('button', { name: /^sign in$/i }));
         await user.click(screen.getByRole('button', { name: /start as guest/i }));
 
         // Open profile popover
@@ -238,7 +236,7 @@ describe('Home Page - Layout and Header Controls', () => {
         render(<Home />);
 
         // Should revert to logged-out state with Sign In button visible
-        expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: /^sign in$/i })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /user profile menu/i })).not.toBeInTheDocument();
         expect(localStorage.getItem('nexusagent_token')).toBeNull();
 

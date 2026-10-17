@@ -1,2 +1,2 @@
-export { ChatHistorySidebar } from './ChatHistorySidebar';
-export type { ChatHistorySidebarProps } from './ChatHistorySidebar';
+// Deprecated: Chat History has moved into the left sidebar collapsible "Chats" category.
+export * from '../sidebar';

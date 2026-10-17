@@ -1,68 +1,80 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { ChatHistorySidebar } from './ChatHistorySidebar';
+import { SidebarChatHistory } from '@/components/sidebar/SidebarChatHistory';
 
-describe('ChatHistorySidebar Component', () => {
+describe('SidebarChatHistory Component', () => {
     beforeEach(() => {
         localStorage.clear();
         vi.restoreAllMocks();
-        global.fetch = vi.fn().mockImplementation((url: string) => {
-            if (url.includes('/api/chat/history/')) {
-                return Promise.resolve({
-                    ok: true,
-                    json: async () => ({ conversation: { id: 'c1', title: 'LangGraph Flow' }, messages: [] })
-                } as unknown as Response);
-            }
-            return Promise.resolve({
-                ok: true,
-                json: async () => ({ conversations: [] })
-            } as unknown as Response);
-        });
     });
 
-    it('returns null when isGoogleUser is false', () => {
-        const { container } = render(
-            <ChatHistorySidebar isOpen={true} onClose={vi.fn()} onSelectConversation={vi.fn()} onNewChat={vi.fn()} isGoogleUser={false} />
-        );
-        expect(container.firstChild).toBeNull();
-    });
-
-    it('renders drawer header, new chat, and search input when isGoogleUser is true', () => {
-        render(<ChatHistorySidebar isOpen={true} onClose={vi.fn()} onSelectConversation={vi.fn()} onNewChat={vi.fn()} isGoogleUser={true} userId="user-123" />);
-
-        expect(screen.getByRole('heading', { name: /chat history/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /new chat/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /close history/i })).toBeInTheDocument();
-        expect(screen.getByRole('searchbox', { name: /search conversation history/i })).toBeInTheDocument();
-    });
-
-    it('calls onNewChat and onClose when new chat button is clicked', async () => {
-        const user = userEvent.setup();
-        const handleNewChat = vi.fn();
-        const handleClose = vi.fn();
-
+    it('shows sign-in prompt when isGoogleUser is false', () => {
         render(
-            <ChatHistorySidebar
-                isOpen={true}
-                onClose={handleClose}
+            <SidebarChatHistory
+                isGoogleUser={false}
+                conversations={[]}
+                isLoading={false}
+                searchQuery=""
+                onSearchChange={vi.fn()}
                 onSelectConversation={vi.fn()}
-                onNewChat={handleNewChat}
-                isGoogleUser={true}
-                userId="user-123"
+                onDeleteConversation={vi.fn()}
+                onOpenSignIn={vi.fn()}
+            />
+        );
+        expect(screen.getByText('Sign in to save chat history')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /sign in with google/i })).toBeInTheDocument();
+    });
+
+    it('calls onOpenSignIn when clicking sign in button in guest state', async () => {
+        const user = userEvent.setup();
+        const handleSignIn = vi.fn();
+        render(
+            <SidebarChatHistory
+                isGoogleUser={false}
+                conversations={[]}
+                isLoading={false}
+                searchQuery=""
+                onSearchChange={vi.fn()}
+                onSelectConversation={vi.fn()}
+                onDeleteConversation={vi.fn()}
+                onOpenSignIn={handleSignIn}
             />
         );
 
-        const newChatBtn = screen.getByRole('button', { name: /new chat/i });
-        await user.click(newChatBtn);
-
-        expect(handleNewChat).toHaveBeenCalledTimes(1);
-        expect(handleClose).toHaveBeenCalledTimes(1);
+        await user.click(screen.getByRole('button', { name: /sign in with google/i }));
+        expect(handleSignIn).toHaveBeenCalledTimes(1);
     });
 
-    it('filters cached conversations by title when typing in search input', async () => {
-        const user = userEvent.setup();
-        const cached = [
+    it('renders search input and conversation list when isGoogleUser is true', () => {
+        const mockConversations = [
+            {
+                id: 'c1',
+                userId: 'user-123',
+                title: 'Raft Consensus Protocol Verification',
+                createdAt: new Date().toISOString()
+            }
+        ];
+
+        render(
+            <SidebarChatHistory
+                isGoogleUser={true}
+                conversations={mockConversations}
+                isLoading={false}
+                searchQuery=""
+                onSearchChange={vi.fn()}
+                onSelectConversation={vi.fn()}
+                onDeleteConversation={vi.fn()}
+                onOpenSignIn={vi.fn()}
+            />
+        );
+
+        expect(screen.getByRole('searchbox', { name: /search conversation history/i })).toBeInTheDocument();
+        expect(screen.getByText('Raft Consensus Protocol Verification')).toBeInTheDocument();
+    });
+
+    it('filters conversations by search query', () => {
+        const mockConversations = [
             {
                 id: 'c1',
                 userId: 'user-123',
@@ -76,68 +88,92 @@ describe('ChatHistorySidebar Component', () => {
                 createdAt: new Date().toISOString()
             }
         ];
-        localStorage.setItem('nexusagent_chat_history_user-123', JSON.stringify(cached));
 
-        global.fetch = vi.fn().mockResolvedValue({
-            ok: true,
-            json: async () => ({ conversations: cached })
-        } as unknown as Response);
+        const { rerender } = render(
+            <SidebarChatHistory
+                isGoogleUser={true}
+                conversations={mockConversations}
+                isLoading={false}
+                searchQuery=""
+                onSearchChange={vi.fn()}
+                onSelectConversation={vi.fn()}
+                onDeleteConversation={vi.fn()}
+                onOpenSignIn={vi.fn()}
+            />
+        );
 
-        render(<ChatHistorySidebar isOpen={true} onClose={vi.fn()} onSelectConversation={vi.fn()} onNewChat={vi.fn()} isGoogleUser={true} userId="user-123" />);
-
-        expect(await screen.findByText('Raft Consensus Protocol Verification')).toBeInTheDocument();
+        expect(screen.getByText('Raft Consensus Protocol Verification')).toBeInTheDocument();
         expect(screen.getByText('PostgreSQL Vector Search Indexing')).toBeInTheDocument();
 
-        const searchInput = screen.getByRole('searchbox', { name: /search conversation history/i });
-        await user.type(searchInput, 'Raft');
+        rerender(
+            <SidebarChatHistory
+                isGoogleUser={true}
+                conversations={mockConversations}
+                isLoading={false}
+                searchQuery="Raft"
+                onSearchChange={vi.fn()}
+                onSelectConversation={vi.fn()}
+                onDeleteConversation={vi.fn()}
+                onOpenSignIn={vi.fn()}
+            />
+        );
 
         expect(screen.getByText('Raft Consensus Protocol Verification')).toBeInTheDocument();
         expect(screen.queryByText('PostgreSQL Vector Search Indexing')).not.toBeInTheDocument();
     });
 
-    it('triggers onSelectConversation when clicking an item', async () => {
+    it('triggers onSelectConversation when clicking a conversation item', async () => {
         const user = userEvent.setup();
         const handleSelect = vi.fn();
-        const handleClose = vi.fn();
-
-        const cached = [
-            {
-                id: 'c1',
-                userId: 'user-123',
-                title: 'LangGraph Orchestration Flow',
-                createdAt: new Date().toISOString()
-            }
-        ];
-        localStorage.setItem('nexusagent_chat_history_user-123', JSON.stringify(cached));
-
-        global.fetch = vi.fn().mockImplementation((url: string) => {
-            if (url.includes('/api/chat/history/c1')) {
-                return Promise.resolve({
-                    ok: true,
-                    json: async () => ({ conversation: cached[0], messages: [] })
-                } as unknown as Response);
-            }
-            return Promise.resolve({
-                ok: true,
-                json: async () => ({ conversations: cached })
-            } as unknown as Response);
-        });
+        const conv = {
+            id: 'c1',
+            userId: 'user-123',
+            title: 'Neural Architecture Search',
+            createdAt: new Date().toISOString()
+        };
 
         render(
-            <ChatHistorySidebar
-                isOpen={true}
-                onClose={handleClose}
-                onSelectConversation={handleSelect}
-                onNewChat={vi.fn()}
+            <SidebarChatHistory
                 isGoogleUser={true}
-                userId="user-123"
+                conversations={[conv]}
+                isLoading={false}
+                searchQuery=""
+                onSearchChange={vi.fn()}
+                onSelectConversation={handleSelect}
+                onDeleteConversation={vi.fn()}
+                onOpenSignIn={vi.fn()}
             />
         );
 
-        const convItem = await screen.findByText('LangGraph Orchestration Flow');
-        await user.click(convItem);
+        await user.click(screen.getByText('Neural Architecture Search'));
+        expect(handleSelect).toHaveBeenCalledWith(conv);
+    });
 
-        expect(handleSelect).toHaveBeenCalledWith('c1', 'LangGraph Orchestration Flow', expect.any(Array), expect.any(Boolean));
-        expect(handleClose).toHaveBeenCalledTimes(1);
+    it('triggers onDeleteConversation when clicking delete button', async () => {
+        const user = userEvent.setup();
+        const handleDelete = vi.fn();
+        const conv = {
+            id: 'c1',
+            userId: 'user-123',
+            title: 'Neural Architecture Search',
+            createdAt: new Date().toISOString()
+        };
+
+        render(
+            <SidebarChatHistory
+                isGoogleUser={true}
+                conversations={[conv]}
+                isLoading={false}
+                searchQuery=""
+                onSearchChange={vi.fn()}
+                onSelectConversation={vi.fn()}
+                onDeleteConversation={handleDelete}
+                onOpenSignIn={vi.fn()}
+            />
+        );
+
+        const deleteBtn = screen.getByRole('button', { name: /delete conversation/i });
+        await user.click(deleteBtn);
+        expect(handleDelete).toHaveBeenCalledTimes(1);
     });
 });
