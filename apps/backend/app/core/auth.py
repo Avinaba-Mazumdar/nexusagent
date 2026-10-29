@@ -1,9 +1,9 @@
+import asyncio
 import hashlib
 import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-import httpx
 import jwt
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -247,38 +247,45 @@ async def issue_guest_pass(
     )
 
 
+GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
+GOOGLE_ISSUERS = ["accounts.google.com", "https://accounts.google.com"]
+
+# Google's signing keys, cached for an hour; ID tokens are verified locally against them.
+_google_jwks = jwt.PyJWKClient(GOOGLE_JWKS_URL, cache_keys=True, lifespan=3600)
+
+
+def _google_unauthorized(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 async def verify_google_token(credential: str) -> dict:
-    """Verify Google ID token (credential) via Google tokeninfo endpoint."""
-    url = "https://oauth2.googleapis.com/tokeninfo"
+    """Verify a Google ID token's signature, audience, issuer and expiry; return the profile."""
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, data={"id_token": credential})
-            if resp.status_code != 200:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid or expired Google credential",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            info = resp.json()
-    except httpx.RequestError as exc:
-        logger.warning("Google authentication service unreachable: %s", exc)
+        signing_key = await asyncio.to_thread(_google_jwks.get_signing_key_from_jwt, credential)
+        info = jwt.decode(
+            credential,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=settings.GOOGLE_CLIENT_ID,
+            issuer=GOOGLE_ISSUERS,
+            options={"require": ["exp", "iat", "aud", "iss", "sub"]},
+        )
+    except jwt.PyJWKClientConnectionError as exc:
+        logger.warning("Google signing keys unreachable: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Google authentication service unreachable",
-        )
-
-    if not settings.GOOGLE_CLIENT_ID or info.get("aud") != settings.GOOGLE_CLIENT_ID:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Google token audience mismatch",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if info.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Google token issuer mismatch",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc
+    except jwt.InvalidAudienceError as exc:
+        raise _google_unauthorized("Google token audience mismatch") from exc
+    except jwt.InvalidIssuerError as exc:
+        raise _google_unauthorized("Google token issuer mismatch") from exc
+    except jwt.PyJWTError as exc:
+        raise _google_unauthorized("Invalid or expired Google credential") from exc
 
     email = info.get("email")
     if not email:
@@ -286,9 +293,7 @@ async def verify_google_token(credential: str) -> dict:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Google profile does not contain an email address",
         )
-
-    email_verified = info.get("email_verified")
-    if str(email_verified).lower() not in ("true", "1"):
+    if str(info.get("email_verified")).lower() not in ("true", "1"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Google email address has not been verified",
@@ -298,5 +303,5 @@ async def verify_google_token(credential: str) -> dict:
         "email": email,
         "name": info.get("name") or email.split("@")[0],
         "picture": info.get("picture"),
-        "sub": info.get("sub"),
+        "sub": info["sub"],
     }

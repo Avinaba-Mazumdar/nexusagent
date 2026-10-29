@@ -379,3 +379,37 @@ async def test_429_retry_after_reflects_actual_reset_time():
         await TokenBucketLimiter(db=db).check_and_consume(uid, "203.0.113.7", is_guest=False)
     retry_after = int(exc_info.value.headers["Retry-After"])
     assert 14 * 60 <= retry_after <= 15 * 60
+
+
+@pytest.mark.asyncio
+async def test_prune_audit_logs_uses_retention_switch_and_validates_input():
+    """SEC-13: deleting audit rows goes through the transaction-local retention switch."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.db.neon import NeonDatabase
+
+    conn = AsyncMock()
+    conn.execute.side_effect = [None, "DELETE 7"]
+    conn.transaction = MagicMock()
+    conn.transaction.return_value.__aenter__ = AsyncMock()
+    conn.transaction.return_value.__aexit__ = AsyncMock(return_value=False)
+    acquire = MagicMock()
+    acquire.return_value.__aenter__ = AsyncMock(return_value=conn)
+    acquire.return_value.__aexit__ = AsyncMock(return_value=False)
+    db = NeonDatabase(dsn="x")
+    db.pool = MagicMock(acquire=acquire)
+
+    assert await db.prune_audit_logs(30) == 7
+    assert "nexusagent.audit_retention" in conn.execute.call_args_list[0].args[0]
+    with pytest.raises(ValueError):
+        await db.prune_audit_logs(0)
+
+
+def test_audit_migration_blocks_updates_and_unsanctioned_deletes():
+    """SEC-13: the append-only trigger migration exists and only whitelists FK cleanup + retention."""
+    from app.db.migrations import MIGRATIONS_DIR
+
+    sql = next(MIGRATIONS_DIR.glob("*audit_log_append_only.sql")).read_text(encoding="utf-8")
+    assert "BEFORE UPDATE OR DELETE ON tool_audit_logs" in sql
+    assert "nexusagent.audit_retention" in sql
+    assert "append-only" in sql

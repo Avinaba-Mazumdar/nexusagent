@@ -16,7 +16,13 @@ from app.core.auth import (
     user_to_session,
     verify_google_token,
 )
-from app.core.rate_limiter import default_rate_limiter, resets_at
+from app.core.rate_limiter import (
+    default_rate_limiter,
+    enforce_ip_limit,
+    google_auth_limiter,
+    refresh_limiter,
+    resets_at,
+)
 from app.db.models import (
     GoogleAuthRequest,
     GuestPassRequest,
@@ -49,10 +55,12 @@ async def google_auth(
     db: NeonDatabase = Depends(get_db),
 ):
     """Authenticate or register user via verified Google ID token."""
+    client_ip = get_client_ip(request)
+    enforce_ip_limit(google_auth_limiter, client_ip)
     google_profile = await verify_google_token(payload.credential)
 
-    client_ip = get_client_ip(request)
     user = await db.upsert_google_user(
+        google_sub=google_profile["sub"],
         email=google_profile["email"],
         name=google_profile["name"],
         avatar_url=google_profile.get("picture"),
@@ -118,6 +126,7 @@ async def logout(
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Security(security_bearer),
     current_user: User = Depends(get_current_user),
 ):
@@ -127,6 +136,7 @@ async def refresh_token(
         is_guest=current_user.is_guest,
     )
 
+    enforce_ip_limit(refresh_limiter, get_client_ip(request))
     payload = decode_access_token(credentials.credentials)
     auth_time = int(payload.get("auth_time", payload.get("iat", 0)))
     session_age = datetime.now(UTC) - datetime.fromtimestamp(auth_time, UTC)

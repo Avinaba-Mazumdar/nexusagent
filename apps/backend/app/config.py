@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     MAX_CHUNKS_PER_DOCUMENT: int = 400
     GUEST_SIGNUPS_PER_IP_PER_HOUR: int = 5
     GUEST_IP_QUOTA_PER_HOUR: int = 15
+    GOOGLE_AUTH_PER_IP_PER_HOUR: int = 20
+    REFRESH_PER_IP_PER_HOUR: int = 60
     # Rate-limit keying: enable only when behind a trusted reverse proxy that
     # overwrites X-Forwarded-For. Default keys quota on the socket IP so clients
     # cannot rotate quota by header spoofing.

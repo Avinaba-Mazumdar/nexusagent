@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NexusAgent Ephemeral Guest Session Cleanup (TTL Pruner).
+NexusAgent scheduled cleanup: expired guest sessions and old audit rows.
 Purges guest users older than specified TTL (default 24 hours).
 Foreign keys automatically cascade deletion to:
   - rate_limit_buckets
@@ -22,7 +22,6 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR / "apps" / "backend"))
 
-from app.config import settings
 from app.db.neon import neon_db
 
 logging.basicConfig(
@@ -40,6 +39,12 @@ async def main():
         default=24,
         help="TTL in hours. Guests older than this will be permanently purged (default: 24).",
     )
+    parser.add_argument(
+        "--audit-days",
+        type=int,
+        default=30,
+        help="Retention for tool_audit_logs in days (default: 30).",
+    )
     args = parser.parse_args()
 
     logger.info("Initializing Neon PostgreSQL connection pool...")
@@ -52,6 +57,9 @@ async def main():
         logger.info(f"Running guest TTL pruner for records older than {args.ttl} hours...")
         deleted_count = await neon_db.prune_expired_guests(ttl_hours=args.ttl)
         logger.info(f"Cleanup complete. Total pruned guest sessions: {deleted_count}")
+
+        audit_deleted = await neon_db.prune_audit_logs(retention_days=args.audit_days)
+        logger.info(f"Total audit rows older than {args.audit_days} days removed: {audit_deleted}")
     finally:
         await neon_db.disconnect()
 

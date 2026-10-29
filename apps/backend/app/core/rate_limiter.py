@@ -54,6 +54,18 @@ class SlidingWindowCounter:
 
 guest_signup_limiter = SlidingWindowCounter(limit=settings.GUEST_SIGNUPS_PER_IP_PER_HOUR)
 guest_ip_llm_limiter = SlidingWindowCounter(limit=settings.GUEST_IP_QUOTA_PER_HOUR)
+google_auth_limiter = SlidingWindowCounter(limit=settings.GOOGLE_AUTH_PER_IP_PER_HOUR)
+refresh_limiter = SlidingWindowCounter(limit=settings.REFRESH_PER_IP_PER_HOUR)
+
+
+def enforce_ip_limit(counter: SlidingWindowCounter, client_ip: str) -> None:
+    """Raise 429 when ``client_ip`` has exceeded ``counter``'s hourly allowance."""
+    if not counter.hit(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests from this network. Try again later.",
+            headers={"Retry-After": "3600"},
+        )
 
 
 REPLENISH_WINDOW = timedelta(hours=1)
@@ -135,6 +147,8 @@ class TokenBucketLimiter:
         """Clear in-process counters for test isolation."""
         guest_signup_limiter.reset_for_test()
         guest_ip_llm_limiter.reset_for_test()
+        google_auth_limiter.reset_for_test()
+        refresh_limiter.reset_for_test()
 
 
 default_rate_limiter = TokenBucketLimiter(db=neon_db)

@@ -1,7 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-import httpx
 import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
@@ -142,23 +141,8 @@ async def test_google_oauth_endpoint(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_mock_google_token_is_rejected(monkeypatch):
-    """Regression (audit S-04): mock google token is rejected unconditionally."""
-
-    class FakeResponse:
-        status_code = 400
-
-        def json(self):
-            return {"error": "invalid_token"}
-
-    original_post = httpx.AsyncClient.post
-
-    async def fake_post(self, url, *args, **kwargs):
-        if "oauth2.googleapis.com" in str(url):
-            return FakeResponse()
-        return await original_post(self, url, *args, **kwargs)
-
-    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+async def test_garbage_google_token_is_rejected():
+    """Regression (audit S-04): anything that is not a signed Google ID token is rejected."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
@@ -168,79 +152,110 @@ async def test_mock_google_token_is_rejected(monkeypatch):
         assert resp.status_code == 401
 
 
-@pytest.mark.asyncio
-async def test_verify_google_token_audience_and_issuer(monkeypatch):
-    """Verify audience and issuer checks on Google ID tokens (audit S-05)."""
-    from app.config import settings
-    from app.core.auth import verify_google_token
+CLIENT_ID = "test-client-id-123.apps.googleusercontent.com"
 
+
+@pytest.fixture
+def google_signer(monkeypatch):
+    """Sign RS256 ID tokens with a throwaway key and make the JWKS client trust it."""
+    from types import SimpleNamespace
+
+    import jwt as pyjwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    from app.config import settings
+    from app.core import auth as auth_module
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", CLIENT_ID)
     monkeypatch.setattr(
-        settings, "GOOGLE_CLIENT_ID", "test-client-id-123.apps.googleusercontent.com"
+        auth_module._google_jwks,
+        "get_signing_key_from_jwt",
+        lambda _token: SimpleNamespace(key=key.public_key()),
     )
 
-    # 1. Wrong aud -> 401
-    class FakeAudResp:
-        status_code = 200
+    def sign(**overrides):
+        now = datetime.now(UTC)
+        claims = {
+            "aud": CLIENT_ID,
+            "iss": "https://accounts.google.com",
+            "sub": "google-sub-1",
+            "email": "user@example.com",
+            "email_verified": True,
+            "name": "Valid User",
+            "iat": now,
+            "exp": now + timedelta(minutes=10),
+        }
+        claims.update(overrides)
+        claims = {k: v for k, v in claims.items() if v is not None}
+        return pyjwt.encode(claims, key, algorithm="RS256")
 
-        def json(self):
-            return {
-                "aud": "wrong-client-id",
-                "iss": "https://accounts.google.com",
-                "email": "a@b.com",
-                "email_verified": "true",
-            }
+    return sign
 
-    async def fake_post_aud(*args, **kwargs):
-        return FakeAudResp()
 
-    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post_aud)
+@pytest.mark.asyncio
+async def test_verify_google_token_accepts_a_valid_token(google_signer):
+    from app.core.auth import verify_google_token
+
+    profile = await verify_google_token(google_signer())
+    assert profile["email"] == "user@example.com"
+    assert profile["name"] == "Valid User"
+    assert profile["sub"] == "google-sub-1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"aud": "wrong-client-id"}, "audience mismatch"),
+        ({"iss": "https://evil.issuer.com"}, "issuer mismatch"),
+        ({"exp": datetime.now(UTC) - timedelta(minutes=1)}, "Invalid or expired"),
+        ({"sub": None}, "Invalid or expired"),
+    ],
+)
+async def test_verify_google_token_rejects_bad_claims(google_signer, overrides, message):
+    from app.core.auth import verify_google_token
+
     with pytest.raises(HTTPException) as exc:
-        await verify_google_token("token_wrong_aud")
+        await verify_google_token(google_signer(**overrides))
     assert exc.value.status_code == 401
-    assert "audience mismatch" in exc.value.detail
+    assert message in exc.value.detail
 
-    # 2. Wrong iss -> 401
-    class FakeIssResp:
-        status_code = 200
 
-        def json(self):
-            return {
-                "aud": "test-client-id-123.apps.googleusercontent.com",
-                "iss": "https://evil.issuer.com",
-                "email": "a@b.com",
-                "email_verified": "true",
-            }
+@pytest.mark.asyncio
+async def test_verify_google_token_rejects_unverified_email(google_signer):
+    from app.core.auth import verify_google_token
 
-    async def fake_post_iss(*args, **kwargs):
-        return FakeIssResp()
-
-    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post_iss)
     with pytest.raises(HTTPException) as exc:
-        await verify_google_token("token_wrong_iss")
+        await verify_google_token(google_signer(email_verified=False))
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_verify_google_token_rejects_a_token_signed_by_another_key(google_signer):
+    import jwt as pyjwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    from app.core.auth import verify_google_token
+
+    attacker_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    now = datetime.now(UTC)
+    forged = pyjwt.encode(
+        {
+            "aud": CLIENT_ID,
+            "iss": "https://accounts.google.com",
+            "sub": "x",
+            "email": "a@b.com",
+            "email_verified": True,
+            "iat": now,
+            "exp": now + timedelta(minutes=5),
+        },
+        attacker_key,
+        algorithm="RS256",
+    )
+    with pytest.raises(HTTPException) as exc:
+        await verify_google_token(forged)
     assert exc.value.status_code == 401
-    assert "issuer mismatch" in exc.value.detail
-
-    # 3. Valid aud, iss, email_verified -> profile
-    class FakeValidResp:
-        status_code = 200
-
-        def json(self):
-            return {
-                "aud": "test-client-id-123.apps.googleusercontent.com",
-                "iss": "https://accounts.google.com",
-                "email": "user@example.com",
-                "email_verified": "true",
-                "name": "Valid User",
-                "sub": "sub-123",
-            }
-
-    async def fake_post_valid(*args, **kwargs):
-        return FakeValidResp()
-
-    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post_valid)
-    res = await verify_google_token("valid_token")
-    assert res["email"] == "user@example.com"
-    assert res["name"] == "Valid User"
 
 
 @pytest.mark.asyncio
@@ -376,3 +391,22 @@ def test_guest_refresh_uses_guest_lifetime():
 
     assert token_lifetime(_user(is_guest=True)) == td(minutes=settings.GUEST_TOKEN_EXPIRE_MINUTES)
     assert token_lifetime(_user(is_guest=False)) == td(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
+
+@pytest.mark.asyncio
+async def test_google_auth_is_throttled_per_ip_sec_14(monkeypatch):
+    """SEC-14: the 21st Google sign-in attempt from one IP in an hour gets a 429."""
+    from app.config import settings
+
+    async def reject(_credential):
+        raise HTTPException(status_code=401, detail="nope")
+
+    monkeypatch.setattr("app.routes.auth.verify_google_token", reject)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        codes = [
+            (await client.post("/api/auth/google", json={"credential": "x" * 20})).status_code
+            for _ in range(settings.GOOGLE_AUTH_PER_IP_PER_HOUR + 1)
+        ]
+    assert codes[:-1] == [401] * settings.GOOGLE_AUTH_PER_IP_PER_HOUR
+    assert codes[-1] == 429

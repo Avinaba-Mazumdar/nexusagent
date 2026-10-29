@@ -83,7 +83,7 @@ class NeonDatabase:
         query = """
             INSERT INTO users (id, email, name, avatar_url, is_guest, client_ip, device_id, created_at, last_seen_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING id, email, name, avatar_url, is_guest, client_ip, device_id, created_at, last_seen_at;
+            RETURNING *;
         """
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -110,33 +110,55 @@ class NeonDatabase:
 
     async def upsert_google_user(
         self,
+        google_sub: str,
         email: str,
         name: str,
         avatar_url: str | None = None,
         client_ip: str | None = None,
     ) -> User:
-        """Upsert Google OAuth verified user and ensure is_guest is False."""
-        pool = self.get_pool()
-        now = datetime.now(UTC)
-        query = """
-            INSERT INTO users (id, email, name, avatar_url, is_guest, client_ip, created_at, last_seen_at)
-            VALUES ($1, $2, $3, $4, FALSE, $5, $6, $6)
-            ON CONFLICT (email) DO UPDATE
-            SET name = EXCLUDED.name,
-                avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
-                is_guest = FALSE,
-                client_ip = COALESCE(EXCLUDED.client_ip, users.client_ip),
-                last_seen_at = EXCLUDED.last_seen_at
-            RETURNING id, email, name, avatar_url, is_guest, client_ip, device_id, created_at, last_seen_at;
         """
-        async with pool.acquire() as conn:
+        Find or create the account for a verified Google identity, keyed on the stable ``sub``.
+
+        An account that predates ``sub`` tracking is adopted by email once. If a *different* Google
+        account later presents an email that another row still holds, that row loses the email
+        (it keeps its own data) so the newcomer never inherits someone else's history.
+        """
+        pool = self.get_pool()
+        email = email.lower().strip()
+        now = datetime.now(UTC)
+        async with pool.acquire() as conn, conn.transaction():
+            existing = await conn.fetchrow(
+                "SELECT id FROM users WHERE google_sub = $1;", google_sub
+            )
+            if existing is None:
+                existing = await conn.fetchrow(
+                    "SELECT id FROM users WHERE email = $1 AND google_sub IS NULL AND is_guest = FALSE;",
+                    email,
+                )
+            user_id = existing["id"] if existing else uuid4()
+            await conn.execute(
+                "UPDATE users SET email = NULL WHERE email = $1 AND id <> $2;", email, user_id
+            )
             row = await conn.fetchrow(
-                query,
-                uuid4(),
-                email.lower().strip(),
+                """
+                INSERT INTO users (id, email, name, avatar_url, is_guest, client_ip, google_sub, created_at, last_seen_at)
+                VALUES ($1, $2, $3, $4, FALSE, $5, $6, $7, $7)
+                ON CONFLICT (id) DO UPDATE
+                SET email = EXCLUDED.email,
+                    name = EXCLUDED.name,
+                    avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+                    is_guest = FALSE,
+                    client_ip = COALESCE(EXCLUDED.client_ip, users.client_ip),
+                    google_sub = EXCLUDED.google_sub,
+                    last_seen_at = EXCLUDED.last_seen_at
+                RETURNING *;
+                """,
+                user_id,
+                email,
                 name.strip(),
                 avatar_url,
                 client_ip,
+                google_sub,
                 now,
             )
             return User(**dict(row))
@@ -220,6 +242,26 @@ class NeonDatabase:
         """
         async with pool.acquire() as conn:
             return await conn.fetchval(query, user_id, default_tokens, cost)
+
+    async def prune_audit_logs(self, retention_days: int = 30) -> int:
+        """Delete audit rows older than ``retention_days``. The only sanctioned way to remove audit rows."""
+        if retention_days < 1:
+            raise ValueError("retention_days must be >= 1")
+        if not self.pool:
+            return 0
+        async with self.pool.acquire() as conn, conn.transaction():
+            # Transaction-local switch that the append-only trigger honours for DELETE.
+            await conn.execute("SELECT set_config('nexusagent.audit_retention', 'on', true);")
+            result = await conn.execute(
+                "DELETE FROM tool_audit_logs WHERE executed_at < NOW() - ($1 * INTERVAL '1 day');",
+                retention_days,
+            )
+        try:
+            count = int(result.split()[-1])
+        except ValueError, IndexError:
+            count = 0
+        logger.info("Pruned %d audit row(s) older than %d days.", count, retention_days)
+        return count
 
     async def get_or_create_rate_limit(
         self, user_id: UUID, default_tokens: int = 5

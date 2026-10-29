@@ -59,7 +59,9 @@ def message_to_wire(m: dict) -> dict:
 @router.get("/history")
 async def list_chat_history(
     q: str | None = Query(
-        None, description="Optional search query across conversation titles and message content"
+        None,
+        max_length=200,
+        description="Optional search query across conversation titles and message content",
     ),
     limit: int = Query(50, ge=1, le=100),
     current_user: User = Depends(get_current_user),
