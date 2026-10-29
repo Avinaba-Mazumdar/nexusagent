@@ -8,12 +8,14 @@ design (covered offline in test_security_hardening.py).
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.core.auth import get_current_user
+from app.core.rate_limiter import default_rate_limiter
 from app.db.models import User
 from app.main import app
 from app.mcp.server import handle_jsonrpc_request
@@ -275,3 +277,69 @@ async def test_mcp_session_owner_isolation():
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         SESSIONS.pop(session_id, None)
+
+
+@pytest.mark.asyncio
+async def test_mcp_tools_call_guest_quota_enforcement(monkeypatch):
+    """Verify guest tools/call is rate-limited to 5 calls per hour (SEC-01)."""
+    default_rate_limiter.reset_for_test()
+    now = datetime.now(UTC)
+    guest_user = User(
+        id=uuid4(),
+        email="guest-sec01@example.com",
+        hashed_password=None,
+        name="Guest",
+        avatar_url=None,
+        is_guest=True,
+        client_ip="127.0.0.1",
+        device_id="dev-sec01",
+        created_at=now,
+        last_seen_at=now,
+    )
+    app.dependency_overrides[get_current_user] = lambda: guest_user
+
+    embed_mock = AsyncMock(return_value=[0.1] * 768)
+
+    async def fake_search(*args, **kwargs):
+        await embed_mock("test")
+        return []
+
+    monkeypatch.setattr("app.mcp.registry.default_hybrid_search_engine.search", fake_search)
+
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            for i in range(5):
+                res = await client.post(
+                    "/api/mcp/v1",
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": f"call-{i}",
+                        "method": "tools/call",
+                        "params": {"name": "hybrid_rag_search", "arguments": {"query": "cost"}},
+                    },
+                )
+                assert res.status_code == 200
+                data = res.json()
+                assert "result" in data
+                assert data.get("error") is None
+
+            # 6th call must be blocked by quota with JSON-RPC -32000 error
+            res6 = await client.post(
+                "/api/mcp/v1",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": "call-5",
+                    "method": "tools/call",
+                    "params": {"name": "hybrid_rag_search", "arguments": {"query": "cost"}},
+                },
+            )
+            assert res6.status_code == 200
+            data6 = res6.json()
+            assert "error" in data6
+            assert data6["error"]["code"] == -32000
+            assert "Quota exhausted" in data6["error"]["message"]
+            assert embed_mock.call_count == 5
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        default_rate_limiter.reset_for_test()

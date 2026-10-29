@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
-from app.core.auth import get_current_user
+from app.core.auth import get_client_ip, get_current_user
 from app.db.models import User
 from app.mcp.dispatch import dispatch_mcp_method
 from app.mcp.protocol import (
@@ -31,6 +31,7 @@ from app.mcp.protocol import (
 logger = logging.getLogger("nexusagent.routes.mcp")
 
 router = APIRouter(prefix="/mcp", tags=["Model Context Protocol (MCP v2)"])
+
 
 # Active SSE sessions: sessionId -> McpSession
 @dataclass
@@ -56,7 +57,7 @@ async def direct_jsonrpc_gateway(
     """
     try:
         body = await request.json()
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return JsonRpcResponse(
             id=None,
             error=JsonRpcError(code=-32700, message="Parse error"),
@@ -64,18 +65,20 @@ async def direct_jsonrpc_gateway(
 
     try:
         req = JsonRpcRequest.model_validate(body)
-    except (ValidationError, ValueError, TypeError):
+    except ValidationError, ValueError, TypeError:
         return JsonRpcResponse(
             id=body.get("id") if isinstance(body, dict) else None,
             error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request"),
         )
 
+    client_ip = get_client_ip(request)
+
     if req.id is None:
-        await dispatch_mcp_method(req, user_id=current_user.id)
+        await dispatch_mcp_method(req, user=current_user, client_ip=client_ip)
         return Response(status_code=202)
 
     try:
-        return await dispatch_mcp_method(req, user_id=current_user.id)
+        return await dispatch_mcp_method(req, user=current_user, client_ip=client_ip)
     except Exception:
         logger.exception("Unexpected error in direct MCP gateway")
         return JsonRpcResponse(
@@ -163,7 +166,7 @@ async def mcp_messages_endpoint(
     try:
         body = await request.json()
         req = JsonRpcRequest.model_validate(body)
-    except (json.JSONDecodeError, ValidationError, ValueError, TypeError):
+    except json.JSONDecodeError, ValidationError, ValueError, TypeError:
         err_res = JsonRpcResponse(
             id=None,
             error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request"),
@@ -177,8 +180,10 @@ async def mcp_messages_endpoint(
             )
         return JSONResponse(status_code=202, content={"status": "accepted"})
 
+    client_ip = get_client_ip(request)
+
     try:
-        res = await dispatch_mcp_method(req, user_id=current_user.id)
+        res = await dispatch_mcp_method(req, user=current_user, client_ip=client_ip)
         if req.id is not None:
             try:
                 queue.put_nowait(res.model_dump_json(exclude_none=True))

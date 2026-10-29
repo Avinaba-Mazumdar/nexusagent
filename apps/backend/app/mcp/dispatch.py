@@ -1,5 +1,7 @@
-from uuid import UUID
+from fastapi import HTTPException
 
+from app.core.rate_limiter import default_rate_limiter
+from app.db.models import User
 from app.mcp.protocol import (
     INVALID_PARAMS,
     METHOD_NOT_FOUND,
@@ -10,7 +12,11 @@ from app.mcp.protocol import (
 from app.mcp.registry import default_mcp_registry
 
 
-async def dispatch_mcp_method(req: JsonRpcRequest, user_id: UUID | None = None) -> JsonRpcResponse:
+async def dispatch_mcp_method(
+    req: JsonRpcRequest,
+    user: User | None = None,
+    client_ip: str | None = None,
+) -> JsonRpcResponse:
     """Core dispatcher for JSON-RPC 2.0 MCP requests."""
     method = req.method
     params = req.params or {}
@@ -47,7 +53,27 @@ async def dispatch_mcp_method(req: JsonRpcRequest, user_id: UUID | None = None) 
                 error=JsonRpcError(code=INVALID_PARAMS, message="Missing parameter 'name'."),
             )
 
-        call_res = await default_mcp_registry.call_tool(tool_name, tool_args, user_id=user_id)
+        if user is not None:
+            try:
+                await default_rate_limiter.check_and_consume(
+                    user_id=user.id,
+                    client_ip=client_ip or "127.0.0.1",
+                    is_guest=user.is_guest,
+                )
+            except HTTPException as exc:
+                if exc.status_code == 429:
+                    return JsonRpcResponse(
+                        id=req.id,
+                        error=JsonRpcError(
+                            code=-32000,
+                            message="Quota exhausted. It replenishes hourly.",
+                        ),
+                    )
+                raise
+
+        call_res = await default_mcp_registry.call_tool(
+            tool_name, tool_args, user_id=user.id if user else None
+        )
         return JsonRpcResponse(id=req.id, result=call_res.model_dump())
 
     elif method == "resources/list":
@@ -76,4 +102,3 @@ async def dispatch_mcp_method(req: JsonRpcRequest, user_id: UUID | None = None) 
             id=req.id,
             error=JsonRpcError(code=METHOD_NOT_FOUND, message=f"Method '{method}' not found."),
         )
-

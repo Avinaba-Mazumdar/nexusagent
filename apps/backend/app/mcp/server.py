@@ -29,13 +29,14 @@ async def handle_jsonrpc_request(req_dict: dict) -> dict:
     """Process incoming JSON-RPC 2.0 request dictionary and return response dictionary."""
     try:
         req = JsonRpcRequest.model_validate(req_dict)
-    except (ValidationError, ValueError, TypeError):
+    except ValidationError, ValueError, TypeError:
         return JsonRpcResponse(
             id=req_dict.get("id"),
             error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request"),
         ).model_dump(exclude_none=True)
 
     try:
+        # Stdio server is a local, trusted process; calls are unmetered (user=None).
         resp = await dispatch_mcp_method(req)
         if req.id is None:
             return {}
