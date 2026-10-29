@@ -9,3 +9,4 @@ WHERE r1.user_id = r2.user_id
 ALTER TABLE rate_limit_buckets DROP CONSTRAINT IF EXISTS unique_user_ip;
 ALTER TABLE rate_limit_buckets ADD CONSTRAINT rate_limit_buckets_user_id_key UNIQUE (user_id);
 ALTER TABLE rate_limit_buckets DROP COLUMN IF EXISTS client_ip;
+

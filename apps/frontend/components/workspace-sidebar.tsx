@@ -2,18 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import {
-    AlertCircle,
-    CheckCircle2,
-    ChevronDown,
-    ChevronRight,
-    Database,
-    FileText,
-    Loader2,
-    MessageSquare,
-    Terminal,
-    UploadCloud
-} from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Database, FileText, Loader2, MessageSquare, Terminal, UploadCloud } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { McpInspector } from '@/components/mcp';
@@ -158,17 +147,13 @@ export function WorkspaceSidebar({
                         )}
                         <div className="space-y-1.5 max-h-35 overflow-y-auto">
                             {docs.map((doc) => {
-                                const isSelected = Boolean(
-                                    selectedCitationDoc && doc.filename.toLowerCase().includes(selectedCitationDoc.toLowerCase())
-                                );
+                                const isSelected = Boolean(selectedCitationDoc && doc.filename.toLowerCase().includes(selectedCitationDoc.toLowerCase()));
                                 return (
                                     <div
                                         key={doc.id}
                                         data-selected-doc={isSelected ? 'true' : undefined}
                                         className={`flex items-center justify-between p-2 rounded-lg border text-[11px] transition-all ${
-                                            isSelected
-                                                ? 'bg-primary/15 border-primary shadow-xs ring-1 ring-primary'
-                                                : 'bg-secondary/40 border-border/70'
+                                            isSelected ? 'bg-primary/15 border-primary shadow-xs ring-1 ring-primary' : 'bg-secondary/40 border-border/70'
                                         }`}
                                     >
                                         <div className="flex items-center gap-1.5 truncate">
@@ -316,4 +301,3 @@ export function WorkspaceSidebar({
         </aside>
     );
 }
-
