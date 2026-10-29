@@ -62,16 +62,25 @@ SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
 ]
 
 
-def scrub_sensitive_information(text: str) -> str:
+def scrub_sensitive_information(text: str, preserve_lines: bool = False) -> str:
     """
     Scrub credentials, API keys, JWTs, and private keys from untrusted document text.
     Mitigates OWASP LLM02 & ASI-02 (Sensitive Information Disclosure).
+
+    With ``preserve_lines`` a multi-line redaction keeps its newline count, so line
+    numbers computed on the scrubbed text still match the original document.
     """
     if not text:
         return ""
     scrubbed = text
     for pattern, replacement in SECRET_PATTERNS:
-        scrubbed = pattern.sub(replacement, scrubbed)
+        if preserve_lines:
+            scrubbed = pattern.sub(
+                lambda m, r=replacement: m.expand(r) + "\n" * m.group(0).count("\n"),
+                scrubbed,
+            )
+        else:
+            scrubbed = pattern.sub(replacement, scrubbed)
     return scrubbed
 
 

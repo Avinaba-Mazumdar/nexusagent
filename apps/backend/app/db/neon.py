@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
@@ -11,6 +12,16 @@ from app.config import settings
 from app.db.models import Document, DocumentChunk, RateLimitBucket, User
 
 logger = logging.getLogger("nexusagent.db.neon")
+
+
+_TS_TERM = re.compile(r"[A-Za-z0-9]{2,}")
+MAX_TS_TERMS = 20
+
+
+def build_or_tsquery(text: str) -> str:
+    """Turn free text into a safe ``a | b | c`` tsquery (alphanumeric terms only)."""
+    terms = list(dict.fromkeys(t.lower() for t in _TS_TERM.findall(text)))[:MAX_TS_TERMS]
+    return " | ".join(terms)
 
 
 class NeonDatabase:
@@ -290,8 +301,8 @@ class NeonDatabase:
             RETURNING id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded, uploaded_at;
         """
         chunk_query = """
-            INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, metadata, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7);
+            INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, embedding_model, metadata, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8);
         """
         records = [
             (
@@ -300,6 +311,7 @@ class NeonDatabase:
                 c.chunk_index,
                 c.content,
                 c.embedding,
+                settings.EMBEDDING_MODEL if c.embedding is not None else None,
                 json.dumps(c.metadata),
                 c.created_at,
             )
@@ -351,8 +363,8 @@ class NeonDatabase:
             return 0
         pool = self.get_pool()
         query = """
-            INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, metadata, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7);
+            INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, embedding_model, metadata, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8);
         """
         records = [
             (
@@ -361,6 +373,7 @@ class NeonDatabase:
                 c.chunk_index,
                 c.content,
                 c.embedding,
+                settings.EMBEDDING_MODEL if c.embedding is not None else None,
                 json.dumps(c.metadata),
                 c.created_at,
             )
@@ -445,9 +458,9 @@ class NeonDatabase:
     ) -> list[dict]:
         """Dense cosine similarity search on document_chunks using pgvector HNSW index."""
         pool = self.get_pool()
-        conditions = ["c.embedding IS NOT NULL"]
-        params: list[Any] = [query_embedding]
-        idx = 2
+        conditions = ["c.embedding IS NOT NULL", "c.embedding_model = $2"]
+        params: list[Any] = [query_embedding, settings.EMBEDDING_MODEL]
+        idx = 3
 
         if document_id:
             conditions.append(f"c.document_id = ${idx}")
@@ -484,10 +497,13 @@ class NeonDatabase:
         document_id: UUID | None = None,
         limit: int = 20,
     ) -> list[dict]:
-        """Lexical full-text search on document_chunks using Postgres tsvector GIN index."""
+        """Lexical full-text search (OR of query terms) using the tsvector GIN index."""
+        ts_query = build_or_tsquery(query)
+        if not ts_query:
+            return []
         pool = self.get_pool()
-        conditions = ["c.search_vector @@ plainto_tsquery('english', $1)"]
-        params: list[Any] = [query]
+        conditions = ["c.search_vector @@ to_tsquery('english', $1)"]
+        params: list[Any] = [ts_query]
         idx = 2
 
         if document_id:
@@ -507,7 +523,7 @@ class NeonDatabase:
         where_clause = " AND ".join(conditions)
         query_sql = f"""
             SELECT c.id, c.document_id, c.chunk_index, c.content, c.metadata, d.filename,
-                   ts_rank_cd(c.search_vector, plainto_tsquery('english', $1)) AS rank_score
+                   ts_rank_cd(c.search_vector, to_tsquery('english', $1)) AS rank_score
             FROM document_chunks c
             JOIN documents d ON c.document_id = d.id
             WHERE {where_clause}

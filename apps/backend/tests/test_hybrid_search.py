@@ -262,3 +262,83 @@ async def test_hybrid_search_end_to_end_endpoint():
         assert top_result["endLine"] == 20
         assert top_result["headerPath"] == ["Raft Consensus", "Heartbeats"]
         assert top_result["filename"] == "rfc-104-raft-consensus.md"
+
+
+@pytest.mark.asyncio
+async def test_embedding_payload_has_task_type_and_pinned_model():
+    """LOG-04: one pinned model, taskType sent for documents vs queries."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"embeddings": [{"values": [0.1] * EMBEDDING_DIMENSION}]}
+    with patch(
+        "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp
+    ) as mock_post:
+        service = EmbeddingService(api_key="k")
+        await service.get_embeddings(["doc text"])
+        await service.get_embedding("query text")
+    docs_req = mock_post.call_args_list[0].kwargs["json"]["requests"][0]
+    query_req = mock_post.call_args_list[1].kwargs["json"]["requests"][0]
+    assert docs_req["taskType"] == "RETRIEVAL_DOCUMENT"
+    assert query_req["taskType"] == "RETRIEVAL_QUERY"
+    assert docs_req["model"] == f"models/{service.model}"
+
+
+@pytest.mark.asyncio
+async def test_embedding_404_does_not_fall_back_to_another_model():
+    """LOG-04: a failing model raises instead of mixing vector spaces."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 404
+    with (
+        patch(
+            "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp
+        ) as mock_post,
+        pytest.raises(RuntimeError),
+    ):
+        await EmbeddingService(api_key="k").get_embeddings(["x"])
+    assert mock_post.call_count == 1
+
+
+def test_build_or_tsquery_is_safe_and_or_joined():
+    """LOG-08: free text becomes alnum-only OR terms."""
+    from app.db.neon import build_or_tsquery
+
+    assert (
+        build_or_tsquery("Which models: lowest cost? (1M) 'x'")
+        == "which | models | lowest | cost | 1m"
+    )
+    assert build_or_tsquery("!!! ???") == ""
+
+
+@pytest.mark.asyncio
+async def test_search_degrades_to_sparse_only_when_embedding_fails():
+    """LOG-08: embedding outage still returns lexical results."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.rag.hybrid_search import HybridSearchEngine
+
+    db = MagicMock()
+    db.pool = object()
+    db.search_chunks_dense = AsyncMock()
+    db.search_chunks_lexical = AsyncMock(
+        return_value=[
+            {
+                "id": "c1",
+                "document_id": "d1",
+                "chunk_index": 0,
+                "content": "raft quorum",
+                "metadata": {},
+                "filename": "a.md",
+                "rank_score": 0.4,
+            }
+        ]
+    )
+    embedder = MagicMock()
+    embedder.get_embedding = AsyncMock(side_effect=RuntimeError("down"))
+    results = await HybridSearchEngine(db=db, embedding_service=embedder).search("raft quorum")
+    assert len(results) == 1
+    assert results[0].dense_rank is None and results[0].sparse_rank == 1
+    db.search_chunks_dense.assert_not_called()

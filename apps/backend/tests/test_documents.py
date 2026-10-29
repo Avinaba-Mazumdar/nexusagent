@@ -14,6 +14,8 @@ from app.rag.parser import (
     split_large_section,
 )
 
+NL = chr(10)
+
 SAMPLE_RFC_MARKDOWN = """# RFC-104: Raft Consensus vs Multi-Paxos for High-Throughput Write Pipelines
 
 Category: Distributed Systems Consensus
@@ -61,6 +63,29 @@ def test_compute_line_positions():
     start, end = compute_line_positions(text, sub)
     assert start == 2
     assert end == 3
+
+
+def test_line_positions_use_cursor_for_repeated_lines():
+    """LOG-07: a repeated line maps to the occurrence at/after the cursor, not the first."""
+    lines = ["intro", "---", "body"] + [f"filler {i}" for i in range(10)] + ["---", "tail"]
+    text = NL.join(lines)
+    first_hr = text.index("---")
+    start, _ = compute_line_positions(text, NL.join(["---", "tail"]), search_from=first_hr + 1)
+    assert start == len(lines) - 1
+
+
+def test_parser_line_numbers_survive_private_key_redaction():
+    """LOG-07: redacting a multi-line key must not shift later line numbers."""
+    key = NL.join(
+        ["-----BEGIN PRIVATE KEY-----", "AAAA", "BBBB", "CCCC", "-----END PRIVATE KEY-----"]
+    )
+    lines = ["# Title", "", key, "", "## After", "", "marker paragraph here", ""]
+    md = NL.join(lines)
+    chunks = default_markdown_parser.parse_markdown(md, document_id=uuid4())
+    target = next(c for c in chunks if "marker paragraph" in c.content)
+    expected = md.split(NL).index("marker paragraph here") + 1
+    assert target.metadata["startLine"] <= expected <= target.metadata["endLine"]
+    assert "BEGIN PRIVATE KEY" not in "".join(c.content for c in chunks)
 
 
 def test_split_large_section_hard_caps_long_line():

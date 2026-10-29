@@ -15,24 +15,26 @@ MAX_CHUNK_CHARS = 800
 CHUNK_OVERLAP = 100
 
 
-def compute_line_positions(full_text: str, chunk_content: str) -> tuple[int, int]:
+def find_chunk_start(full_text: str, chunk_content: str, search_from: int = 0) -> int:
+    """Char offset of chunk_content's first non-empty line at/after search_from, or -1."""
+    first_line = next((ln.strip() for ln in chunk_content.splitlines() if ln.strip()), "")
+    if not first_line:
+        return -1
+    idx = full_text.find(first_line, search_from)
+    return idx if idx != -1 else full_text.find(first_line)
+
+
+def compute_line_positions(
+    full_text: str, chunk_content: str, search_from: int = 0
+) -> tuple[int, int]:
     """Find 1-indexed start and end line numbers of chunk_content inside full_text."""
     if not chunk_content or not full_text:
         return 1, 1
-
-    first_line = chunk_content.splitlines()[0] if chunk_content.splitlines() else chunk_content
-    char_index = full_text.find(first_line)
-    if char_index == -1:
-        # Fallback: substring search with stripped snippet
-        stripped = first_line.strip()
-        char_index = full_text.find(stripped) if stripped else -1
-
-    if char_index != -1:
-        start_line = full_text[:char_index].count("\n") + 1
-        end_line = start_line + max(0, chunk_content.count("\n"))
-        return start_line, end_line
-
-    return 1, max(1, chunk_content.count("\n") + 1)
+    idx = find_chunk_start(full_text, chunk_content, search_from)
+    if idx == -1:
+        return 1, max(1, chunk_content.count("\n") + 1)
+    start_line = full_text.count("\n", 0, idx) + 1
+    return start_line, start_line + chunk_content.count("\n")
 
 
 def split_large_section(
@@ -100,6 +102,15 @@ class MarkdownHierarchicalParser:
         self.overlap = overlap
         self.node_parser = MarkdownNodeParser()
 
+    @staticmethod
+    def _locate(full_text: str, sub_text: str, cursor: int) -> tuple[int, int, int]:
+        """Return (start_line, end_line, next_cursor) for a chunk, searching from cursor."""
+        idx = find_chunk_start(full_text, sub_text, cursor)
+        start_line, end_line = compute_line_positions(
+            full_text, sub_text, idx if idx != -1 else cursor
+        )
+        return start_line, end_line, idx + 1 if idx != -1 else cursor
+
     def parse_markdown(
         self,
         markdown_text: str,
@@ -111,8 +122,8 @@ class MarkdownHierarchicalParser:
         Extracts header hierarchy, start_line, end_line, char_count, token_count, and SHA-256 hash.
         """
         extra_metadata = extra_metadata or {}
-        clean_text = scrub_sensitive_information(markdown_text).strip()
-        if not clean_text:
+        clean_text = scrub_sensitive_information(markdown_text, preserve_lines=True)
+        if not clean_text.strip():
             return []
 
         llama_doc = LlamaDocument(text=clean_text)
@@ -124,6 +135,7 @@ class MarkdownHierarchicalParser:
 
         chunks: list[DocumentChunk] = []
         chunk_index = 0
+        cursor = 0  # chunks arrive in document order; never match a line before the last chunk
 
         if nodes:
             for node in nodes:
@@ -146,7 +158,7 @@ class MarkdownHierarchicalParser:
                     node_text, max_chars=self.max_chunk_chars, overlap=self.overlap
                 )
                 for sub_text in sub_chunks:
-                    start_l, end_l = compute_line_positions(clean_text, sub_text)
+                    start_l, end_l, cursor = self._locate(clean_text, sub_text, cursor)
                     meta = {
                         "headerPath": headers,
                         "startLine": start_l,
@@ -170,7 +182,7 @@ class MarkdownHierarchicalParser:
                 clean_text, max_chars=self.max_chunk_chars, overlap=self.overlap
             )
             for sub_text in sub_chunks:
-                start_l, end_l = compute_line_positions(clean_text, sub_text)
+                start_l, end_l, cursor = self._locate(clean_text, sub_text, cursor)
                 meta = {
                     "headerPath": [],
                     "startLine": start_l,

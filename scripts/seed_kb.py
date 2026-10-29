@@ -16,7 +16,7 @@ import logging
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid5
 
 # Add apps/backend to sys.path so backend imports resolve
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -59,9 +59,11 @@ async def seed_knowledge_base():
     now = datetime.now(UTC)
 
     for doc_path in files:
-        text = doc_path.read_text(encoding="utf-8")
-        doc_id = uuid4()
-        sha256_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        raw_bytes = doc_path.read_bytes()
+        text = raw_bytes.decode("utf-8")
+        # Stable ID: re-seeding must not invalidate stored citation documentIds.
+        doc_id = uuid5(NAMESPACE_URL, f"nexusagent:kb:{doc_path.name}")
+        sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
 
         chunks = default_markdown_parser.parse_markdown(
             text,
@@ -97,6 +99,7 @@ async def seed_knowledge_base():
                     chunk.chunk_index,
                     chunk.content,
                     chunk.embedding,
+                    settings.EMBEDDING_MODEL,
                     json.dumps(chunk.metadata),
                     chunk.created_at,
                 )
@@ -104,16 +107,28 @@ async def seed_knowledge_base():
 
     doc_query = """
         INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded, uploaded_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (id) DO UPDATE SET
+            sha256_hash = EXCLUDED.sha256_hash,
+            total_chunks = EXCLUDED.total_chunks,
+            storage_path = EXCLUDED.storage_path,
+            uploaded_at = EXCLUDED.uploaded_at;
     """
     chunk_query = """
-        INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, metadata, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7);
+        INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, embedding_model, metadata, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8);
     """
 
-    logger.info("Executing atomic delete-and-reinsert transaction...")
+    logger.info("Executing atomic upsert transaction...")
     async with neon_db.pool.acquire() as conn, conn.transaction():
-        await conn.execute("DELETE FROM documents WHERE is_seeded = TRUE;")
+        await conn.execute(
+            "DELETE FROM documents WHERE is_seeded = TRUE AND id <> ALL($1::uuid[]);",
+            [d.id for d in doc_models],
+        )
+        await conn.execute(
+            "DELETE FROM document_chunks WHERE document_id = ANY($1::uuid[]);",
+            [d.id for d in doc_models],
+        )
         for doc in doc_models:
             await conn.execute(
                 doc_query,

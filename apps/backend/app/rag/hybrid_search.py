@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any
 from uuid import UUID
@@ -175,26 +176,31 @@ class HybridSearchEngine:
 
         candidate_limit = max(limit * candidate_pool_multiplier, 15)
 
-        # 1. Generate query embedding for dense search
-        query_embedding = await self.embedding_service.get_embedding(clean_query)
+        async def dense() -> list[dict]:
+            try:
+                embedding = await self.embedding_service.get_embedding(clean_query)
+            except RuntimeError as exc:
+                # Degrade to lexical-only retrieval rather than failing the whole request.
+                logger.warning("Dense retrieval skipped, embedding failed: %s", exc)
+                return []
+            return await self.db.search_chunks_dense(
+                query_embedding=embedding,
+                user_id=user_id,
+                document_id=document_id,
+                limit=candidate_limit,
+            )
 
-        # 2. Query dense candidates via Neon pgvector HNSW index
-        dense_candidates = await self.db.search_chunks_dense(
-            query_embedding=query_embedding,
-            user_id=user_id,
-            document_id=document_id,
-            limit=candidate_limit,
+        dense_candidates, sparse_candidates = await asyncio.gather(
+            dense(),
+            self.db.search_chunks_lexical(
+                query=clean_query,
+                user_id=user_id,
+                document_id=document_id,
+                limit=candidate_limit,
+            ),
         )
 
-        # 3. Query sparse candidates via Neon tsvector GIN index
-        sparse_candidates = await self.db.search_chunks_lexical(
-            query=clean_query,
-            user_id=user_id,
-            document_id=document_id,
-            limit=candidate_limit,
-        )
-
-        # 4. Fuse rankings using Reciprocal Rank Fusion
+        # Fuse rankings using Reciprocal Rank Fusion
         fused = compute_rrf(
             dense_results=dense_candidates,
             sparse_results=sparse_candidates,

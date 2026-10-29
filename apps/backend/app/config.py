@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     KNOWLEDGE_BASE_DIR: Path = KNOWLEDGE_BASE_DIR
     GEMINI_MODELS: list[str] = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+    EMBEDDING_MODEL: str = "gemini-embedding-001"
 
     PORT: int = 8000
     CORS_ORIGINS: str | list[str] = [
