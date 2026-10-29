@@ -110,7 +110,7 @@ class EmbeddingService:
                         last_error = f"Gemini embedding API ({model_name}) status {response.status_code}"
                         if response.status_code != 404:
                             break
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         last_error = f"Connection error ({model_name})"
 
                 if slice_embeddings is None:

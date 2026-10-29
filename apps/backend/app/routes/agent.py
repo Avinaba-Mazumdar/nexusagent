@@ -54,6 +54,7 @@ async def generate_agent_stream(
     is_guest: bool = True,
     client_ip: str = "127.0.0.1",
     quota_remaining: int | None = None,
+    chat_history: list[dict[str, str]] | None = None,
 ) -> AsyncIterator[str]:
     """
     Asynchronously run AgentGraph pipeline and yield SSE event chunks:
@@ -64,6 +65,7 @@ async def generate_agent_stream(
         user_id=user_id,
         query=query,
         document_id=document_id,
+        chat_history=chat_history or [],
     )
 
     event_queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -262,7 +264,7 @@ async def generate_agent_stream(
                         )
                     else:
                         logger.warning(f"Could not persist conversation {conv_id} for user {user_id}")
-                except Exception as save_err:
+                except Exception as save_err:  # noqa: BLE001
                     logger.warning(f"Could not persist conversation history: {save_err}")
 
         except Exception:
@@ -330,6 +332,7 @@ async def stream_agent_execution(
         await require_document_access(neon_db, doc_uuid, current_user)
 
     session_id = uuid4().hex
+    chat_history: list[dict[str, str]] = []
     if payload.sessionId and not current_user.is_guest:
         try:
             requested = UUID(payload.sessionId)
@@ -337,6 +340,8 @@ async def stream_agent_execution(
             requested = None
         if requested and await neon_db.get_conversation(current_user.id, requested):
             session_id = payload.sessionId
+            rows = await neon_db.get_conversation_messages(current_user.id, requested)
+            chat_history = [{"role": r["role"], "content": r["content"]} for r in rows][-2 * 6:]
 
     return StreamingResponse(
         generate_agent_stream(
@@ -348,6 +353,7 @@ async def stream_agent_execution(
             is_guest=current_user.is_guest,
             client_ip=client_ip,
             quota_remaining=remaining,
+            chat_history=chat_history,
         ),
         media_type="text/event-stream",
         headers={

@@ -1,172 +1,138 @@
 #!/usr/bin/env python3
 """
 NexusAgent Predefined Knowledge Base Seeding Pipeline.
-Reads markdown files in knowledge_base/benchmarks/, creates semantic chunks,
-generates 768-dimensional embeddings, and upserts into Neon PostgreSQL document_chunks.
+Reads markdown files in knowledge_base/benchmarks/, creates semantic chunks using
+the app's MarkdownNodeParser, generates 768-dimensional embeddings via Gemini,
+and upserts into Neon PostgreSQL inside an atomic transaction.
 
-Run bi-weekly or after updating benchmark files:
+Usage:
   python scripts/seed_kb.py
 """
 
-import os
-import sys
-import hashlib
 import asyncio
+import hashlib
+import json
 import logging
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
-import asyncpg
-import numpy as np
-import httpx
-from pgvector.asyncpg import register_vector
+
+# Add apps/backend to sys.path so backend imports resolve
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE_DIR / "apps" / "backend"))
+
+from app.config import settings
+from app.db.models import Document
+from app.db.neon import neon_db
+from app.rag.embeddings import default_embedding_service
+from app.rag.parser import default_markdown_parser
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("seed_kb")
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 KB_DIR = BASE_DIR / "knowledge_base" / "benchmarks"
-ENV_FILE = BASE_DIR / "apps" / "backend" / ".env"
-
-
-def load_env():
-    env_vars = {}
-    if ENV_FILE.exists():
-        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                env_vars[k.strip()] = v.strip()
-    return env_vars
-
-
-def chunk_markdown(content: str, max_chunk_size: int = 600) -> list[str]:
-    """Chunk markdown document by double newlines and header boundaries."""
-    raw_sections = [s.strip() for s in content.split("\n\n") if s.strip()]
-    chunks = []
-    current_chunk = []
-    current_len = 0
-
-    for section in raw_sections:
-        section_len = len(section)
-        if current_len + section_len > max_chunk_size and current_chunk:
-            chunks.append("\n\n".join(current_chunk))
-            current_chunk = [section]
-            current_len = section_len
-        else:
-            current_chunk.append(section)
-            current_len += section_len
-
-    if current_chunk:
-        chunks.append("\n\n".join(current_chunk))
-
-    return chunks
-
-
-async def get_embedding(text: str, api_key: str | None = None) -> list[float]:
-    """
-    Get 768-dim embedding using Google text-embedding-004 if api_key available,
-    otherwise deterministic normalized semantic hash for offline dev.
-    """
-    if api_key:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={api_key}"
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.post(
-                    url,
-                    json={
-                        "model": "models/text-embedding-004",
-                        "content": {"parts": [{"text": text[:2048]}]},
-                    },
-                )
-                if res.status_code == 200:
-                    data = res.json()
-                    values = data.get("embedding", {}).get("values", [])
-                    if len(values) == 768:
-                        return values
-                else:
-                    logger.warning(f"Gemini embedding API returned {res.status_code}, falling back.")
-        except Exception as e:
-            logger.warning(f"Gemini embedding call failed ({e}), using fallback.")
-
-    # Deterministic pseudo-embedding for local offline development / CI (768 dimensions)
-    # Uses multiple SHA-256 rounds to seed a reproducible normalized unit vector
-    h = hashlib.sha256(text.encode("utf-8")).hexdigest()
-    seed = int(h[:8], 16)
-    rng = np.random.default_rng(seed)
-    vec = rng.standard_normal(768).astype(np.float32)
-    norm = np.linalg.norm(vec)
-    if norm > 0:
-        vec = vec / norm
-    return vec.tolist()
 
 
 async def seed_knowledge_base():
-    env_vars = load_env()
-    dsn = os.environ.get("NEON_DATABASE_URL") or env_vars.get("NEON_DATABASE_URL")
-    gemini_key = os.environ.get("GEMINI_API_KEY") or env_vars.get("GEMINI_API_KEY")
-
-    if not dsn:
-        logger.error("NEON_DATABASE_URL not found in environment or apps/backend/.env")
+    if not settings.GEMINI_API_KEY:
+        logger.error("GEMINI_API_KEY is not set. Cannot generate embeddings without API key.")
         sys.exit(1)
 
     if not KB_DIR.exists():
         logger.error(f"Knowledge base directory {KB_DIR} does not exist.")
         sys.exit(1)
 
-    files = list(KB_DIR.glob("*.md"))
+    files = sorted(KB_DIR.glob("*.md"))
     if not files:
         logger.warning(f"No markdown documents found in {KB_DIR}")
         return
 
-    logger.info(f"Connecting to Neon database pool...")
-    conn = await asyncpg.connect(dsn)
-    await register_vector(conn)
+    logger.info("Connecting to Neon database pool...")
+    connected = await neon_db.connect()
+    if not connected or not neon_db.pool:
+        logger.error("Failed to connect to Neon database. Please check NEON_DATABASE_URL.")
+        sys.exit(1)
 
-    try:
-        # Wipe previous seeded records for atomic bi-weekly refresh
-        logger.info("Refreshing seeded documents...")
-        await conn.execute("DELETE FROM documents WHERE is_seeded = TRUE;")
+    doc_models: list[Document] = []
+    chunk_records: list[tuple] = []
+    now = datetime.now(UTC)
 
-        total_chunks_seeded = 0
-        for doc_path in files:
-            content = doc_path.read_text(encoding="utf-8")
-            sha256_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
-            chunks = chunk_markdown(content)
-            doc_id = uuid4()
+    for doc_path in files:
+        text = doc_path.read_text(encoding="utf-8")
+        doc_id = uuid4()
+        sha256_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-            logger.info(f"Ingesting '{doc_path.name}' ({len(chunks)} chunks)...")
-            await conn.execute(
-                """
-                INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded)
-                VALUES ($1, NULL, $2, 'text/markdown', $3, $4, $5, TRUE);
-                """,
-                doc_id,
-                doc_path.name,
-                sha256_hash,
-                len(chunks),
-                str(doc_path.relative_to(BASE_DIR)),
+        chunks = default_markdown_parser.parse_markdown(
+            text,
+            document_id=doc_id,
+            extra_metadata={"filename": doc_path.name},
+        )
+        if not chunks:
+            continue
+
+        logger.info(f"Embedding '{doc_path.name}' ({len(chunks)} chunks)...")
+        texts_to_embed = [c.content for c in chunks]
+        embeddings = await default_embedding_service.get_embeddings(texts_to_embed)
+
+        doc = Document(
+            id=doc_id,
+            user_id=None,
+            filename=doc_path.name,
+            mime_type="text/markdown",
+            sha256_hash=sha256_hash,
+            total_chunks=len(chunks),
+            storage_path=str(doc_path.relative_to(BASE_DIR)),
+            is_seeded=True,
+            uploaded_at=now,
+        )
+        doc_models.append(doc)
+
+        for idx, chunk in enumerate(chunks):
+            chunk.embedding = embeddings[idx]
+            chunk_records.append(
+                (
+                    chunk.id,
+                    chunk.document_id,
+                    chunk.chunk_index,
+                    chunk.content,
+                    chunk.embedding,
+                    json.dumps(chunk.metadata),
+                    chunk.created_at,
+                )
             )
 
-            for idx, chunk_text in enumerate(chunks):
-                emb = await get_embedding(chunk_text, gemini_key)
-                chunk_id = uuid4()
-                await conn.execute(
-                    """
-                    INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, metadata)
-                    VALUES ($1, $2, $3, $4, $5, $6::jsonb);
-                    """,
-                    chunk_id,
-                    doc_id,
-                    idx,
-                    chunk_text,
-                    emb,
-                    f'{{"source": "{doc_path.name}", "chunk_index": {idx}}}',
-                )
-                total_chunks_seeded += 1
+    doc_query = """
+        INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded, uploaded_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+    """
+    chunk_query = """
+        INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, metadata, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7);
+    """
 
-        logger.info(f"Successfully seeded {len(files)} documents and {total_chunks_seeded} chunks into Neon DB!")
-    finally:
-        await conn.close()
+    logger.info("Executing atomic delete-and-reinsert transaction...")
+    async with neon_db.pool.acquire() as conn, conn.transaction():
+        await conn.execute("DELETE FROM documents WHERE is_seeded = TRUE;")
+        for doc in doc_models:
+            await conn.execute(
+                doc_query,
+                doc.id,
+                doc.user_id,
+                doc.filename,
+                doc.mime_type,
+                doc.sha256_hash,
+                doc.total_chunks,
+                doc.storage_path,
+                doc.is_seeded,
+                doc.uploaded_at,
+            )
+        if chunk_records:
+            await conn.executemany(chunk_query, chunk_records)
+
+    logger.info(
+        f"Successfully seeded {len(doc_models)} documents and {len(chunk_records)} chunks into Neon DB!"
+    )
 
 
 if __name__ == "__main__":

@@ -1,8 +1,6 @@
 import logging
-import re
-from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,13 +8,6 @@ from app.db.neon import NeonDatabase, neon_db
 from app.rag.embeddings import EmbeddingService, default_embedding_service
 
 logger = logging.getLogger("nexusagent.rag.hybrid_search")
-
-KNOWLEDGE_BASE_DIR = (
-    Path(__file__).resolve().parents[4] / "knowledge_base" / "benchmarks"
-    if (Path(__file__).resolve().parents[4] / "knowledge_base" / "benchmarks").is_dir()
-    else Path.cwd() / "knowledge_base" / "benchmarks"
-)
-
 
 class HybridSearchResult(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -114,9 +105,11 @@ def compute_rrf(
             except (json.JSONDecodeError, TypeError, ValueError):
                 meta = {}
 
-        header_path = meta.get("header_path") or []
+        header_path = meta.get("header_path") or meta.get("headerPath") or []
         if isinstance(header_path, str):
             header_path = [header_path]
+        start_line = meta.get("start_line", meta.get("startLine"))
+        end_line = meta.get("end_line", meta.get("endLine"))
 
         results.append(
             HybridSearchResult(
@@ -134,8 +127,8 @@ def compute_rrf(
                 sparse_score=round(entry["sparse_score"], 4)
                 if entry["sparse_score"] is not None
                 else None,
-                start_line=meta.get("start_line"),
-                end_line=meta.get("end_line"),
+                start_line=start_line,
+                end_line=end_line,
                 header_path=header_path,
                 metadata=meta,
             )
@@ -158,119 +151,6 @@ class HybridSearchEngine:
         self.db = db or neon_db
         self.embedding_service = embedding_service or default_embedding_service
 
-    def _get_offline_chunks(self) -> list[dict[str, Any]]:
-        """Parse pre-seeded markdown RFCs and benchmarks into indexed chunks."""
-        if hasattr(self, "_cached_offline_chunks") and self._cached_offline_chunks:
-            return self._cached_offline_chunks
-
-        chunks: list[dict[str, Any]] = []
-        if not KNOWLEDGE_BASE_DIR.is_dir():
-            return []
-
-        for md_file in sorted(KNOWLEDGE_BASE_DIR.glob("*.md")):
-            filename = md_file.name
-            lines = md_file.read_text(encoding="utf-8").splitlines()
-            current_header: list[str] = []
-            chunk_lines: list[str] = []
-            chunk_start = 1
-
-            for line_idx, line in enumerate(lines, start=1):
-                stripped = line.strip()
-                if stripped.startswith("#"):
-                    if chunk_lines:
-                        chunk_text = "\n".join(chunk_lines).strip()
-                        if len(chunk_text) > 40:
-                            chunks.append(
-                                {
-                                    "id": f"chunk-{filename}-{chunk_start}",
-                                    "document_id": str(uuid4()),
-                                    "filename": filename,
-                                    "start_line": chunk_start,
-                                    "end_line": line_idx - 1,
-                                    "header_path": list(current_header),
-                                    "content": chunk_text,
-                                }
-                            )
-                        chunk_lines = []
-                    h_text = stripped.lstrip("#").strip()
-                    current_header = [h_text]
-                    chunk_start = line_idx
-                else:
-                    chunk_lines.append(line)
-
-            if chunk_lines:
-                chunk_text = "\n".join(chunk_lines).strip()
-                if len(chunk_text) > 40:
-                    chunks.append(
-                        {
-                            "id": f"chunk-{filename}-{chunk_start}",
-                            "document_id": str(uuid4()),
-                            "filename": filename,
-                            "start_line": chunk_start,
-                            "end_line": len(lines),
-                            "header_path": list(current_header),
-                            "content": chunk_text,
-                        }
-                    )
-
-        self._cached_offline_chunks = chunks
-        return chunks
-
-    async def _search_offline_knowledge_base(
-        self, query: str, limit: int = 5
-    ) -> list[HybridSearchResult]:
-        """Offline deterministic search scoring against bundled RFC and benchmark files."""
-        chunks = self._get_offline_chunks()
-        if not chunks:
-            return []
-
-        query_terms = [t.lower() for t in re.findall(r"\w+", query) if len(t) > 2]
-        scored: list[tuple[float, dict[str, Any]]] = []
-
-        for c in chunks:
-            content_lower = c["content"].lower()
-            filename_lower = c["filename"].lower()
-            header_lower = " ".join(c["header_path"]).lower()
-
-            term_matches = sum(content_lower.count(t) for t in query_terms)
-            header_matches = sum(2 for t in query_terms if t in header_lower)
-            file_matches = sum(3 for t in query_terms if t in filename_lower)
-
-            score = (term_matches * 1.0) + (header_matches * 2.0) + (file_matches * 3.0)
-            if score > 0:
-                scored.append((score, c))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-        top = scored[:limit]
-
-        # If no keywords matched, fall back to top RFC chunks
-        if not top:
-            top = [(1.0, c) for c in chunks[:limit]]
-
-        results = []
-        for idx, (raw_score, c) in enumerate(top, start=1):
-            norm_score = min(0.98, max(0.65, 0.70 + (raw_score / 20.0)))
-            results.append(
-                HybridSearchResult(
-                    id=c["id"],
-                    document_id=c["document_id"],
-                    chunk_index=idx,
-                    content=c["content"],
-                    filename=c["filename"],
-                    similarity_score=round(norm_score, 4),
-                    dense_rank=idx,
-                    sparse_rank=idx,
-                    dense_score=round(norm_score, 4),
-                    sparse_score=round(norm_score, 4),
-                    start_line=c["start_line"],
-                    end_line=c["end_line"],
-                    header_path=c["header_path"],
-                    metadata={"source": "bundled_knowledge_base", "is_seeded": True},
-                )
-            )
-
-        return results
-
     async def search(
         self,
         query: str,
@@ -284,54 +164,46 @@ class HybridSearchEngine:
     ) -> list[HybridSearchResult]:
         """
         Execute parallel hybrid search across dense embeddings and lexical tsvector indexes.
-        Automatically falls back to bundled RFC knowledge base when offline or zero-cost demo.
         """
         clean_query = query.strip()
         if not clean_query:
             return []
 
-        # Zero-cost / offline fallback when Neon database pool is not connected
         if not self.db or not self.db.pool:
-            return await self._search_offline_knowledge_base(clean_query, limit=limit)
+            raise RuntimeError("Knowledge base unavailable: database not connected")
 
         candidate_limit = max(limit * candidate_pool_multiplier, 15)
 
-        try:
-            # 1. Generate query embedding for dense search
-            query_embedding = await self.embedding_service.get_embedding(clean_query)
+        # 1. Generate query embedding for dense search
+        query_embedding = await self.embedding_service.get_embedding(clean_query)
 
-            # 2. Query dense candidates via Neon pgvector HNSW index
-            dense_candidates = await self.db.search_chunks_dense(
-                query_embedding=query_embedding,
-                user_id=user_id,
-                document_id=document_id,
-                limit=candidate_limit,
-            )
+        # 2. Query dense candidates via Neon pgvector HNSW index
+        dense_candidates = await self.db.search_chunks_dense(
+            query_embedding=query_embedding,
+            user_id=user_id,
+            document_id=document_id,
+            limit=candidate_limit,
+        )
 
-            # 3. Query sparse candidates via Neon tsvector GIN index
-            sparse_candidates = await self.db.search_chunks_lexical(
-                query=clean_query,
-                user_id=user_id,
-                document_id=document_id,
-                limit=candidate_limit,
-            )
+        # 3. Query sparse candidates via Neon tsvector GIN index
+        sparse_candidates = await self.db.search_chunks_lexical(
+            query=clean_query,
+            user_id=user_id,
+            document_id=document_id,
+            limit=candidate_limit,
+        )
 
-            # 4. Fuse rankings using Reciprocal Rank Fusion
-            fused = compute_rrf(
-                dense_results=dense_candidates,
-                sparse_results=sparse_candidates,
-                dense_weight=dense_weight,
-                sparse_weight=sparse_weight,
-                rrf_k=rrf_k,
-                limit=limit,
-            )
+        # 4. Fuse rankings using Reciprocal Rank Fusion
+        fused = compute_rrf(
+            dense_results=dense_candidates,
+            sparse_results=sparse_candidates,
+            dense_weight=dense_weight,
+            sparse_weight=sparse_weight,
+            rrf_k=rrf_k,
+            limit=limit,
+        )
 
-            if fused:
-                return fused
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"Database hybrid search failed, falling back to bundled RFCs: {e}")
-
-        return await self._search_offline_knowledge_base(clean_query, limit=limit)
+        return fused
 
 
 default_hybrid_search_engine = HybridSearchEngine()

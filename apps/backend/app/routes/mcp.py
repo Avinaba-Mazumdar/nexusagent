@@ -13,7 +13,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
@@ -99,8 +99,14 @@ async def dispatch_mcp_method(req: JsonRpcRequest, user_id: UUID | None = None) 
                 error=JsonRpcError(code=INVALID_PARAMS, message="Missing parameter 'uri'."),
             )
 
-        read_res = await default_mcp_registry.read_resource(uri)
-        return JsonRpcResponse(id=req.id, result=read_res)
+        try:
+            read_res = await default_mcp_registry.read_resource(uri)
+            return JsonRpcResponse(id=req.id, result=read_res)
+        except ValueError:
+            return JsonRpcResponse(
+                id=req.id,
+                error=JsonRpcError(code=INVALID_PARAMS, message="Unknown resource"),
+            )
 
     else:
         return JsonRpcResponse(
@@ -109,11 +115,11 @@ async def dispatch_mcp_method(req: JsonRpcRequest, user_id: UUID | None = None) 
         )
 
 
-@router.post("/v1", response_model=JsonRpcResponse)
+@router.post("/v1", response_model=None)
 async def direct_jsonrpc_gateway(
     request: Request,
     current_user: User = Depends(get_current_user),
-) -> JsonRpcResponse:
+) -> JsonRpcResponse | Response:
     """
     Direct HTTP JSON-RPC 2.0 gateway accepting tools/list, tools/call, and resources/list.
     Requires authentication: tools/call reaches the production database.
@@ -133,6 +139,10 @@ async def direct_jsonrpc_gateway(
             id=body.get("id") if isinstance(body, dict) else None,
             error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request"),
         )
+
+    if req.id is None:
+        await dispatch_mcp_method(req, user_id=current_user.id)
+        return Response(status_code=202)
 
     try:
         return await dispatch_mcp_method(req, user_id=current_user.id)
@@ -239,13 +249,14 @@ async def mcp_messages_endpoint(
 
     try:
         res = await dispatch_mcp_method(req, user_id=current_user.id)
-        try:
-            queue.put_nowait(res.model_dump_json(exclude_none=True))
-        except asyncio.QueueFull:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="MCP session queue full",
-            )
+        if req.id is not None:
+            try:
+                queue.put_nowait(res.model_dump_json(exclude_none=True))
+            except asyncio.QueueFull:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="MCP session queue full",
+                )
         return JSONResponse(status_code=202, content={"status": "accepted"})
     except Exception:
         logger.exception("Error processing SSE message")
@@ -253,11 +264,12 @@ async def mcp_messages_endpoint(
             id=req.id,
             error=JsonRpcError(code=INTERNAL_ERROR, message="Internal error"),
         )
-        try:
-            queue.put_nowait(err_res.model_dump_json(exclude_none=True))
-        except asyncio.QueueFull:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="MCP session queue full",
-            )
+        if req.id is not None:
+            try:
+                queue.put_nowait(err_res.model_dump_json(exclude_none=True))
+            except asyncio.QueueFull:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="MCP session queue full",
+                )
         return JSONResponse(status_code=202, content={"status": "accepted"})

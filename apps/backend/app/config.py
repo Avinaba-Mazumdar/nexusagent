@@ -4,6 +4,8 @@ from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
+REPO_ROOT = BACKEND_DIR.parent.parent
+KNOWLEDGE_BASE_DIR: Path = REPO_ROOT / "knowledge_base" / "benchmarks"
 
 
 class Settings(BaseSettings):
@@ -11,6 +13,8 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0-alpha"
     ENVIRONMENT: str = "production"
     DEBUG: bool = False
+    KNOWLEDGE_BASE_DIR: Path = KNOWLEDGE_BASE_DIR
+    GEMINI_MODELS: list[str] = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
 
     HOST: str = "0.0.0.0"
     PORT: int = 8000
@@ -29,7 +33,7 @@ class Settings(BaseSettings):
                 import json
                 try:
                     return json.loads(v_str)
-                except Exception:
+                except (json.JSONDecodeError, TypeError, ValueError):
                     pass
             return [origin.strip() for origin in v_str.split(",") if origin.strip()]
         return v  # type: ignore[return-value]
@@ -57,7 +61,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
 
     @model_validator(mode="after")
-    def validate_production_secrets(self) -> "Settings":
+    def validate_production_secrets(self) -> Settings:
         if self.ENVIRONMENT in ("development", "test"):
             if not self.JWT_SECRET_KEY:
                 self.JWT_SECRET_KEY = "nexusagent-local-dev-only-secret-not-for-production"

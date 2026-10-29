@@ -41,10 +41,13 @@ async def neon_pool():
 @pytest.fixture(autouse=True)
 def reset_rate_limiters():
     """Reset token buckets and sliding-window counters between tests."""
+    from app.agent.graph import _get_llm_chain
     from app.core.rate_limiter import default_rate_limiter
 
+    _get_llm_chain.cache_clear()
     default_rate_limiter.reset_for_test()
     yield
+    _get_llm_chain.cache_clear()
     default_rate_limiter.reset_for_test()
 
 

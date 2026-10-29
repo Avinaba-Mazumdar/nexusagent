@@ -63,8 +63,8 @@ When writing code or proposing changes for NexusAgent, you MUST strictly follow 
 2. **Neon PostgreSQL 18 Data Tier & Python Backend Auth Guarantee**:
     - Single Unified Data Tier: Neon Serverless PostgreSQL 18 with `pgvector` (HNSW indexing), full-text `tsvector` BM25 search, connection pooling, and FastAPI-managed authentication (Guest JWTs + Password/OAuth sessions) is used across local development, wq, and production. Locally, no separate database is maintained.
 3. **Agentic Orchestration & LangGraph DAG**:
-    - The agent execution loop must run on a LangGraph `StateGraph` with explicit nodes: `planner` -> `retriever` -> `critic` (reflection) -> `synthesizer`. The `mcp_tools` node joins this graph in the MCP v2 milestone (Phase 10).
-    - Every execution run must have a cycle safeguard (`iteration_count < MAX_STEPS`, default 10).
+    - The agent execution loop runs on a LangGraph `StateGraph` with explicit nodes: `planner` -> `retriever` -> `critic` (grounding check) -> `synthesizer`. The `mcp_tools` node joins this graph in the MCP v2 milestone (Phase 10).
+    - The `critic` evaluates context grounding and sets instructions for synthesis without dynamic loop-backs.
 4. **Model Context Protocol (FastMCP) Compliance**:
     - Must expose compliant FastMCP transport endpoints (`/api/mcp/sse`, `/api/mcp/messages`) and stdio launcher supporting `tools/list`, `tools/call`, and `resources/list`.
     - Tools (`hybrid_rag_search`) must validate arguments against typed Pydantic schemas.

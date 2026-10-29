@@ -1,4 +1,5 @@
 import pytest
+
 from app.agent.graph import (
     AgentGraph,
     classify_query_intent,
@@ -35,6 +36,35 @@ def test_classify_query_intent_boundaries():
     assert is_architectural_query("Explain Raft consensus commit latency under high write throughput") is True
 
     assert classify_query_intent("Calculate quorum size and failover time for 5 replicas") == "architectural"
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "best pasta recipe",
+        "average storage price of a fridge",
+        "what is the last movie",
+    ],
+)
+def test_scope_guardrail_out_of_scope_parametrized(query: str):
+    """Verify out-of-scope queries with sub-word false-positive traps are rejected (L-05)."""
+    assert classify_query_intent(query) == "out_of_scope"
+    assert is_out_of_scope(query) is True
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Raft consensus quorum",
+        "compare LLM benchmarks",
+        "vector databases",
+        "RAG pipeline design",
+    ],
+)
+def test_scope_guardrail_architectural_parametrized(query: str):
+    """Verify architectural queries match word boundary regex (L-05)."""
+    assert classify_query_intent(query) == "architectural"
+    assert is_architectural_query(query) is True
 
 
 @pytest.mark.asyncio

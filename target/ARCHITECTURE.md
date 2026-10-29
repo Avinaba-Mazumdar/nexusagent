@@ -39,7 +39,7 @@ Reviewers and hiring executives can explore NexusAgent instantly via **1-Click G
 1. **Deterministic & Free-Tier Resilience**: Zero runtime crashes when third-party API keys are missing via realistic pre-cached simulator traces. Single unified Neon PostgreSQL 18 data tier across local development, wq, and production.
 2. **Strict MCP Standard Compliance**: Complete adherence to the Model Context Protocol (MCP v2) specification with dual transports (SSE at `/api/mcp/sse` + `/api/mcp/messages` and stdio launcher for Claude Desktop and Cursor), operating both as an MCP Tool Server and as an interactive Inspector console.
 3. **Provable Architectural Rigor**: Agent outputs must not hallucinate consensus invariants. The critic node enforces strict citations to source RFCs with line-level accuracy.
-4. **Sub-600ms Time-to-First-Token (TTFT)**: Async streaming over Server-Sent Events (SSE) ensures immediate UI responsiveness while LangGraph plans and retrieves in the background.
+4. **Progressive SSE Streaming**: Async streaming over Server-Sent Events (SSE) communicates pipeline status and synthesis incrementally.
 5. **OWASP Top 10 for Agentic AI Hardening**: Hardened perimeter covering prompt injection delimiters, no untrusted code execution, Human-in-the-Loop (HITL) tool gates, least-privilege MCP scopes, and immutable audit logs.
 6. **Financial Protection & Abuse Resistance**: Sliding-window Token-Bucket rate limiting per IP and Guest Session token, strictly capping live external LLM calls to prevent runaway cloud bills.
 

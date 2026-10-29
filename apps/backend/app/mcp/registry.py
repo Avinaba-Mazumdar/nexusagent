@@ -6,10 +6,10 @@ Provides tools:
 
 import logging
 import time
-from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from app.config import KNOWLEDGE_BASE_DIR
 from app.core.hitl_coordinator import default_hitl_coordinator
 from app.core.security_guardrails import compute_mcp_tool_hash, scan_mcp_tool_metadata
 from app.mcp.protocol import (
@@ -22,10 +22,6 @@ from app.mcp.protocol import (
 from app.rag.hybrid_search import default_hybrid_search_engine
 
 logger = logging.getLogger("nexusagent.mcp.registry")
-
-KNOWLEDGE_BASE_DIR = (
-    Path(__file__).resolve().parent.parent.parent.parent / "knowledge_base" / "benchmarks"
-)
 
 
 # Tool Definitions
@@ -151,24 +147,7 @@ class McpRegistry:
                     ]
                 }
 
-        # Fallback simulated RFC content
-        sample_rfc = (
-            f"# Resource: {uri}\n\n"
-            "Pre-seeded architecture specification from NexusAgent knowledge vault.\n"
-            "Grounding Invariants:\n"
-            "- Quorum required: (N // 2) + 1\n"
-            "- Read consistency: Linearizable read index\n"
-            "- Storage tier: Neon PostgreSQL 18 with compute-storage decoupling\n"
-        )
-        return {
-            "contents": [
-                {
-                    "uri": uri,
-                    "mimeType": "text/markdown",
-                    "text": sample_rfc,
-                }
-            ]
-        }
+        raise ValueError(f"Unknown resource: {uri}")
 
     @classmethod
     async def call_tool(
@@ -216,7 +195,7 @@ class McpRegistry:
                 user_id=user_id,
                 mcp_server="nexusagent-mcp",
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("Failed to log MCP tool audit: %s", e)
 
         return result
@@ -231,7 +210,14 @@ class McpRegistry:
             )
         limit = min(max(int(arguments.get("limit", 5)), 1), 20)
 
-        results = await default_hybrid_search_engine.search(query=query, limit=limit)
+        try:
+            results = await default_hybrid_search_engine.search(query=query, limit=limit)
+        except RuntimeError:
+            return ToolCallResult(
+                content=[ToolCallContent(text="Knowledge base unavailable.")],
+                isError=True,
+            )
+
         if not results:
             return ToolCallResult(
                 content=[

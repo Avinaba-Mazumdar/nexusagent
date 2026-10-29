@@ -30,6 +30,39 @@ async def _auth_client():
         yield client
 
 
+@pytest.mark.asyncio
+async def test_mcp_notification_returns_202_empty_body():
+    """Verify MCP notification (no id) returns HTTP 202 with an empty body (L-23)."""
+    now = datetime.now(UTC)
+    mock_user = User(
+        id=uuid4(),
+        email="guest@example.com",
+        hashed_password=None,
+        name="Guest",
+        avatar_url=None,
+        is_guest=True,
+        client_ip="127.0.0.1",
+        device_id="dev-guest",
+        created_at=now,
+        last_seen_at=now,
+    )
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.post(
+                "/api/mcp/v1",
+                json={
+                    "jsonrpc": "2.0",
+                    "method": "notifications/initialized",
+                },
+            )
+            assert res.status_code == 202
+            assert res.text == ""
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
 @pytest.mark.db
 @pytest.mark.asyncio
 async def test_mcp_initialize_endpoint():
@@ -141,6 +174,45 @@ async def test_mcp_resources_list_and_read():
         assert len(contents) > 0
         assert contents[0]["uri"] == first_uri
         assert len(contents[0]["text"]) > 10
+
+
+@pytest.mark.asyncio
+async def test_mcp_read_unknown_resource_returns_invalid_params():
+    """Verify resources/read with unknown URI returns INVALID_PARAMS error (L-15)."""
+    now = datetime.now(UTC)
+    mock_user = User(
+        id=uuid4(),
+        email="guest@example.com",
+        hashed_password=None,
+        name="Guest",
+        avatar_url=None,
+        is_guest=True,
+        client_ip="127.0.0.1",
+        device_id="dev-guest",
+        created_at=now,
+        last_seen_at=now,
+    )
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.post(
+                "/api/mcp/v1",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": "bad-res",
+                    "method": "resources/read",
+                    "params": {"uri": "benchmark://nope"},
+                },
+            )
+            assert res.status_code == 200
+            data = res.json()
+            assert data["id"] == "bad-res"
+            assert "error" in data
+            assert data["error"]["code"] == -32602  # INVALID_PARAMS
+            assert data["error"]["message"] == "Unknown resource"
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.mark.db

@@ -110,6 +110,44 @@ def test_rrf_scoring_algorithm():
     assert fused[0].similarity_score > 0
 
 
+def test_rrf_camelcase_metadata():
+    """Verify compute_rrf correctly extracts camelCase metadata keys (L-03)."""
+    dense_candidates = [
+        {
+            "id": "c1",
+            "document_id": "d1",
+            "content": "Test content",
+            "similarity": 0.9,
+            "metadata": {"headerPath": ["A", "B"], "startLine": 3, "endLine": 9},
+        }
+    ]
+    fused = compute_rrf(dense_results=dense_candidates, sparse_results=[])
+    assert len(fused) == 1
+    assert fused[0].header_path == ["A", "B"]
+    assert fused[0].start_line == 3
+    assert fused[0].end_line == 9
+
+
+@pytest.mark.asyncio
+async def test_search_raises_runtime_error_when_db_disconnected():
+    """Verify hybrid search raises RuntimeError instead of fabricating offline results (L-11, D-6)."""
+    from app.rag.hybrid_search import HybridSearchEngine
+
+    engine = HybridSearchEngine(db=None)
+    with pytest.raises(RuntimeError, match="Knowledge base unavailable: database not connected"):
+        await engine.search("Raft consensus")
+
+
+@pytest.mark.asyncio
+async def test_mcp_registry_catches_runtime_error():
+    """Verify default_mcp_registry._exec_hybrid_search returns isError=True on RuntimeError (L-11)."""
+    from app.mcp.registry import default_mcp_registry
+
+    res = await default_mcp_registry._exec_hybrid_search({"query": "Raft consensus"})
+    assert res.isError is True
+    assert "Knowledge base unavailable" in res.content[0].text
+
+
 @pytest.mark.db
 @pytest.mark.asyncio
 async def test_hybrid_search_end_to_end_endpoint():
@@ -158,7 +196,7 @@ async def test_hybrid_search_end_to_end_endpoint():
         chunk_index=0,
         content="Raft consensus leader heartbeat quorum and election timeout.",
         embedding=emb_chunk1,
-        metadata={"start_line": 1, "end_line": 20, "header_path": ["Raft Consensus", "Heartbeats"]},
+        metadata={"startLine": 1, "endLine": 20, "headerPath": ["Raft Consensus", "Heartbeats"]},
     )
     chunk2 = DocumentChunk(
         id=uuid4(),
@@ -166,7 +204,7 @@ async def test_hybrid_search_end_to_end_endpoint():
         chunk_index=1,
         content="PostgreSQL B-Tree and GIN indexes for architectural queries.",
         embedding=emb_chunk2,
-        metadata={"start_line": 21, "end_line": 40, "header_path": ["Database", "Indexes"]},
+        metadata={"startLine": 21, "endLine": 40, "headerPath": ["Database", "Indexes"]},
     )
     await neon_db.insert_document_chunks([chunk1, chunk2])
 

@@ -42,6 +42,7 @@ def test_canary_token_generation_and_integrity():
 @pytest.mark.asyncio
 async def test_canary_leak_aborts_synthesized_response():
     from unittest.mock import AsyncMock, patch
+
     from app.agent.graph import synthesizer_node
     from app.agent.state import AgentState
 
@@ -58,6 +59,9 @@ async def test_canary_leak_aborts_synthesized_response():
         mock_chat.return_value.with_fallbacks.return_value = mock_clean_chain
         clean_state = await synthesizer_node(state)
         assert clean_state.injection_detected is False
+
+    from app.agent.graph import _get_llm_chain
+    _get_llm_chain.cache_clear()
 
     # Simulate model leaking the canary token
     state2 = AgentState(query="benchmark query", canary_token=canary)
@@ -82,6 +86,7 @@ async def test_canary_leak_aborts_synthesized_response():
 @pytest.mark.asyncio
 async def test_synthesizer_prompt_wraps_untrusted_context():
     from unittest.mock import AsyncMock, patch
+
     from app.agent.graph import synthesizer_node
     from app.agent.state import AgentState
     from app.rag.hybrid_search import HybridSearchResult

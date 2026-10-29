@@ -95,8 +95,14 @@ async def handle_jsonrpc_request(req_dict: dict) -> dict:
                     error=JsonRpcError(code=INVALID_PARAMS, message="Missing parameter 'uri'."),
                 ).model_dump(exclude_none=True)
 
-            read_res = await default_mcp_registry.read_resource(uri)
-            return JsonRpcResponse(id=req.id, result=read_res).model_dump(exclude_none=True)
+            try:
+                read_res = await default_mcp_registry.read_resource(uri)
+                return JsonRpcResponse(id=req.id, result=read_res).model_dump(exclude_none=True)
+            except ValueError:
+                return JsonRpcResponse(
+                    id=req.id,
+                    error=JsonRpcError(code=INVALID_PARAMS, message="Unknown resource"),
+                ).model_dump(exclude_none=True)
 
         else:
             return JsonRpcResponse(
@@ -131,7 +137,7 @@ async def main():
         try:
             req_data = json.loads(line)
             res_data = await handle_jsonrpc_request(req_data)
-            if res_data:  # Notifications might yield empty response
+            if res_data and req_data.get("id") is not None:  # Notifications produce no response
                 sys.stdout.write(json.dumps(res_data) + "\n")
                 sys.stdout.flush()
         except json.JSONDecodeError as e:
