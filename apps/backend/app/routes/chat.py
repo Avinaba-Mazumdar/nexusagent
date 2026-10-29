@@ -1,6 +1,5 @@
 """Seeded knowledge-base listing and Chat History endpoints for Google-authenticated users."""
 
-from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -15,7 +14,6 @@ router = APIRouter(prefix="/chat", tags=["Chat History & Seeded Knowledge Base"]
 
 class CreateConversationRequestWire(BaseModel):
     title: str = Field(default="New Architectural Inquiry", max_length=255)
-    sessionId: str | None = Field(default=None)
 
 
 def ensure_google_user(current_user: User) -> None:
@@ -66,14 +64,7 @@ async def create_chat_conversation(
 ):
     """Explicitly create a new conversation thread."""
     ensure_google_user(current_user)
-    conv_id = None
-    if payload.sessionId:
-        try:
-            conv_id = UUID(payload.sessionId)
-        except ValueError:
-            pass
-
-    conv = await db.create_conversation(current_user.id, title=payload.title, conversation_id=conv_id)
+    conv = await db.create_conversation(current_user.id, title=payload.title, conversation_id=None)
     return {
         "id": str(conv["id"]),
         "userId": str(conv["user_id"]),

@@ -1,22 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { apiClient, setAuthTokenGetter, setOnUnauthorizedCallback, setCookie, getCookie, removeCookie } from './api-client';
+import { apiClient, setAuthTokenGetter, setOnUnauthorizedCallback } from './api-client';
 
-describe('apiClient & Cookie Utilities', () => {
+describe('apiClient', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
         // Reset auth token getter and unauthorized callback
         setAuthTokenGetter(() => null);
         setOnUnauthorizedCallback(() => {});
-    });
-
-    describe('Cookie helpers', () => {
-        it('sets, gets, and removes cookies', () => {
-            setCookie('test_token', 'jwt-token-12345');
-            expect(getCookie('test_token')).toBe('jwt-token-12345');
-
-            removeCookie('test_token');
-            expect(getCookie('test_token')).toBeFalsy();
-        });
     });
 
     describe('apiClient', () => {

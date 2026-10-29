@@ -4,8 +4,6 @@ export interface UserSession {
     name: string;
     avatarUrl?: string | null;
     isGuest: boolean;
-    clientIp?: string | null;
-    deviceId?: string | null;
     createdAt: string;
     lastSeenAt: string;
 }

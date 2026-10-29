@@ -13,6 +13,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 
+from app.config import settings
 from app.db.neon import NeonDatabase, neon_db
 
 logger = logging.getLogger("nexusagent.core.rate_limiter")
@@ -25,6 +26,33 @@ class MemoryBucket:
     tokens_remaining: int
     bucket_capacity: int
     last_replenished_at: datetime
+
+
+class SlidingWindowCounter:
+    """Per-key event counter over a rolling window (per process)."""
+
+    def __init__(self, limit: int, window: timedelta = timedelta(hours=1)):
+        self.limit = limit
+        self.window = window
+        self._events: dict[str, list[datetime]] = {}
+
+    def hit(self, key: str) -> bool:
+        """Record an event; return False (and record nothing) when the key is over its limit."""
+        now = datetime.now(UTC)
+        recent = [t for t in self._events.get(key, []) if now - t < self.window]
+        if len(recent) >= self.limit:
+            self._events[key] = recent
+            return False
+        recent.append(now)
+        self._events[key] = recent
+        return True
+
+    def reset_for_test(self) -> None:
+        self._events.clear()
+
+
+guest_signup_limiter = SlidingWindowCounter(limit=settings.GUEST_SIGNUPS_PER_IP_PER_HOUR)
+guest_ip_llm_limiter = SlidingWindowCounter(limit=settings.GUEST_IP_QUOTA_PER_HOUR)
 
 
 class TokenBucketLimiter:
@@ -76,7 +104,16 @@ class TokenBucketLimiter:
         Returns tokens_remaining after decrement.
         Raises HTTPException(429) if quota is depleted.
         """
-        default_tokens = 5 if is_guest else 25
+        if is_guest and not guest_ip_llm_limiter.hit(client_ip):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many guest requests from this network. Try again later.",
+                headers={"Retry-After": "3600"},
+            )
+
+        default_tokens = (
+            settings.GUEST_QUOTA_DEFAULT if is_guest else settings.USER_QUOTA_DEFAULT
+        )
 
         # 1. Try PostgreSQL if pool is available
         if self.db and self.db.pool:
@@ -118,7 +155,9 @@ class TokenBucketLimiter:
         is_guest: bool = True,
     ) -> int:
         """Fetch current quota without consuming."""
-        default_tokens = 5 if is_guest else 25
+        default_tokens = (
+            settings.GUEST_QUOTA_DEFAULT if is_guest else settings.USER_QUOTA_DEFAULT
+        )
 
         if self.db and self.db.pool:
             try:
@@ -134,9 +173,30 @@ class TokenBucketLimiter:
         bucket = self._get_memory_bucket(user_id, client_ip, default_tokens)
         return bucket.tokens_remaining
 
+    async def refund(
+        self,
+        user_id: UUID,
+        client_ip: str,
+        is_guest: bool = True,
+    ) -> None:
+        """Refund 1 token (capped at capacity) after a failed run."""
+        if self.db and self.db.pool:
+            try:
+                await self.db.refund_rate_limit(user_id, client_ip)
+                return
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Database rate limit refund failed: {e}")
+
+        key = (str(user_id), client_ip)
+        bucket = self._memory_buckets.get(key)
+        if bucket:
+            bucket.tokens_remaining = min(bucket.bucket_capacity, bucket.tokens_remaining + 1)
+
     def reset_for_test(self) -> None:
         """Clear memory cache for test isolation."""
         self._memory_buckets.clear()
+        guest_signup_limiter.reset_for_test()
+        guest_ip_llm_limiter.reset_for_test()
 
 
 default_rate_limiter = TokenBucketLimiter(db=neon_db)

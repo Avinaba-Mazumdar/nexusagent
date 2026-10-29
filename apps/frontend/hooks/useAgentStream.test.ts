@@ -22,9 +22,10 @@ describe('useAgentStream Hook', () => {
     });
 
     it('processes SSE events stream correctly', async () => {
+        const onQuotaMock = vi.fn();
         const encoder = new TextEncoder();
         const sseEvents = [
-            'event: start\ndata: {"sessionId": "test-session-123"}\n\n',
+            'event: start\ndata: {"sessionId": "test-session-123", "quotaRemaining": 3}\n\n',
             'event: plan\ndata: {"plan": [{"id": "1", "description": "Step 1: Retrieve context", "status": "pending", "agent": "retriever"}]}\n\n',
             'event: node_start\ndata: {"node": "planner", "status": "running"}\n\n',
             'event: token\ndata: {"token": "Hello "}\n\n',
@@ -51,7 +52,7 @@ describe('useAgentStream Hook', () => {
             status: 200
         } as unknown as Response);
 
-        const { result } = renderHook(() => useAgentStream());
+        const { result } = renderHook(() => useAgentStream({ onQuota: onQuotaMock }));
 
         await act(async () => {
             await result.current.startStream({ query: 'What is the nexusagent architecture?' });
@@ -59,6 +60,7 @@ describe('useAgentStream Hook', () => {
 
         expect(result.current.isStreaming).toBe(false);
         expect(result.current.isComplete).toBe(true);
+        expect(onQuotaMock).toHaveBeenCalledWith(3);
         expect(result.current.plan.length).toBe(1);
         expect(result.current.streamedResponse).toBe('Hello World!');
         expect(result.current.reflectionScore).toBe(0.95);

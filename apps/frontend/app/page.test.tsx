@@ -7,7 +7,6 @@ import Home from './page';
 describe('Home Page - Layout and Header Controls', () => {
     beforeEach(() => {
         localStorage.clear();
-        document.cookie = 'nexusagent_token=; path=/; max-age=0';
         useAuthStore.getState().logout();
     });
 
@@ -153,7 +152,6 @@ describe('Home Page - Layout and Header Controls', () => {
             json: async () => mockAuthResponse
         } as unknown as Response);
 
-        const user = userEvent.setup();
         render(<Home />);
 
         // Authenticate via store
@@ -164,9 +162,6 @@ describe('Home Page - Layout and Header Controls', () => {
         // Header shows avatar button for authenticated user
         const profileBtn = await screen.findByRole('button', { name: /user profile menu/i });
         expect(profileBtn).toBeInTheDocument();
-
-        // Verify cookie persistence
-        expect(document.cookie).toContain('nexusagent_token=google.jwt.token');
 
         // Collapsible Chats category displays search input and new chat button in sidebar
         expect(await screen.findByRole('searchbox', { name: /search conversation history/i })).toBeInTheDocument();

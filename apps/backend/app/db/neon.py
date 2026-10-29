@@ -254,6 +254,17 @@ class NeonDatabase:
         async with pool.acquire() as conn:
             return await conn.fetchval(query, user_id, client_ip)
 
+    async def refund_rate_limit(self, user_id: UUID, client_ip: str) -> None:
+        """Return one token (capped at capacity) after a failed run."""
+        pool = self.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE rate_limit_buckets SET tokens_remaining = LEAST(tokens_remaining + 1, bucket_capacity) "
+                "WHERE user_id = $1 AND client_ip = $2;",
+                user_id,
+                client_ip,
+            )
+
     async def search_seeded_chunks(
         self, query_embedding: list[float], limit: int = 3
     ) -> list[dict]:
@@ -411,7 +422,7 @@ class NeonDatabase:
             conditions.append(f"c.document_id = ${idx}")
             params.append(document_id)
             idx += 1
-        elif user_id:
+        if user_id:
             conditions.append(f"(d.is_seeded = TRUE OR d.user_id = ${idx})")
             params.append(user_id)
             idx += 1
@@ -452,7 +463,7 @@ class NeonDatabase:
             conditions.append(f"c.document_id = ${idx}")
             params.append(document_id)
             idx += 1
-        elif user_id:
+        if user_id:
             conditions.append(f"(d.is_seeded = TRUE OR d.user_id = ${idx})")
             params.append(user_id)
             idx += 1
@@ -489,6 +500,7 @@ class NeonDatabase:
             INSERT INTO agent_conversations (id, user_id, title, created_at)
             VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
             ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title
+            WHERE agent_conversations.user_id = EXCLUDED.user_id
             RETURNING id, user_id, title, created_at;
         """
         async with pool.acquire() as conn:

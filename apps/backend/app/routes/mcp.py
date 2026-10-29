@@ -10,7 +10,8 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
-from uuid import uuid4
+from dataclasses import dataclass
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -33,8 +34,17 @@ logger = logging.getLogger("nexusagent.routes.mcp")
 
 router = APIRouter(prefix="/mcp", tags=["Model Context Protocol (MCP v2)"])
 
-# Active SSE session queues: sessionId -> asyncio.Queue[str]
-SESSION_QUEUES: dict[str, asyncio.Queue[str]] = {}
+# Active SSE sessions: sessionId -> McpSession
+@dataclass
+class McpSession:
+    owner_id: UUID
+    queue: asyncio.Queue[str]
+
+
+SESSIONS: dict[str, McpSession] = {}
+MAX_SESSIONS_PER_USER = 3
+MAX_SESSIONS_TOTAL = 200
+MAX_QUEUED_MESSAGES = 100
 
 
 async def dispatch_mcp_method(req: JsonRpcRequest) -> JsonRpcResponse:
@@ -145,9 +155,17 @@ async def mcp_sse_endpoint(
     Complies with MCP transport specification: emits 'endpoint' event with target URL for POST messages.
     Requires authentication: MCP clients reach the production database via these routes.
     """
+    user_sessions_count = sum(1 for s in SESSIONS.values() if s.owner_id == current_user.id)
+    if user_sessions_count >= MAX_SESSIONS_PER_USER or len(SESSIONS) >= MAX_SESSIONS_TOTAL:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many open MCP sessions",
+            headers={"Retry-After": "60"},
+        )
+
     session_id = uuid4().hex
-    queue: asyncio.Queue[str] = asyncio.Queue()
-    SESSION_QUEUES[session_id] = queue
+    queue: asyncio.Queue[str] = asyncio.Queue(maxsize=MAX_QUEUED_MESSAGES)
+    SESSIONS[session_id] = McpSession(owner_id=current_user.id, queue=queue)
 
     async def event_generator() -> AsyncGenerator[str]:
         # 1. Emit the standard MCP endpoint event pointing to the message handler
@@ -155,7 +173,7 @@ async def mcp_sse_endpoint(
         yield f"event: endpoint\ndata: {endpoint_url}\n\n"
 
         if once:
-            SESSION_QUEUES.pop(session_id, None)
+            SESSIONS.pop(session_id, None)
             return
 
         try:
@@ -171,7 +189,7 @@ async def mcp_sse_endpoint(
                         break
                     yield ": ping\n\n"
         finally:
-            SESSION_QUEUES.pop(session_id, None)
+            SESSIONS.pop(session_id, None)
 
     return StreamingResponse(
         event_generator(),
@@ -194,12 +212,13 @@ async def mcp_messages_endpoint(
     Inbound JSON-RPC 2.0 message handler for active SSE client sessions.
     Pushes response frame to client's SSE stream.
     """
-    queue = SESSION_QUEUES.get(sessionId)
-    if not queue:
+    session = SESSIONS.get(sessionId)
+    if not session or session.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session ID not found or SSE stream disconnected.",
         )
+    queue = session.queue
 
     try:
         body = await request.json()
@@ -209,12 +228,24 @@ async def mcp_messages_endpoint(
             id=None,
             error=JsonRpcError(code=INVALID_REQUEST, message=f"Invalid Request: {e!s}"),
         )
-        await queue.put(err_res.model_dump_json(exclude_none=True))
+        try:
+            queue.put_nowait(err_res.model_dump_json(exclude_none=True))
+        except asyncio.QueueFull:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="MCP session queue full",
+            )
         return JSONResponse(status_code=202, content={"status": "accepted"})
 
     try:
         res = await dispatch_mcp_method(req)
-        await queue.put(res.model_dump_json(exclude_none=True))
+        try:
+            queue.put_nowait(res.model_dump_json(exclude_none=True))
+        except asyncio.QueueFull:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="MCP session queue full",
+            )
         return JSONResponse(status_code=202, content={"status": "accepted"})
     except Exception as e:
         logger.exception("Error processing SSE message")
@@ -222,5 +253,11 @@ async def mcp_messages_endpoint(
             id=req.id,
             error=JsonRpcError(code=INTERNAL_ERROR, message=str(e)),
         )
-        await queue.put(err_res.model_dump_json(exclude_none=True))
+        try:
+            queue.put_nowait(err_res.model_dump_json(exclude_none=True))
+        except asyncio.QueueFull:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="MCP session queue full",
+            )
         return JSONResponse(status_code=202, content={"status": "accepted"})

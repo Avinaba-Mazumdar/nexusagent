@@ -10,9 +10,15 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_URL
       })()
     : '';
 
+const isDev = process.env.NODE_ENV !== 'production';
+const connectSrc = ["'self'", apiOrigin, 'https://accounts.google.com', ...(isDev ? ['http://localhost:*', 'http://127.0.0.1:*', 'ws://localhost:*'] : [])]
+    .filter(Boolean)
+    .join(' ');
+const scriptSrc = ["'self'", "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : []), 'https://accounts.google.com', 'https://apis.google.com'].join(' ');
+
 const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com;
+    script-src ${scriptSrc};
     style-src 'self' 'unsafe-inline' https://accounts.google.com;
     img-src 'self' data: blob: https://lh3.googleusercontent.com https://accounts.google.com;
     font-src 'self' data:;
@@ -21,7 +27,7 @@ const cspHeader = `
     form-action 'self';
     frame-ancestors 'none';
     frame-src 'self' https://accounts.google.com;
-    connect-src 'self' ${apiOrigin} https://nexusagent-oss.onrender.com https://*.onrender.com https://nexusagent.avinaba.com https://*.avinaba.com https://accounts.google.com https://generativelanguage.googleapis.com https://openrouter.ai http://localhost:* http://127.0.0.1:* ws: wss:;
+    connect-src ${connectSrc};
     upgrade-insecure-requests;
 `
     .replace(/\s{2,}/g, ' ')

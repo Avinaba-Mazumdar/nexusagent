@@ -136,8 +136,6 @@ class UserSession(BaseModel):
     name: str
     avatarUrl: str | None = None
     isGuest: bool
-    clientIp: str | None = None
-    deviceId: str | None = None
     createdAt: str
     lastSeenAt: str
 

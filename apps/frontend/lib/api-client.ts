@@ -1,28 +1,11 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-export function getCookie(name: string): string | null {
-    if (typeof document === 'undefined') return null;
-    const match = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}=([^;]*)`));
-    return match ? decodeURIComponent(match[1]) : null;
-}
-
-export function setCookie(name: string, value: string, maxAgeSeconds: number = 86400 * 30): void {
-    if (typeof document === 'undefined') return;
-    const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax${isSecure ? '; Secure' : ''}`;
-}
-
-export function removeCookie(name: string): void {
-    if (typeof document === 'undefined') return;
-    document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
-}
-
 let authTokenGetter: () => string | null = () => {
     if (typeof window === 'undefined') return null;
     try {
-        return localStorage.getItem('nexusagent_token') || getCookie('nexusagent_token');
+        return localStorage.getItem('nexusagent_token');
     } catch {
-        return getCookie('nexusagent_token');
+        return null;
     }
 };
 

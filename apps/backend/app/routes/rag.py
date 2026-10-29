@@ -10,6 +10,7 @@ from app.core.rate_limiter import default_rate_limiter
 from app.db.models import User
 from app.db.neon import NeonDatabase, get_db
 from app.rag.hybrid_search import HybridSearchEngine
+from app.routes.documents import require_document_access
 
 logger = logging.getLogger("nexusagent.routes.rag")
 
@@ -105,17 +106,7 @@ async def hybrid_search_documents(
             )
 
         # Validate tenancy if documentId is provided
-        doc = await db.get_document_by_id(doc_uuid)
-        if not doc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Target document not found",
-            )
-        if not doc.is_seeded and doc.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to target document",
-            )
+        await require_document_access(db, doc_uuid, current_user)
 
     engine = HybridSearchEngine(db=db)
     results = await engine.search(

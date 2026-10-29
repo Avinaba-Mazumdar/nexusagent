@@ -71,7 +71,8 @@ async def test_guest_pass_endpoint():
 
         assert user1["id"] == user2["id"]
         assert user1["name"] == user2["name"]
-        assert user2["deviceId"] == dev_id
+        assert "deviceId" not in user2
+        assert "clientIp" not in user2
 
 
 @pytest.mark.asyncio

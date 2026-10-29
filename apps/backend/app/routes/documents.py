@@ -56,6 +56,14 @@ async def list_documents(
     return {"documents": wires}
 
 
+async def require_document_access(db: NeonDatabase, document_id: UUID, user: User) -> Document:
+    """Validate document existence and tenancy access: seeded documents or user's own uploads."""
+    doc = await db.get_document_by_id(document_id)
+    if not doc or (not doc.is_seeded and doc.user_id != user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return doc
+
+
 @router.get("/{document_id}/chunks", response_model=dict[str, list[DocumentChunkWire]])
 async def get_document_chunks(
     document_id: str,
@@ -73,19 +81,7 @@ async def get_document_chunks(
             detail="Invalid document UUID format",
         )
 
-    doc = await db.get_document_by_id(doc_uuid)
-    if not doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found",
-        )
-
-    # Tenancy check: User can view seeded docs or their own uploads
-    if not doc.is_seeded and doc.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to view this document's chunks",
-        )
+    await require_document_access(db, doc_uuid, current_user)
 
     chunks = await db.get_document_chunks(doc_uuid)
     chunk_wires = [

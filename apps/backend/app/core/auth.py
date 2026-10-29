@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -10,7 +11,7 @@ from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
-from app.core.rate_limiter import default_rate_limiter
+from app.core.rate_limiter import default_rate_limiter, guest_signup_limiter
 from app.db.models import AuthTokens, GuestPassResponse, User, UserSession
 from app.db.neon import NeonDatabase, get_db
 
@@ -95,11 +96,14 @@ def user_to_session(user: User) -> UserSession:
         name=user.name,
         avatarUrl=user.avatar_url,
         isGuest=user.is_guest,
-        clientIp=user.client_ip,
-        deviceId=user.device_id,
         createdAt=user.created_at.isoformat(),
         lastSeenAt=user.last_seen_at.isoformat(),
     )
+
+
+def hash_device_id(device_id: str) -> str:
+    """Compute constant-time SHA-256 hash of device_id to avoid storing or exposing raw credentials."""
+    return hashlib.sha256(device_id.encode("utf-8")).hexdigest()
 
 
 async def get_current_user(
@@ -168,19 +172,26 @@ async def issue_guest_pass(
     """Issue or retrieve 1-Click Guest Pass token bound to client IP & device ID."""
     now = datetime.now(UTC)
     clean_device_id = device_id.strip() if device_id and device_id.strip() else None
+    hashed_device_id = hash_device_id(clean_device_id) if clean_device_id else None
 
     target_user: User | None = None
-    if clean_device_id:
-        target_user = await db.get_guest_by_device_id(clean_device_id)
+    if hashed_device_id:
+        target_user = await db.get_guest_by_device_id(hashed_device_id)
 
     if target_user:
         await db.update_user_last_seen(
-            target_user.id, client_ip=client_ip, device_id=clean_device_id
+            target_user.id, client_ip=client_ip, device_id=hashed_device_id
         )
         target_user.client_ip = client_ip
         target_user.last_seen_at = now
     else:
-        assigned_device_id = clean_device_id or uuid4().hex[:16]
+        if not guest_signup_limiter.hit(client_ip):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many guest sessions from this network. Try again later.",
+                headers={"Retry-After": "3600"},
+            )
+        assigned_device_id = hashed_device_id or hash_device_id(uuid4().hex)
         guest_uuid = uuid4()
         guest_name = f"Guest Architect #{str(guest_uuid)[:6]}"
         user = User(

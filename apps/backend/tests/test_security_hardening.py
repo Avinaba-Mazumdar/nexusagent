@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 from typing import cast
+from uuid import UUID
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -102,6 +103,7 @@ async def test_audit_logs_endpoint_reads_db_rows():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         guest = await client.post("/api/auth/guest", json={})
         token = guest.json()["tokens"]["accessToken"]
+        user_id = UUID(guest.json()["user"]["id"])
 
         await default_hitl_coordinator.log_tool_audit(
             tool_name="hybrid_rag_search",
@@ -109,6 +111,7 @@ async def test_audit_logs_endpoint_reads_db_rows():
             output_summary={"rows": 1},
             duration_ms=3,
             hitl_approved=True,
+            user_id=user_id,
         )
         res = await client.get(
             "/api/agent/audit-logs", headers={"Authorization": f"Bearer {token}"}

@@ -229,6 +229,21 @@ async def test_token_bucket_rate_limiter_depletion():
     assert exc_info.value.headers.get("Retry-After") == "3600"
 
 
+@pytest.mark.asyncio
+async def test_guest_signup_and_ip_rate_limits():
+    """Verify sliding-window caps on guest signups and IP LLM quota (audit S-07)."""
+    from app.core.rate_limiter import guest_ip_llm_limiter, guest_signup_limiter
+
+    ip = "203.0.113.42"
+    for _ in range(5):
+        assert guest_signup_limiter.hit(ip) is True
+    assert guest_signup_limiter.hit(ip) is False
+
+    for _ in range(15):
+        assert guest_ip_llm_limiter.hit(ip) is True
+    assert guest_ip_llm_limiter.hit(ip) is False
+
+
 @pytest.mark.db
 @pytest.mark.asyncio
 async def test_token_bucket_rate_limiter_db_decrement_and_depletion():
@@ -237,7 +252,7 @@ async def test_token_bucket_rate_limiter_db_decrement_and_depletion():
         guest_resp = await client.post("/api/auth/guest", json={})
         assert guest_resp.status_code == 200
         user_id = UUID(guest_resp.json()["user"]["id"])
-        client_ip = guest_resp.json()["user"]["clientIp"]
+        client_ip = "127.0.0.1"
 
         # 5 consumes allowed for guest
         for _ in range(5):
@@ -263,24 +278,54 @@ async def test_token_bucket_rate_limiter_db_decrement_and_depletion():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
+async def test_audit_logs_per_user_isolation_in_memory():
+    """Verify in-memory audit logs are strictly filtered by user_id (audit S-10)."""
+    user_a = uuid4()
+    user_b = uuid4()
+
+    await default_hitl_coordinator.log_tool_audit(
+        tool_name="hybrid_rag_search",
+        input_args={"query": "User A Query"},
+        output_summary={"ok": True},
+        duration_ms=10,
+        user_id=user_a,
+    )
+    await default_hitl_coordinator.log_tool_audit(
+        tool_name="hybrid_rag_search",
+        input_args={"query": "User B Query"},
+        output_summary={"ok": True},
+        duration_ms=10,
+        user_id=user_b,
+    )
+
+    logs_a = default_hitl_coordinator.get_recent_audit_logs(user_id=user_a)
+    assert len(logs_a) >= 1
+    assert all(l["user_id"] == str(user_a) for l in logs_a)
+    assert not any(l["user_id"] == str(user_b) for l in logs_a)
+
+
 @pytest.mark.db
 @pytest.mark.asyncio
 async def test_immutable_audit_logging_and_endpoint():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # 1. Log tool execution via coordinator
+        # 1. Register guest user first to associate audit log with owner
+        guest_res = await client.post("/api/auth/guest", json={})
+        token = guest_res.json()["tokens"]["accessToken"]
+        user_id = UUID(guest_res.json()["user"]["id"])
+
+        # 2. Log tool execution via coordinator for user
         await default_hitl_coordinator.log_tool_audit(
             tool_name="hybrid_rag_search",
             input_args={"query": "Raft consensus"},
             output_summary={"count": 3},
             duration_ms=12,
             hitl_approved=True,
+            user_id=user_id,
         )
 
-        # 2. Query audit logs endpoint (guest user header automatically accepted in test mode)
-        guest_res = await client.post("/api/auth/guest", json={})
-        token = guest_res.json()["tokens"]["accessToken"]
-
+        # 3. Query audit logs endpoint
         res = await client.get(
             "/api/agent/audit-logs",
             headers={"Authorization": f"Bearer {token}"},
@@ -348,8 +393,8 @@ def test_mcp_tool_poisoning_detection():
 
 @pytest.mark.asyncio
 async def test_mcp_registry_blocks_tampered_rug_pull():
-    from app.mcp.protocol import ToolDefinition, ToolInputSchema
-    from app.mcp.registry import McpRegistry, TOOLS
+    from app.mcp.protocol import ToolDefinition
+    from app.mcp.registry import TOOLS, McpRegistry
 
     # Baseline valid tools pass
     tools = McpRegistry.get_tools()

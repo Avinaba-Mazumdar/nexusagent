@@ -135,7 +135,8 @@ export default function Home() {
 
     const agentStream = useAgentStream({
         onLog: (entry) => setLogs((prev) => [...prev, entry].slice(-MAX_LOG_ENTRIES)),
-        onMetricUpdate: (updater) => setMetrics(updater)
+        onMetricUpdate: (updater) => setMetrics(updater),
+        onQuota: (remaining) => setQuotaRemaining(remaining)
     });
 
     // Mirror of the partial answer, read when a run is stopped mid-stream.
@@ -557,10 +558,6 @@ export default function Home() {
         setStreamingMsgId(assistantMsgId);
         setLiveStatus('Generating response…');
 
-        // Decrement remaining quota
-        if (quotaRemaining > 0) {
-            setQuotaRemaining(quotaRemaining - 1);
-        }
 
         try {
             const result = await agentStream.startStream({

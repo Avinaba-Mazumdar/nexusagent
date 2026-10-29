@@ -9,6 +9,7 @@ import { API_BASE } from '@/lib/api-client';
 export interface UseAgentStreamOptions {
     onLog?: (entry: LogEntry) => void;
     onMetricUpdate?: (updater: (prev: TelemetryMetrics) => TelemetryMetrics) => void;
+    onQuota?: (remaining: number) => void;
 }
 
 export interface StreamParams {
@@ -164,6 +165,9 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                             switch (eventType) {
                                 case 'start':
                                     setSessionId(data.sessionId);
+                                    if (typeof data.quotaRemaining === 'number') {
+                                        options?.onQuota?.(data.quotaRemaining);
+                                    }
                                     emitLog('ROUTER', `DAG Pipeline active: Session ${data.sessionId.slice(0, 8)}`);
                                     break;
 

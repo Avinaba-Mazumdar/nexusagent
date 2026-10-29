@@ -5,13 +5,19 @@ the production database, so unauthenticated access is rejected by
 design (covered offline in test_security_hardening.py).
 """
 
+import asyncio
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.core.auth import get_current_user
+from app.db.models import User
 from app.main import app
 from app.mcp.server import handle_jsonrpc_request
+from app.routes.mcp import SESSIONS, McpSession
 
 
 @asynccontextmanager
@@ -159,3 +165,41 @@ async def test_stdio_jsonrpc_dispatcher():
     # Method not found
     bad_res = await handle_jsonrpc_request({"jsonrpc": "2.0", "id": 2, "method": "unknown/method"})
     assert bad_res["error"]["code"] == -32601
+
+
+@pytest.mark.asyncio
+async def test_mcp_session_owner_isolation():
+    """Verify MCP SSE sessions are isolated to their owner (audit S-15)."""
+    owner_user_id = uuid4()
+    other_user_id = uuid4()
+
+    session_id = f"test-sess-{uuid4().hex[:8]}"
+    SESSIONS[session_id] = McpSession(owner_id=owner_user_id, queue=asyncio.Queue())
+
+    now = datetime.now(UTC)
+    attacker_user = User(
+        id=other_user_id,
+        email="attacker@example.com",
+        hashed_password=None,
+        name="Attacker",
+        avatar_url=None,
+        is_guest=True,
+        client_ip="127.0.0.1",
+        device_id="dev-attacker",
+        created_at=now,
+        last_seen_at=now,
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: attacker_user
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.post(
+                f"/api/mcp/messages?sessionId={session_id}",
+                json={"jsonrpc": "2.0", "id": 1, "method": "ping"},
+            )
+            assert res.status_code == 404
+            assert "Session ID not found" in res.json()["detail"]
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        SESSIONS.pop(session_id, None)

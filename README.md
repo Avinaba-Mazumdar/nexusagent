@@ -67,6 +67,7 @@ The API reads `apps/backend/.env.local`. Set:
 - `GOOGLE_CLIENT_ID`: required for Google OAuth. Production refuses to start without `JWT_SECRET_KEY` (≥ 32 chars) and `GOOGLE_CLIENT_ID`.
 - `NEON_DATABASE_URL`: the startup migration creates the schema automatically.
 - `GEMINI_API_KEY`: required. The agent synthesizes answers with Gemini and embeds queries and uploaded documents with `gemini-embedding-001`. Without it, chat answers and document uploads return an error.
+- `NEXT_PUBLIC_API_URL`: must be set at build time in production for the frontend (otherwise API calls are blocked by Content-Security-Policy).
 
 `scripts/seed_kb.py` reads the same two variables from `apps/backend/.env` (or the process environment).
 
@@ -94,6 +95,14 @@ pnpm dev
 ## 🛠️ Maintenance
 
 Prune inactive guests daily with `uv run python scripts/prune_guests.py --ttl 24` (cron, Render Cron Job, or a scheduled CI job).
+
+---
+
+## 🧪 Testing
+
+- **Backend tests**: `cd apps/backend && uv run pytest -q`
+  - `@pytest.mark.db` tests run only when `TEST_DATABASE_URL` points to a disposable database. They create and delete data. Never point test runs at a production database.
+- **Frontend tests**: `cd apps/frontend && pnpm test`
 
 ---
 

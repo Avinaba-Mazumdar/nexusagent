@@ -71,7 +71,7 @@ async def google_auth(
         expiresIn=expires_in,
         user=user_to_session(user),
         quotaRemaining=tokens_remaining,
-        bucketCapacity=25,
+        bucketCapacity=settings.USER_QUOTA_DEFAULT,
     )
 
 
@@ -96,7 +96,7 @@ async def get_current_user_profile(
         "user": user_to_session(current_user),
         "quota": QuotaStatus(
             tokensRemaining=tokens_remaining,
-            bucketCapacity=settings.GUEST_QUOTA_DEFAULT if current_user.is_guest else 25,
+            bucketCapacity=settings.GUEST_QUOTA_DEFAULT if current_user.is_guest else settings.USER_QUOTA_DEFAULT,
             resetMinutes=60,
         ),
     }
@@ -131,5 +131,5 @@ async def refresh_token(
         expiresIn=expires_in,
         user=user_to_session(current_user),
         quotaRemaining=tokens_remaining,
-        bucketCapacity=settings.GUEST_QUOTA_DEFAULT if current_user.is_guest else 25,
+        bucketCapacity=settings.GUEST_QUOTA_DEFAULT if current_user.is_guest else settings.USER_QUOTA_DEFAULT,
     )

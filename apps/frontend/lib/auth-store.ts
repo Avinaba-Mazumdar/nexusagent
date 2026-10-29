@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { UserSession, GuestPassResponse, TokenResponse } from '@nexusagent/contracts';
-import { apiClient, getCookie, setCookie, removeCookie, setAuthTokenGetter, setOnUnauthorizedCallback } from './api-client';
+import { apiClient, setAuthTokenGetter, setOnUnauthorizedCallback } from './api-client';
 
 const STORAGE_KEY_TOKEN = 'nexusagent_token';
 const STORAGE_KEY_USER = 'nexusagent_user';
@@ -75,7 +75,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
                 localStorage.removeItem('nexusagent_byok_key');
                 localStorage.removeItem('nexusagent_byok_provider');
 
-                const token = localStorage.getItem(STORAGE_KEY_TOKEN) || getCookie(STORAGE_KEY_TOKEN);
+                const token = localStorage.getItem(STORAGE_KEY_TOKEN);
                 const userStr = localStorage.getItem(STORAGE_KEY_USER);
                 const quota = localStorage.getItem(STORAGE_KEY_QUOTA);
 
@@ -103,7 +103,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
                     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(validatedUser));
                     localStorage.setItem(STORAGE_KEY_QUOTA, validatedQuota.toString());
-                    setCookie(STORAGE_KEY_TOKEN, token);
 
                     set({
                         user: validatedUser,
@@ -136,7 +135,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
                     localStorage.setItem(STORAGE_KEY_TOKEN, token);
                     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
                     localStorage.setItem(STORAGE_KEY_QUOTA, quotaRemaining.toString());
-                    setCookie(STORAGE_KEY_TOKEN, token);
                 }
 
                 set({
@@ -173,7 +171,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
                     localStorage.setItem(STORAGE_KEY_TOKEN, token);
                     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
                     localStorage.setItem(STORAGE_KEY_QUOTA, quotaRemaining.toString());
-                    setCookie(STORAGE_KEY_TOKEN, token);
                 }
 
                 set({
@@ -199,7 +196,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
                 localStorage.removeItem(STORAGE_KEY_QUOTA);
                 localStorage.removeItem('nexusagent_byok_key');
                 localStorage.removeItem('nexusagent_byok_provider');
-                removeCookie(STORAGE_KEY_TOKEN);
                 // Cached chat lists and transcripts must not outlive the session on a shared device.
                 Object.keys(localStorage)
                     .filter((key) => CHAT_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)))

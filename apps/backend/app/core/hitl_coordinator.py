@@ -91,27 +91,44 @@ class HitlCoordinator:
 
         return entry
 
-    def get_recent_audit_logs(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Retrieve recent tool audit logs from memory ring-buffer."""
+    def get_recent_audit_logs(
+        self, user_id: UUID | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Retrieve recent tool audit logs from memory ring-buffer, optionally filtered by user."""
+        if user_id is not None:
+            uid_str = str(user_id)
+            entries = [e for e in self._memory_audit_logs if e.get("user_id") == uid_str]
+            return entries[:limit]
         return list(self._memory_audit_logs)[:limit]
 
-    async def fetch_audit_logs_from_db(self, limit: int = 50) -> list[dict[str, Any]]:
+    async def fetch_audit_logs_from_db(
+        self, user_id: UUID | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
         """
         Read persisted audit rows from Neon ``tool_audit_logs`` (newest first).
         Falls back to the in-memory ring when the database is unavailable.
         """
         if self.db and self.db.pool:
             try:
-                rows = await self.db.fetch(
+                if user_id is not None:
+                    query = """
+                        SELECT id, conversation_id, user_id, tool_name, mcp_server,
+                               input_args, output_summary, duration_ms, hitl_approved, executed_at
+                        FROM tool_audit_logs
+                        WHERE user_id = $1
+                        ORDER BY executed_at DESC
+                        LIMIT $2;
                     """
-                    SELECT id, conversation_id, user_id, tool_name, mcp_server,
-                           input_args, output_summary, duration_ms, hitl_approved, executed_at
-                    FROM tool_audit_logs
-                    ORDER BY executed_at DESC
-                    LIMIT $1;
-                    """,
-                    limit,
-                )
+                    rows = await self.db.fetch(query, user_id, limit)
+                else:
+                    query = """
+                        SELECT id, conversation_id, user_id, tool_name, mcp_server,
+                               input_args, output_summary, duration_ms, hitl_approved, executed_at
+                        FROM tool_audit_logs
+                        ORDER BY executed_at DESC
+                        LIMIT $1;
+                    """
+                    rows = await self.db.fetch(query, limit)
                 return [
                     {
                         "id": str(r["id"]),
@@ -131,7 +148,7 @@ class HitlCoordinator:
                 ]
             except Exception as exc:  # noqa: BLE001
                 logger.error(f"Failed to read tool_audit_logs from Neon; using memory ring: {exc}")
-        return self.get_recent_audit_logs(limit=limit)
+        return self.get_recent_audit_logs(user_id=user_id, limit=limit)
 
 
 default_hitl_coordinator = HitlCoordinator()

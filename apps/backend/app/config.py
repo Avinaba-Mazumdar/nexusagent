@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     GUEST_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     GUEST_QUOTA_DEFAULT: int = 5
+    USER_QUOTA_DEFAULT: int = 25
+    GUEST_SIGNUPS_PER_IP_PER_HOUR: int = 5
+    GUEST_IP_QUOTA_PER_HOUR: int = 15
     # Rate-limit keying: enable only when behind a trusted reverse proxy that
     # overwrites X-Forwarded-For. Default keys quota on the socket IP so clients
     # cannot rotate quota by header spoofing.

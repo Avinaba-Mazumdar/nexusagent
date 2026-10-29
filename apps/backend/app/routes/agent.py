@@ -4,16 +4,18 @@ import logging
 from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.agent.graph import AgentGraph, default_agent_graph
+from app.agent.graph import AgentGraph, classify_query_intent, default_agent_graph
 from app.agent.state import AgentState
 from app.core.auth import get_client_ip, get_current_user
 from app.core.hitl_coordinator import default_hitl_coordinator
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import User
+from app.db.neon import neon_db
+from app.routes.documents import require_document_access
 
 logger = logging.getLogger("nexusagent.routes.agent")
 
@@ -50,6 +52,8 @@ async def generate_agent_stream(
     session_id: str,
     graph: AgentGraph,
     is_guest: bool = True,
+    client_ip: str = "127.0.0.1",
+    quota_remaining: int | None = None,
 ) -> AsyncIterator[str]:
     """
     Asynchronously run AgentGraph pipeline and yield SSE event chunks:
@@ -65,16 +69,15 @@ async def generate_agent_stream(
     event_queue: asyncio.Queue[str | None] = asyncio.Queue()
 
     # Pre-seed initial start event
-    await event_queue.put(
-        format_sse(
-            "start",
-            {
-                "sessionId": session_id,
-                "query": query,
-                "timestamp": initial_state.created_at.isoformat(),
-            },
-        )
-    )
+    start_payload = {
+        "sessionId": session_id,
+        "query": query,
+        "timestamp": initial_state.created_at.isoformat(),
+    }
+    if quota_remaining is not None:
+        start_payload["quotaRemaining"] = quota_remaining
+
+    await event_queue.put(format_sse("start", start_payload))
 
     async def run_pipeline():
         try:
@@ -215,7 +218,6 @@ async def generate_agent_stream(
             # Persist chat turn to DB if authenticated Google user
             if user_id and not is_guest:
                 try:
-                    from app.db.neon import neon_db
                     conv_id = None
                     try:
                         conv_id = UUID(session_id)
@@ -245,11 +247,20 @@ async def generate_agent_stream(
                                 "mermaidDiagrams": final_state.mermaid_diagrams,
                             },
                         )
+                    else:
+                        logger.warning(f"Could not persist conversation {conv_id} for user {user_id}")
                 except Exception as save_err:
                     logger.warning(f"Could not persist conversation history: {save_err}")
 
         except Exception as e:
             logger.exception("Error during agent SSE streaming")
+            if user_id:
+                try:
+                    await default_rate_limiter.refund(
+                        user_id=user_id, client_ip=client_ip, is_guest=is_guest
+                    )
+                except Exception as refund_err:  # noqa: BLE001
+                    logger.warning(f"Could not refund rate limit token: {refund_err}")
             await event_queue.put(format_sse("error", {"error": str(e), "sessionId": session_id}))
         finally:
             await event_queue.put(None)
@@ -280,12 +291,18 @@ async def stream_agent_execution(
     """
     client_ip = get_client_ip(request)
 
-    # Token bucket rate limiting (Neon DB with memory tier fallback)
-    await default_rate_limiter.check_and_consume(
-        user_id=current_user.id,
-        client_ip=client_ip,
-        is_guest=current_user.is_guest,
-    )
+    if classify_query_intent(payload.query) != "out_of_scope":
+        remaining = await default_rate_limiter.check_and_consume(
+            user_id=current_user.id,
+            client_ip=client_ip,
+            is_guest=current_user.is_guest,
+        )
+    else:
+        remaining = await default_rate_limiter.get_quota(
+            user_id=current_user.id,
+            client_ip=client_ip,
+            is_guest=current_user.is_guest,
+        )
 
     doc_uuid: UUID | None = None
     if payload.documentId:
@@ -296,8 +313,16 @@ async def stream_agent_execution(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid documentId UUID format",
             )
+        await require_document_access(neon_db, doc_uuid, current_user)
 
-    session_id = payload.sessionId or uuid4().hex
+    session_id = uuid4().hex
+    if payload.sessionId and not current_user.is_guest:
+        try:
+            requested = UUID(payload.sessionId)
+        except ValueError:
+            requested = None
+        if requested and await neon_db.get_conversation(current_user.id, requested):
+            session_id = payload.sessionId
 
     return StreamingResponse(
         generate_agent_stream(
@@ -307,6 +332,8 @@ async def stream_agent_execution(
             session_id=session_id,
             graph=graph,
             is_guest=current_user.is_guest,
+            client_ip=client_ip,
+            quota_remaining=remaining,
         ),
         media_type="text/event-stream",
         headers={
@@ -320,12 +347,14 @@ async def stream_agent_execution(
 
 @router.get("/audit-logs")
 async def get_tool_audit_logs(
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
 ):
     """
     Retrieve immutable tool execution audit records (Neon ``tool_audit_logs``
     first, in-memory ring fallback when the database is unavailable).
     """
-    logs = await default_hitl_coordinator.fetch_audit_logs_from_db(limit=limit)
+    logs = await default_hitl_coordinator.fetch_audit_logs_from_db(
+        user_id=current_user.id, limit=limit
+    )
     return {"logs": logs, "count": len(logs)}
