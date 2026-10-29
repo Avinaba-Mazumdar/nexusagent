@@ -1,4 +1,5 @@
 import json
+from typing import Any, cast
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -149,7 +150,8 @@ def stream_client(monkeypatch, fake_rate_db):
     user = User(id=uuid4(), name="Guest", is_guest=True, created_at=now, last_seen_at=now)
     app.dependency_overrides[get_current_user] = lambda: user
     monkeypatch.setattr(
-        "app.routes.agent.default_agent_graph", AgentGraph(search_engine=_FakeSearch())
+        "app.routes.agent.default_agent_graph",
+        AgentGraph(search_engine=cast(Any, _FakeSearch())),
     )
     yield AsyncClient(transport=ASGITransport(app=app), base_url="http://test"), user, fake_rate_db
     app.dependency_overrides.pop(get_current_user, None)
