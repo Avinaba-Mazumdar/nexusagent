@@ -3,6 +3,7 @@
 Source: openrouter.ai/rankings
 Category: Provider Pricing, TTFT Latency, Tokens/Sec Throughput, Reasoning Overheads
 Last Updated: September 2026
+Provenance: curated snapshot kept in this repository. Figures are not scraped live and have not been independently re-verified against the named source; the retrieval date was not recorded. Treat them as illustrative until each table is checked against its source.
 Telemetry Scope: Production edge clusters across global provider routes
 
 > [!NOTE]

@@ -8,8 +8,9 @@ from app.main import app
 
 @pytest.mark.db
 @pytest.mark.asyncio
-async def test_agent_sse_streaming_endpoint():
+async def test_agent_sse_streaming_endpoint(fake_llm):
     """Verify POST /api/agent/stream emits full sequence of structured SSE events."""
+    fake_llm(["## Architectural Analysis: Raft\n", "Quorum is a majority."])
     transport = ASGITransport(app=app)
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -34,7 +35,7 @@ async def test_agent_sse_streaming_endpoint():
         assert "event: start" in raw_stream
         assert "event: plan" in raw_stream
         assert "event: node_start" in raw_stream
-        assert "event: critic" in raw_stream
+        assert "event: grounding" in raw_stream
         assert "event: done" in raw_stream
 
         # Parse SSE done event block
@@ -50,7 +51,7 @@ async def test_agent_sse_streaming_endpoint():
         assert "## Architectural Analysis" in done_data["response"]
         assert len(done_data["plan"]) >= 2
         assert len(done_data["nodeHistory"]) >= 3
-        assert done_data["reflectionScore"] > 0.0
+        assert done_data["grounding"] in {"grounded", "weak", "none"}
 
 
 @pytest.mark.asyncio

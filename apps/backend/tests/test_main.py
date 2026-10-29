@@ -63,7 +63,7 @@ async def test_cors_headers():
             "Origin": "http://localhost:3000",
             "Access-Control-Request-Method": "GET",
         }
-        response = await client.options("/health", headers=headers)
+        response = await client.options("/api/health", headers=headers)
         assert response.status_code == 200
         assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
 

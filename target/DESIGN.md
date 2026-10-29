@@ -89,141 +89,69 @@ typography:
         letterSpacing: -0.2px
 ---
 
-# NexusAgent — UI/UX Design System Specification
+# NexusAgent — UI/UX Design System
 
-## 1. Design Philosophy: Anti-Slop, Clean Light Systems Intelligence
+## 1. Design philosophy
 
-NexusAgent is engineered for Staff-Plus Systems Engineers, VP of Engineering, and CTOs who evaluate mission-critical distributed architectures. The visual identity avoids the dark "AI slop" cliche (neon glows, purple/cyan gradients, low-contrast text) in favor of **clarity, high density, and cryptographic precision**, modeled on world-class observability consoles.
-
-- **Airy Neutral Canvas**: Soft grey `#F4F5F8` foundation provides comfortable daytime reading and high contrast for technical reviews and architectural auditing.
-- **Crisp Elevated Cards**: Pure white `#FFFFFF` cards with subtle borders (`#E2E8F0`) and soft pillowy elevation (`box-shadow: 0 1px 3px rgba(0,0,0,0.03), 0 6px 16px -2px rgba(0,0,0,0.03)`).
-- **Nexus Blue Signature Accent**: Professional `#004EA1` denotes active states, links, and primary CTA triggers, paired with `#E8F3FC` light tint chips and `#1E232A` dark action pills.
-- **Architecture Flow Topology**: Node cards with clean headers (e.g. `Radis-Master`, `sdkclient.eng...`, `Neon-Storage`), sub-metrics rows (`150 kbps ↗`), and clean status indicators.
-- **Data-Dense Telemetry Panels**: TCP throughput bar charts with clean categorical segments (high red, medium amber, low blue) and structured service overview tables.
+A calm, light-first console for engineers reading long technical answers. Soft grey canvas (`#F4F5F8`), white elevated cards, one signature blue (`#004EA1`) for actions and links, and restrained motion. A dark theme exists and follows the same tokens. No neon glows or decorative animation.
 
 ---
 
-## 2. Component Integration: Next.js 16 + shadcn/ui + Tailwind v4
+## 2. Implementation
 
-NexusAgent integrates **shadcn/ui** primitives powered by **Tailwind CSS v4** native CSS variables and `@theme` directives:
-
-### 2.1 Tailwind CSS v4 Configuration (`apps/frontend/styles/globals.css`)
-
-```css
-@import 'tailwindcss';
-
-@theme {
-    --color-background: #f4f5f8;
-    --color-foreground: #0f172a;
-    --color-card: #ffffff;
-    --color-card-foreground: #0f172a;
-    --color-popover: #ffffff;
-    --color-popover-foreground: #0f172a;
-    --color-primary: #0a66c2;
-    --color-primary-foreground: #ffffff;
-    --color-secondary: #f1f5f9;
-    --color-secondary-foreground: #0f172a;
-    --color-muted: #f1f5f9;
-    --color-muted-foreground: #64748b;
-    --color-accent: #e8f3fc;
-    --color-accent-foreground: #0a66c2;
-    --color-destructive: #dc2626;
-    --color-destructive-foreground: #ffffff;
-    --color-border: #e2e8f0;
-    --color-input: #e2e8f0;
-    --color-ring: #0a66c2;
-    --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
-    --font-heading: 'Outfit', system-ui, -apple-system, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
-}
-```
+- **Components**: shadcn-style primitives in `apps/frontend/components/ui/` (Radix UI + `class-variance-authority`), styled with Tailwind CSS v4.
+- **Tokens**: defined once in [`apps/frontend/styles/globals.css`](../apps/frontend/styles/globals.css): CSS variables under `:root` and `.dark`, exposed to Tailwind through `@theme` (`bg-primary`, `text-muted-foreground`, `border-border`, `bg-success-bg`, ...). Do not copy hex values into components; add or change a token instead.
+- **Type scale**: answer body `text-sm` (14 px); code and tables use the `text-code` token (13 px); interface chrome is `text-xs` (12 px) and never smaller. Fonts: Outfit (headings), Instrument Sans (body), JetBrains Mono (code), loaded with `next/font`.
+- **Theme**: `dark` class on `<html>`, set before paint by a nonce-protected inline script in `app/layout.tsx` and persisted in `localStorage`.
 
 ---
 
-## 3. Command Center Layout (Modeled on Sample Directory)
+## 3. Layout
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ HEADER: [NexusAgent] | Interval: [last 5 min] | [Breakdown ▼] | [Quick search...] | [Load ▼] | [1-Click]       │
-├───────┬────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ RAIL  │ TOP SECTION: Architecture Topology / Distributed Cluster Nodes (Radis-Master -> sdkclient -> Neon)    │
-│  [■]  │  - Node Cards with Nexus Blue headers, status pills, and sub-metrics (US-east-lb: 150 kbps)            │
-│  [📁] ├──────────────────────────────────────────────────────┬─────────────────────────────────────────────────┤
-│  [⚡] │ CENTER: Active Synthesis & Streaming Verdict        │ RIGHT: Active Tools & Document Vault            │
-│  [📊] │  - Frontier reasoning benchmark synthesis stream     │  - [x] Hybrid RAG Search (Neon pgvector)        │
-│       │  - Line-level citation pills: [benchlm:L14-28]       │  - [ ] SQL Schema Audit                         │
-│  [🛡️] │  - [Execute Plan] (#0a66c2) | [Approve Tool] (dark)  │                                                 │
-│       ├──────────────────────────────────────────────────────┴─────────────────────────────────────────────────┤
-│       │ BOTTOM SECTION: Telemetry & Mesh Overview                                                              │
-│       │  - TCP Throughput bar chart (Alerts: 52 Excellent | High 439 | Medium 146 | Low 2.3k)                  │
-│       │  - Service Overview Table (From, To, Status, Current Rate kbps)                                        │
-└───────┴────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Header: logo · theme toggle · telemetry toggle · quota badge · account      │
+├──────────────┬───────────────────────────────────────┬────────────────────┤
+│ Workspace    │ Chat canvas                           │ Observability      │
+│ - Documents  │  toolbar (New chat, guest note)       │ - pipeline steps   │
+│   (upload,   │  thread: answers with [S1] pills,     │ - first-token/total│
+│   delete)    │          tables, diagrams, sources    │ - grounding badge  │
+│ - Chats      │  quota notice (with refill time)      │ - plan             │
+│ - MCP tool   │  composer                             │ - run log          │
+│   inspector  │                                       │                    │
+└──────────────┴───────────────────────────────────────┴────────────────────┘
 ```
 
-### 3.1 Header & Control Strip
+Below the `xl` breakpoint the three panels become tabs (Workspace / Canvas / Observe) in a bottom bar. The observability panel is hidden by default on desktop and toggled from the header.
 
-- **Branding**: Clean rounded blue tile with CPU icon and `NexusAgent` title.
-- **Interval & Filter Pills**: Sub-toolbar filters (`Interval: last 5 min`, `Breakdown: Service > Zone`, `Service in: 3`).
-- **Search & Actions**: Rounded search input, Quota pill badge, dark pill action button (`Load ▼`), and Nexus Blue primary CTA (`1-Click Guest`).
+### 3.1 Chat canvas
 
-### 3.2 Vertical Left Icon Rail
+- Answers render Markdown (GFM tables, callouts `> [!NOTE]`, numbered section headings, code with copy button). Raw HTML is never rendered.
+- Citations: the answer cites sources as `[S1]`. A pill shows the source label, filename and line range with a hover preview; clicking opens a dialog with the full passage. A "Sources" row lists every source the model saw.
+- Mermaid diagrams render as sanitised SVG with zoom, pan, source view and a maximised mode (Escape closes, focus is trapped).
+- States: empty (starter prompts that the bundled knowledge base can answer), streaming (status text per pipeline step, then live text with a cursor), error (message + Retry), stopped (Regenerate), quota exhausted (notice with the refill time; Send disabled).
+- Guests see a note that their chats are not saved and do not carry context.
 
-- Compact 56px icon rail providing instant 1-click navigation between:
-    - `Layers` (Active Overview Dashboard)
-    - `Database` (Document Vault & RFC chunk inspection)
-    - `Zap` (MCP Tools & Wire logs)
-    - `Activity` (System Telemetry & Metrics)
-    - `ShieldCheck` (OWASP Agentic Security Guard)
+### 3.2 Workspace panel
 
-### 3.3 Topology & Central Execution Stream
-
-- **Interactive Architecture Flow**: Node-based cluster map with clean status chips and routing metrics.
-- **Synthesizer Thread**: Real-time verdict with clickable source citation pills (`[benchlm:L14-28]`, `[artificial_analysis:L42-60]`) that preview and jump to exact line ranges.
-
-### 3.4 Telemetry & Service Mesh Overview
-
-- **TCP Throughput Card**: Segmented vertical bar chart displaying categorized metrics (Alerts: 52 Excellent, High, Medium, Low).
-- **Service Mesh Table**: Clear rows with checkboxes, service source/destination, status badges (`Alert`, `Warm`, `Healthy`), and transfer rates.
+Collapsible sections: **Documents** (seeded benchmarks plus the user's uploads; uploads can be deleted with a two-step confirm), **Chats** (Google users: search, grouped by recency, delete with confirm), **MCP Protocol** (inspector; asks guests to sign in first).
 
 ---
 
-## 4. Typography & Visual Hierarchy
+## 4. Accessibility
 
-- **Headings (`Outfit`)**: Clean, geometric modern sans-serif for dashboard titles, section cards, and modal headers.
-- **Body & Controls (`Instrument Sans`)**: Modern, crisp geometric typography tailored for small-text readability, UI controls, and dense technical tables.
-- **Code & Citations (`JetBrains Mono`)**: Monospaced font with high legibility for metrics (`150 kbps`), wire logs, and citation badges.
+Target: **WCAG 2.2 AA**. Implemented:
 
----
+- Text contrast of at least 4.5:1 for every token pair (checked for light and dark themes). Dark-theme primary buttons use a dark foreground on bright blue (about 5:1).
+- Visible focus ring on all interactive elements (2 px, offset 2 px). Interactive controls meet a 36 px minimum target (primary buttons 44 px).
+- Skip link ("Skip to chat") jumps to `#main-canvas`.
+- Landmarks (`banner`, `main`, `complementary`, `nav`), labelled dialogs with focus trapping (Radix), and a polite live region announcing run status.
+- Diagram viewport is keyboard operable (arrows pan, `+`/`-` zoom, `0` resets).
 
-## 5. Micro-Interactions & States
-
-- **Subtle Elevation on Hover**: Cards and nodes smoothly elevate (`transition: all 0.15s ease-out`).
-- **Citation Hover Preview**: Citation badges (`[benchlm:L14-28]`) display instant popovers with snippet line previews.
-- **Tactile Switches**: Clean Nexus Blue toggles with smooth pill translation.
-- **Zero Distracting Animations**: No pulsing neon glows, spinning gradient borders, or excessive animated banners.
+Not claimed: WCAG AAA (7:1 contrast and 44 px targets everywhere).
 
 ---
 
-## 6. WCAG 2.2 Level AAA Compliance Specifications
+## 5. Motion
 
-NexusAgent strictly adheres to the highest level of accessibility (**WCAG 2.2 Level AAA**):
-
-1. **Contrast (Enhanced) — SC 1.4.6 (Level AAA)**:
-    - All standard text maintains a minimum contrast ratio of **7:1** against adjacent backgrounds:
-        - Deep slate text (`#0F172A`) on white: **17.9:1**
-        - Secondary body text (`#334155`) on white: **9.5:1**
-        - Muted label text (`#475569`) on white: **7.1:1**
-        - Primary brand text (`#004182`) on white: **9.7:1**
-        - Citation pills (`#004182` on `#E8F3FC`): **9.0:1**
-        - Buttons (`#FFFFFF` on `#004EA1`): **7.4:1**
-2. **Non-Text Contrast — SC 1.4.11 (Level AA & AAA)**:
-    - Interactive UI components (switch tracks, input borders `#64748B`, button borders) maintain at least **3:1** contrast against adjacent backgrounds.
-3. **Focus Appearance — SC 2.4.13 (Level AAA)**:
-    - High-contrast 2px solid focus indicators (`outline: 2px solid #004182`) with 2px offset (`outline-offset: 2px`) guaranteed never to be obscured by adjacent content.
-4. **Target Size (Enhanced) — SC 2.5.5 (Level AAA)**:
-    - All pointer targets (buttons, switch toggles, inputs, dialog triggers) occupy a minimum bounding touch target of at least **44 by 44 CSS pixels**.
-5. **Bypass Blocks — SC 2.4.1 (Level A & AAA)**:
-    - Persistent keyboard skip-navigation link (`.skip-link`) allows assistive technology users to jump directly to `#main-canvas`.
-6. **Accessible Semantic Landmarks & Live Regions**:
-    - Structured HTML5 semantic hierarchy: `role="banner"`, `role="main"`, `<aside aria-label="...">`, `<nav aria-label="...">`.
-    - Dynamic AI stream regions employ `aria-live="polite"` and `aria-atomic="true"` for respectful screen reader announcements.
+Short (about 150 ms) transitions on hover and press; a pulsing cursor while streaming; spinners for loading. Nothing animates continuously otherwise.

@@ -5,14 +5,15 @@ import { NexusLogo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { SITE_HOST } from '@/lib/site';
 
 export const metadata: Metadata = {
     title: 'Terms and Conditions | NexusAgent',
-    description: 'Terms of Service and Acceptable Use Policy for NexusAgent hosted on nexusagent.avinaba.com.'
+    description: `Terms of Service and Acceptable Use Policy for NexusAgent hosted on ${SITE_HOST}.`
 };
 
 export default function TermsAndConditionsPage() {
-    const lastUpdated = 'October 17, 2026';
+    const lastUpdated = 'October 29, 2026';
 
     return (
         <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -25,7 +26,7 @@ export default function TermsAndConditionsPage() {
                     </Link>
                     <span className="text-muted-foreground text-xs hidden sm:inline-block">/</span>
                     <Badge variant="outline" className="hidden sm:inline-flex text-xs font-mono border-border text-muted-foreground">
-                        nexusagent.avinaba.com
+                        {SITE_HOST}
                     </Badge>
                 </div>
 
@@ -54,7 +55,7 @@ export default function TermsAndConditionsPage() {
                     <p className="text-sm sm:text-base text-muted-foreground leading-relaxed max-w-3xl">
                         These Terms and Conditions constitute a legally binding agreement between you and NexusAgent governing your access to and use of the
                         platform, API gateway, and autonomous agent orchestration services hosted at{' '}
-                        <strong className="text-foreground font-semibold">nexusagent.avinaba.com</strong>.
+                        <strong className="text-foreground font-semibold">{SITE_HOST}</strong>.
                     </p>
                 </div>
 
@@ -107,7 +108,7 @@ export default function TermsAndConditionsPage() {
                         </h2>
                         <p>
                             By clicking &ldquo;Start as Guest&rdquo;, signing in via Google OAuth, or sending API requests to{' '}
-                            <code className="font-mono text-xs text-foreground">nexusagent.avinaba.com</code>, you represent that you have read, understood, and
+                            <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>, you represent that you have read, understood, and
                             agree to be bound by these Terms and our Privacy Policy. If you do not agree, you must discontinue use immediately.
                         </p>
                         <p>
@@ -124,7 +125,7 @@ export default function TermsAndConditionsPage() {
                             2. Acceptable Use Policy (AUP)
                         </h2>
                         <p>
-                            You agree not to use the services hosted at <code className="font-mono text-xs text-foreground">nexusagent.avinaba.com</code> to:
+                            You agree not to use the services hosted at <code className="font-mono text-xs text-foreground">{SITE_HOST}</code> to:
                         </p>
                         <ul className="space-y-2 list-none pl-1">
                             <li className="flex items-start gap-2">
@@ -138,7 +139,7 @@ export default function TermsAndConditionsPage() {
                                 <CheckCircle2 className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
                                 <div>
                                     <strong className="text-foreground">Infrastructure Abuse:</strong> Execute denial-of-service (DoS) attacks, flood the
-                                    Cloudflare routing gateway, script rapid guest pass generation to circumvent rate limits, or scan backend endpoints.
+                                    service, script rapid guest pass generation to circumvent rate limits, or scan backend endpoints.
                                 </div>
                             </li>
                             <li className="flex items-start gap-2">
@@ -152,7 +153,7 @@ export default function TermsAndConditionsPage() {
                                 <CheckCircle2 className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
                                 <div>
                                     <strong className="text-foreground">Subdomain Impersonation:</strong> Attempt DNS spoofing, CNAME hijacking, or impersonate
-                                    the <code className="font-mono text-xs text-foreground">nexusagent.avinaba.com</code> origin or author.
+                                    the <code className="font-mono text-xs text-foreground">{SITE_HOST}</code> origin or author.
                                 </div>
                             </li>
                         </ul>
@@ -165,8 +166,8 @@ export default function TermsAndConditionsPage() {
                             3. Autonomous Execution Disclaimer
                         </h2>
                         <p>
-                            NexusAgent utilizes autonomous agent planning algorithms that evaluate user inputs and can propose tool calls such as document
-                            searches and read-only database queries. You acknowledge and agree that:
+                            NexusAgent utilizes autonomous agent planning algorithms that evaluate user inputs and can call a single read-only tool that searches
+                            the knowledge base and your uploaded documents. It never modifies data or executes code. You acknowledge and agree that:
                         </p>
                         <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
                             <p className="text-xs">
@@ -188,10 +189,10 @@ export default function TermsAndConditionsPage() {
                         </p>
                         <ul className="space-y-1.5 list-disc pl-5">
                             <li>
-                                Guest sessions receive 5 requests per hour.
+                                Guest sessions receive a small allowance of requests per hour.
                             </li>
                             <li>
-                                Authenticated sessions receive 25 requests per hour.
+                                Google-authenticated sessions receive a larger allowance per hour. Your remaining allowance is shown in the app header.
                             </li>
                             <li>
                                 Exceeding the quota results in an HTTP 429 response until the bucket replenishes.
@@ -235,7 +236,7 @@ export default function TermsAndConditionsPage() {
                     <section className="space-y-2">
                         <h2 className="text-base font-heading font-bold text-foreground">7. Quota Allocation &amp; Access Termination</h2>
                         <p>
-                            Complimentary guest quotas (5 live queries) and token buckets are provided at our sole discretion. We reserve the right to throttle,
+                            Complimentary guest quotas and token buckets are provided at our sole discretion. We reserve the right to throttle,
                             suspend, or permanently terminate access to any IP address or user account that exhibits abusive behavior, automated bot scraping,
                             or violations of these Terms.
                         </p>
@@ -248,7 +249,7 @@ export default function TermsAndConditionsPage() {
                             For inquiries concerning these Terms or commercial architectural consulting, please contact:{' '}
                             {process.env.NEXT_PUBLIC_CONTACT_EMAIL ? (
                                 <a
-                                    href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL}?subject=Terms%20Inquiry%20-%20nexusagent.avinaba.com`}
+                                    href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL}?subject=Terms%20Inquiry%20-%20${SITE_HOST}`}
                                     className="text-primary hover:underline font-medium"
                                 >
                                     {process.env.NEXT_PUBLIC_CONTACT_EMAIL}

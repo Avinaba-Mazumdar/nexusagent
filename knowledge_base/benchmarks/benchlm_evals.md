@@ -3,6 +3,7 @@
 Source: benchlm.ai/evals
 Category: General Intelligence, Advanced Mathematics, Scientific Reasoning, Arena Elo
 Last Updated: September 2026
+Provenance: curated snapshot kept in this repository. Figures are not scraped live and have not been independently re-verified against the named source; the retrieval date was not recorded. Treat them as illustrative until each table is checked against its source.
 Standard Evaluation Suites: MMLU-Pro 2026, MATH-500, GPQA Diamond, Humanity's Last Exam (HLE)
 
 > [!NOTE]

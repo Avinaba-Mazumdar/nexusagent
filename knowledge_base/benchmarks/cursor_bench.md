@@ -3,6 +3,7 @@
 Source: cursorbench.com/leaderboard
 Category: Agentic Code Editing, SWE Bug Fixing, Multi-File AST Transformation
 Last Updated: September 2026
+Provenance: curated snapshot kept in this repository. Figures are not scraped live and have not been independently re-verified against the named source; the retrieval date was not recorded. Treat them as illustrative until each table is checked against its source.
 Test Suites: SWE-Bench Verified (Full 2026 Edition), Multi-File Refactoring Benchmark, Live Repo Repair Loop
 
 > [!NOTE]

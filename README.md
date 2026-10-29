@@ -8,12 +8,12 @@ NexusAgent is an enterprise-grade autonomous systems analyst that evaluates dist
 
 ## ⚡ Key Capabilities
 
-- **Autonomous Agent DAG**: Multi-step Plan-and-Execute workflow with grounding critic verification powered by **LangGraph 1.2**.
-- **Modern 4-Zone UI**: High-contrast command center built with **Next.js 16**, **React 19**, **shadcn/ui**, and **Tailwind CSS v4** (Header, Left Workspace Panel, Center Canvas Active Chat, Right Live Observability Inspector).
+- **Agent pipeline**: planner → retriever → grounding check → synthesizer on **LangGraph**, streaming the model's answer token by token with `[S1]`-style source citations.
+- **Three-panel UI** built with **Next.js 16**, **React 19**, **shadcn/ui** primitives and **Tailwind CSS v4**: workspace sidebar, chat canvas, observability panel.
 - **Hybrid RAG Pipeline**: Combines dense vector search with sparse keyword search (**Neon PostgreSQL 18 `pgvector`** + **`tsvector` BM25**) fused via Reciprocal Rank Fusion (RRF), powered by **LlamaIndex** hierarchical parsing.
-- **Model Context Protocol (MCP v2)**: Compliant MCP v2 server (`/api/mcp/sse` + `/api/mcp/messages` + CLI stdio) and client for seamless interoperability with Claude Desktop, Cursor, and Antigravity.
-- **OWASP Top 10 for Agentic AI**: Hardened perimeter with prompt injection delimiters, no untrusted code execution, canary token tracking, and append-only tool audit logging.
-- **Free-Tier Guest Access**: 1-Click Guest Pass with token-bucket rate limiting on a unified Neon PostgreSQL 18 data tier.
+- **Model Context Protocol server**: HTTP gateway, SSE transport and stdio (`python -m app.mcp.server`) exposing the `hybrid_rag_search` tool to external agents such as Claude Desktop and Cursor. There is no MCP client.
+- **Security posture** (see [ARCHITECTURE.md](target/ARCHITECTURE.md) §7): untrusted-content delimiters, canary token, read-only tools, no code execution, per-user quotas, revocable sessions, nonce-based CSP, and an append-only tool audit log (30-day retention).
+- **Free guest access**: one-click guest pass with a per-user hourly quota on Neon PostgreSQL 18.
 
 ---
 
@@ -27,10 +27,10 @@ nexusagent/
 ├── packages/
 │   └── contracts/        # Shared TypeScript interfaces & wire schemas
 ├── target/
-│   ├── ARCHITECTURE.md   # System topology, Neon Postgres 18 DDL, pgvector HNSW, OWASP specs
-│   ├── DESIGN.md         # 4-zone UI layout, cyber obsidian tokens, component guide
+│   ├── ARCHITECTURE.md   # How the system works today: flows, limits, security
+│   ├── DESIGN.md         # UI layout, tokens, accessibility
 │   ├── AGENTs.md         # AI Agent context, system master, coding invariants
-│   └── TODOs.md          # Active MVP0 phased task board
+│   └── TODOs.md          # Phase board (what is done, partial, removed)
 └── knowledge_base/
     └── benchmarks/       # Pre-seeded corpus (BenchLM, CursorBench, OpenRouter metrics, AA)
 ```
@@ -74,11 +74,13 @@ Backend configuration (`apps/backend/.env.local`):
 - `GOOGLE_CLIENT_ID`: required for Google OAuth. Production refuses to start without `JWT_SECRET_KEY` (≥ 32 chars) and `GOOGLE_CLIENT_ID`.
 - `NEON_DATABASE_URL`: the startup migration creates the schema automatically.
 - `GEMINI_API_KEY`: required. The agent synthesizes answers with Gemini and embeds queries and uploaded documents with `gemini-embedding-001`. Without it, chat answers and document uploads return an error.
-- `GEMINI_MODELS`: verified model IDs list (default: `["gemini-2.5-flash", "gemini-2.5-flash-lite"]`).
+- `GEMINI_MODELS`: chat model IDs, tried in order (default: `["gemini-2.5-flash", "gemini-2.5-flash-lite"]`).
+- `EMBEDDING_MODEL`: the single embedding model (default `gemini-embedding-001`). Changing it requires re-running `scripts/seed_kb.py` and re-uploading your documents.
 
 Frontend configuration (`apps/frontend/.env.local`):
 
-- `NEXT_PUBLIC_API_URL`: API URL (`http://localhost:8000` in dev; set at build time in production).
+- `NEXT_PUBLIC_API_URL`: API URL (`http://localhost:8000` in dev). **Required** for production builds; it is compiled into the client bundle.
+- `NEXT_PUBLIC_SITE_HOST`: public hostname shown in the footer and legal pages.
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`: Google OAuth client ID matching backend.
 - `NEXT_PUBLIC_CONTACT_EMAIL`: Maintainer contact address for legal pages and privacy inquiries.
 - `NEXT_PUBLIC_CAL_URL`: Calendar booking URL for consultation requests.
@@ -86,12 +88,15 @@ Frontend configuration (`apps/frontend/.env.local`):
 ### 3. Run Development Servers
 
 ```bash
-pnpm dev
+pnpm dev:fe   # frontend
+pnpm dev:be   # backend (needs ENVIRONMENT=development in apps/backend/.env.local)
 ```
 
-- **Frontend Command Center**: `http://localhost:3000`
-- **Backend API & MCP Server**: `http://localhost:8000`
-- **Interactive API Docs**: `http://localhost:8000/docs`
+- **Frontend**: `http://localhost:3000`
+- **Backend API & MCP server**: `http://localhost:8000`
+- **Interactive API docs** (development only): `http://localhost:8000/docs`
+
+Then embed the knowledge base once: `uv run --project apps/backend python scripts/seed_kb.py`.
 
 ---
 
@@ -106,21 +111,17 @@ pnpm dev
 
 ## 🚢 Deployment
 
-Run the API as a single process (`uvicorn app.main:app --workers 1`). MCP SSE sessions and guest abuse counters are kept in process memory.
+Run the API as a single process (`uvicorn app.main:app --workers 1`). MCP SSE sessions and guest abuse counters are kept in process memory. In production the API refuses to start if the database is unreachable, and hides `/docs`.
 
 ---
 
 ## 🛠️ Maintenance
 
-Prune inactive guests daily with `uv run python scripts/prune_guests.py --ttl 24` (cron, Render Cron Job, or a scheduled CI job).
+Run `uv run python scripts/prune_guests.py` daily (cron, Render Cron Job, or a scheduled CI job). It deletes guests inactive for 24 h (`--ttl`) and audit rows older than 30 days (`--audit-days`).
 
 ### Database Permissions
 
-Audit logs are append-only by convention in application code. For database role hardening in production:
-
-```sql
-REVOKE UPDATE, DELETE ON tool_audit_logs FROM <app_role>;
-```
+`tool_audit_logs` is append-only: a database trigger rejects `UPDATE` and `DELETE` except the retention job's deletes. For defence in depth you can also revoke those privileges from the application role and grant them to the role that runs `prune_guests.py`.
 
 ---
 

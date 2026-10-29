@@ -5,14 +5,15 @@ import { NexusLogo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { AUDIT_RETENTION_DAYS, SITE_HOST } from '@/lib/site';
 
 export const metadata: Metadata = {
     title: 'Privacy Policy | NexusAgent',
-    description: 'Privacy Policy and data governance practices for NexusAgent hosted on nexusagent.avinaba.com.'
+    description: `Privacy Policy and data governance practices for NexusAgent hosted on ${SITE_HOST}.`
 };
 
 export default function PrivacyPolicyPage() {
-    const lastUpdated = 'October 17, 2026';
+    const lastUpdated = 'October 29, 2026';
 
     return (
         <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -25,7 +26,7 @@ export default function PrivacyPolicyPage() {
                     </Link>
                     <span className="text-muted-foreground text-xs hidden sm:inline-block">/</span>
                     <Badge variant="outline" className="hidden sm:inline-flex text-xs font-mono border-border text-muted-foreground">
-                        nexusagent.avinaba.com
+                        {SITE_HOST}
                     </Badge>
                 </div>
 
@@ -53,9 +54,8 @@ export default function PrivacyPolicyPage() {
                     <h1 className="text-3xl sm:text-4xl font-heading font-extrabold tracking-tight text-foreground">Privacy Policy</h1>
                     <p className="text-sm sm:text-base text-muted-foreground leading-relaxed max-w-3xl">
                         This Privacy Policy governs the collection, processing, and protection of data on{' '}
-                        <strong className="text-foreground font-semibold">nexusagent.avinaba.com</strong>, an open-source autonomous systems analyst and
-                        architecture intelligence platform. We prioritize zero unnecessary data retention, client-side cryptographic isolation, and transparent
-                        telemetry.
+                        <strong className="text-foreground font-semibold">{SITE_HOST}</strong>, an open-source autonomous systems analyst and
+                        architecture intelligence platform. We keep the data we hold to a minimum and describe it below.
                     </p>
                 </div>
 
@@ -69,7 +69,7 @@ export default function PrivacyPolicyPage() {
                             <h3 className="font-heading font-bold text-xs text-foreground">Host-Only Scoping</h3>
                             <p className="text-xs text-muted-foreground leading-snug">
                                 Session tokens remain strictly partitioned to{' '}
-                                <code className="text-primary font-mono text-xs">nexusagent.avinaba.com</code> with no cross-subdomain sharing.
+                                <code className="text-primary font-mono text-xs">{SITE_HOST}</code> with no cross-subdomain sharing.
                             </p>
                         </CardContent>
                     </Card>
@@ -79,9 +79,9 @@ export default function PrivacyPolicyPage() {
                             <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2">
                                 <Trash2 className="h-4 w-4" />
                             </div>
-                            <h3 className="font-heading font-bold text-xs text-foreground">24-Hour Ephemeral TTL</h3>
+                            <h3 className="font-heading font-bold text-xs text-foreground">Short Retention</h3>
                             <p className="text-xs text-muted-foreground leading-snug">
-                                Guest sessions, temporary document embeddings, and transient execution traces are automatically pruned after 24 hours.
+                                Inactive guest accounts and their documents are deleted after 24 hours. Tool audit records are deleted after {AUDIT_RETENTION_DAYS} days.
                             </p>
                         </CardContent>
                     </Card>
@@ -116,7 +116,7 @@ export default function PrivacyPolicyPage() {
                                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                                 <div>
                                     <strong className="text-foreground">Ephemeral Guest Pass Data:</strong> When launching an instant guest session, we
-                                    generate a pseudo-anonymous UUID token. Your IP address is stored to enforce rate limits and abuse protection. No name, email, or physical identifier is collected.
+                                    create a random account ID. We store your IP address and a hash of a device identifier (not the identifier itself) to enforce rate limits and prevent abuse. No name, email, or physical identifier is collected.
                                 </div>
                             </li>
                             <li className="flex items-start gap-2">
@@ -124,15 +124,15 @@ export default function PrivacyPolicyPage() {
                                 <div>
                                     <strong className="text-foreground">Google OAuth Profile:</strong> If you elect to authenticate using Google Identity
                                     Services, we receive your verified email address, full name, and avatar URL. This allows persisting your conversation
-                                    history and custom architectural blueprints across devices.
+                                    history across devices. We also store the IP address of your most recent request for rate limiting.
                                 </div>
                             </li>
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                                 <div>
                                     <strong className="text-foreground">System Queries &amp; Document Ingestion:</strong> Prompts submitted to the Synthesis
-                                    Canvas and Markdown documents uploaded to the Document Vault are parsed and embedded via pgvector into an isolated user
-                                    partition in Neon PostgreSQL.
+                                    Canvas and Markdown documents uploaded to the Document Vault are parsed and stored with vector embeddings in Neon PostgreSQL. Your uploaded documents are only visible to your account (enforced by access
+                                    checks in the application). The text of your questions is also recorded in a tool audit log.
                                 </div>
                             </li>
                         </ul>
@@ -146,15 +146,15 @@ export default function PrivacyPolicyPage() {
                         </h2>
                         <p>
                             NexusAgent is deployed exclusively at the dedicated subdomain{' '}
-                            <code className="font-mono text-xs text-foreground">nexusagent.avinaba.com</code>. To safeguard your session against cross-origin or
+                            <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>. To safeguard your session against cross-origin or
                             cross-subdomain attacks:
                         </p>
                         <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
                             <p className="font-semibold text-foreground text-xs">Host-Only Token Scoping:</p>
                             <p className="text-xs">
-                                All session tokens remain client-side and scoped strictly to <code className="font-mono text-primary text-xs">nexusagent.avinaba.com</code>.
-                                Other subdomains under <code className="font-mono text-xs">avinaba.com</code> (such as portfolio, blog, or mail services) have no read or write
-                                access to your NexusAgent authentication tokens.
+                                Your session token is kept in this browser&apos;s local storage, which browsers isolate per origin, so other subdomains under{' '}
+                                <code className="font-mono text-xs">avinaba.com</code> (such as portfolio, blog, or mail services) cannot read it. Signing out
+                                revokes the token on the server.
                             </p>
                         </div>
                     </section>
@@ -170,7 +170,7 @@ export default function PrivacyPolicyPage() {
                             <div className="p-3 rounded-xl border border-border bg-card space-y-1">
                                 <span className="font-bold text-foreground text-xs">Google AI / Google Cloud</span>
                                 <p className="text-xs text-muted-foreground">
-                                    Gemini 2.5/1.5 model execution for synthesis, streaming generation, and embeddings.
+                                    Gemini model execution and embeddings. Your questions, excerpts of retrieved documents and the text of documents you upload are sent to the Gemini API. Depending on the API plan this deployment uses, Google may retain that data and use it to improve its products; see Google&apos;s Gemini API terms and avoid uploading confidential material.
                                 </p>
                             </div>
                             <div className="p-3 rounded-xl border border-border bg-card space-y-1">
@@ -182,7 +182,7 @@ export default function PrivacyPolicyPage() {
                             <div className="p-3 rounded-xl border border-border bg-card space-y-1">
                                 <span className="font-bold text-foreground text-xs">Cloudflare, Inc.</span>
                                 <p className="text-xs text-muted-foreground">
-                                    Edge routing gateway, SSL/TLS termination, DDoS mitigation, and edge rate-limiting cascades.
+                                    Edge routing, TLS termination and DDoS mitigation, when enabled for this deployment.
                                 </p>
                             </div>
                             <div className="p-3 rounded-xl border border-border bg-card space-y-1">
@@ -202,16 +202,16 @@ export default function PrivacyPolicyPage() {
                         <ul className="space-y-1.5 list-disc pl-5">
                             <li>
                                 <strong className="text-foreground">Ephemeral Guest Records:</strong> Inactive guest sessions are deleted after 24 hours by a scheduled job (
-                                <code className="font-mono text-xs">prune_guests.py</code>), purging their quota ledgers and associated temporary document vectors.
+                                <code className="font-mono text-xs">prune_guests.py</code>), removing their quota records and any documents they uploaded.
                             </li>
                             <li>
                                 <strong className="text-foreground">Authenticated User Workspaces:</strong> Retained until the user requests account deletion or
-                                removes specific chat conversations through the Chat History sidebar.
+                                deletes individual chats or uploaded documents in the app.
                             </li>
                             <li>
-                                <strong className="text-foreground">Observability &amp; Telemetry Logs:</strong> Real-time LangGraph node logs are broadcast
-                                in-memory via Server-Sent Events (SSE) and displayed on the client-side observability panel without long-term server-side
-                                archival.
+                                <strong className="text-foreground">Tool Audit Records:</strong> Each search, upload and tool call is logged with its input (including your
+                                query text) for security review, and deleted after {AUDIT_RETENTION_DAYS} days. The run log in the observability panel is held in your
+                                browser only.
                             </li>
                         </ul>
                     </section>
@@ -233,7 +233,7 @@ export default function PrivacyPolicyPage() {
                             To initiate an account deletion or data subject inquiry, contact the maintainer at{' '}
                             {process.env.NEXT_PUBLIC_CONTACT_EMAIL ? (
                                 <a
-                                    href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL}?subject=Privacy%20Data%20Request%20-%20nexusagent.avinaba.com`}
+                                    href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL}?subject=Privacy%20Data%20Request%20-%20${SITE_HOST}`}
                                     className="text-primary hover:underline font-medium"
                                 >
                                     {process.env.NEXT_PUBLIC_CONTACT_EMAIL}
@@ -250,7 +250,7 @@ export default function PrivacyPolicyPage() {
                         <h2 className="text-base font-heading font-bold text-foreground">6. Modifications to This Policy</h2>
                         <p>
                             We may update this Privacy Policy periodically to reflect architectural updates or security hardening on{' '}
-                            <code className="font-mono text-xs text-foreground">nexusagent.avinaba.com</code>. The revision date at the top of this document
+                            <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>. The revision date at the top of this document
                             will denote the active version.
                         </p>
                     </section>

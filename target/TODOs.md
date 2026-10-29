@@ -1,132 +1,105 @@
-# NexusAgent — Phased Implementation Board
+# NexusAgent — Implementation Board
 
 > **Definition of Done (DoD) Quality Gate:**
 > No task or phase may be checked `[x]` until:
 >
 > 1. **Tested**: Automated tests pass (`pnpm test` / `uv run pytest`)
 > 2. **Linted**: Zero linter errors or warnings (`pnpm lint` / `uv run ruff check`)
-> 3. **Formatted**: Code formatted cleanly (`pnpm format:check` / `uv run ruff format --check`)
-> 4. **Verified**: End-to-end functionality visually or functionally verified on running servers
+> 3. **Formatted**: Code formatted cleanly (`uv run ruff format --check`)
+> 4. **Verified**: Functionality verified on running servers
 >
-> Backend gate: `uv run pytest` must be green **offline**. Tests needing a live Neon instance are marked `@pytest.mark.db` and skip (not fail) when `NEON_DATABASE_URL` is absent.
+> Backend gate: `uv run pytest` must be green **offline**. Tests needing a live Neon instance are marked `@pytest.mark.db` and skip (not fail) when `TEST_DATABASE_URL` is absent.
+>
+> Status words: `[Done]` everything checked, `[Partial]` some items open, `[Removed]` intentionally dropped (kept for history).
 
 ---
 
-### Phase 1: Scaffold Project [Completed]
+### Phase 1: Scaffold [Done]
 
-- [x] Setup pnpm and Turborepo monorepo configuration
-- [x] Init Next.js 16 App Router frontend (`apps/frontend`)
-- [x] Init Python 3.14 FastAPI backend (`apps/backend`)
-- [x] Setup Neon PostgreSQL connection and environment
-      Verification: Run local dev servers (`pnpm dev:fe`, `pnpm dev:be`), verify health endpoint and DB connection.
+- [x] pnpm + Turborepo monorepo
+- [x] Next.js 16 App Router frontend (`apps/frontend`)
+- [x] Python 3.14 FastAPI backend (`apps/backend`)
+- [x] Neon PostgreSQL connection, migrations applied at startup (`migrations/`)
 
-### Phase 2: Base UI & Database Schemas [Completed]
+### Phase 2: Base UI & Database [Done]
 
-- [x] Setup shadcn/ui components and theme tokens
-- [x] Setup Neon PostgreSQL schema migrations (UUID, pgvector, core tables)
-- [x] Setup frontend and backend API communication routes
-- [x] Setup 4-zone command center UI layout
-      Verification: Run local servers, inspect Neon tables, verify frontend renders layout and shadcn components without errors.
+- [x] shadcn/ui primitives and Tailwind v4 theme tokens (`styles/globals.css`)
+- [x] Schema migrations (users, buckets, documents, chunks, conversations, messages, audit log)
+- [x] Frontend/backend API client (`lib/api-client.ts`)
+- [x] Three-column chat layout: workspace sidebar, chat canvas, observability panel (+ mobile tab bar)
 
-### Phase 3: User Authentication [Completed]
+### Phase 3: Authentication [Done]
 
-- [ ] Backend guest pass issuance & Argon2 password hashing (`core/auth.py`) (Reality: Password auth removed in T-45 in favor of Google OAuth + Guest JWTs)
-- [x] Frontend guest sign-in button wiring & session state header
-- [x] Google OAuth client setup & backend token verification flow
-- [x] Auth token persistence (cookies/localStorage) & API client interceptor
-      Verification: Click "Guest Sign In" in UI -> Header updates with active user session and quota badge; test Google sign-in flow.
+- [x] Guest pass (device-bound, IP-throttled)
+- [x] Google sign-in: ID token verified locally against Google's keys; accounts keyed on Google `sub`
+- [x] Revocable sessions (`token_version`, `POST /api/auth/logout`), 7-day cap on refresh chains
+- [Removed] Password auth (Argon2): replaced by Google OAuth + guest JWTs
 
-### Phase 4: Document Ingestion & Parsing [Completed]
+### Phase 4: Document Ingestion [Done]
 
-- [x] Build document upload endpoint (`POST /api/documents/upload`)
-- [x] Implement LlamaIndex markdown hierarchical parser (`rag/parser.py`)
-- [x] Split content into 800-char chunks with line-level section metadata
-- [x] Persist parsed documents and chunks into Neon `documents` and `document_chunks`
-      Verification: Upload sample RFC markdown, verify database contains document record and chunk rows with line metadata.
+- [x] `POST /api/documents/upload` (1 MB, strict UTF-8, extension-based type, chunk cap, one upload at a time per user)
+- [x] LlamaIndex markdown parser, ~800-char chunks with line metadata (`rag/parser.py`)
+- [x] Persist documents and chunks transactionally; `DELETE /api/documents/{id}`
 
-### Phase 5: Vector Embeddings & Hybrid Search [Completed]
+### Phase 5: Hybrid Search [Done]
 
-- [x] Implement dense embedding generation using pgvector HNSW index
-- [x] Implement full-text BM25 lexical search using Postgres `tsvector` GIN index
-- [x] Implement Reciprocal Rank Fusion (RRF) ranking algorithm (`rag/hybrid_search.py`)
-- [x] Expose search endpoint `POST /api/rag/search`
-      Verification: Query RFC text via search endpoint, verify top-K results return ranked chunks with similarity scores and line numbers.
+- [x] Dense pgvector (HNSW) search, filtered to the pinned embedding model
+- [x] Lexical tsvector search (OR of query terms)
+- [x] Reciprocal Rank Fusion (`rag/hybrid_search.py`); falls back to lexical-only if embedding fails
+- [x] `POST /api/rag/search`
 
-### Phase 6: AST Python Code Execution Sandbox [Removed — audit S-01]
+### Phase 6: Code Execution Sandbox [Removed]
 
-The AST-denylist sandbox was escapable (`random._os.system(...)`, `[eval][0](...)`) and ran on the API host, so it was a remote-code-execution vector. Removed: `core/sandbox.py`, `POST /api/sandbox/run`, the MCP `python_sandbox` tool, the agent `sandbox` node, and `packages/contracts/src/sandbox.ts`. Regression guard: `tests/test_mcp.py::test_code_execution_is_not_exposed`. Reintroduction requires the isolation boundary defined in `AGENTs.md` ASI-05.
+The AST-denylist sandbox was escapable and ran on the API host. Removed together with its route, MCP tool and agent node. Regression guard: `tests/test_mcp.py::test_code_execution_is_not_exposed`. Reintroduction requires the isolation boundary in `AGENTs.md` (ASI-05).
 
-### Phase 7: LangGraph Agent DAG Pipeline [Completed]
+### Phase 7: Agent Pipeline [Done]
 
-- [x] Define strongly-typed `AgentState` schema (`agent/state.py`)
-- [x] Implement planner, retriever, and synthesizer nodes (`agent/graph.py`)
-- [x] Implement reflection critic node with loop-back condition (capped at 10 iterations)
-- [x] Wire hybrid search into agent graph
-      Verification: Invoke agent via test script, assert graph executes state transitions (plan -> retrieve -> reflect -> synthesize).
+- [x] Typed `AgentState` (`agent/state.py`)
+- [x] Nodes: planner → retriever → grounding → synthesizer (`agent/graph.py`)
+- [x] Grounding check reports `grounded | weak | none` from retrieval results
+- [Removed] Reflection critic with re-planning loop: it was a constant formula and never looped
 
-### Phase 8: Real-Time SSE Streaming & Observability [Completed]
+### Phase 8: Streaming & Observability [Done]
 
-- [x] Implement FastAPI Server-Sent Events endpoint `POST /api/agent/stream`
-- [x] Stream structured events (`plan`, `node_start`, `tool_call`, `tool_result`, `token`, `done`)
-- [x] Build Next.js SSE client hook (`hooks/useAgentStream.ts`)
-- [x] Implement reactive execution DAG tracker in observability panel
-      Verification: Trigger streaming query from UI or curl, verify incremental SSE tokens and node status events arrive in real-time.
+- [x] `POST /api/agent/stream` (SSE): `start`, `node_start`, `plan`, `tool_result`, `grounding`, `token`, `done`, `error`
+- [x] `token` events carry the model's chunks as they arrive
+- [x] `useAgentStream` hook and observability panel (client-measured first-token and total latency)
+- [ ] `tool_call` event (the pipeline emits `tool_result` only)
 
-### Phase 9: Interactive Canvas & Diagram Rendering [Completed]
+### Phase 9: Canvas [Done]
 
-- [x] Implement streaming Markdown renderer with code syntax highlighting
-- [x] Integrate dynamic Mermaid.js SVG rendering with pan and zoom controls
-- [x] Implement interactive Citation Pills with line jump and hover previews
-- [x] Wire agent stream output to canvas viewer
-      Verification: Stream response containing Mermaid code block and citations; verify SVG diagram renders and citation click highlights source.
+- [x] Markdown renderer on react-markdown (tables, callouts, code blocks with copy)
+- [x] Mermaid diagrams with pan/zoom, sanitised SVG
+- [x] Citations: answers cite `[S1]`; pills open a dialog with the full source passage
+- [ ] Syntax highlighting in code blocks
 
-### Phase 10: Model Context Protocol (MCP v2) Integration [Completed]
+### Phase 10: MCP [Partial]
 
-- [x] Implement FastAPI MCP SSE endpoint (`/api/mcp/sse`) and CLI stdio entrypoint
-- [x] Register tools (`hybrid_rag_search`) with Pydantic schemas (`python_sandbox` removed — audit S-01; `mcp_sql_audit` removed — audit S-02)
-- [x] Build frontend MCP Inspector panel to test tool calls and view JSON-RPC payloads
-- [ ] Add client connection configuration for Claude Desktop and Cursor (Reality: Hand-rolled stdio and SSE endpoints exposed; external client config files pending)
-      Verification: Connect Claude or run MCP Inspector UI, call `hybrid_rag_search`, verify valid JSON-RPC response.
+- [x] Hand-rolled JSON-RPC 2.0 server: HTTP gateway, SSE transport, stdio (`python -m app.mcp.server`)
+- [x] `hybrid_rag_search` with Pydantic-validated arguments, metered per user, results wrapped as untrusted content
+- [x] Frontend MCP inspector
+- [ ] Client configuration snippets for Claude Desktop and Cursor
+- [ ] Migrate to the official `fastmcp` SDK (current server is custom and spec-version `2024-11-05`)
 
-### Phase 11: Human-in-the-Loop & Security Controls [Completed]
+### Phase 11: Security Controls [Done]
 
-- [ ] Implement HITL approval modal in UI and backend pause/resume endpoint (`/api/agent/approval`) (Reality: Removed in T-01; agent tools are strictly read-only)
-- [x] Implement prompt injection delimiters (`<untrusted_document_context>`) and UUID canary tokens
-- [x] Implement token-bucket rate limiter for guest and registered users
-- [ ] Add immutable audit logging to `tool_audit_logs` table (Reality: Append-only by convention in code; database role hardening is manual)
-      Verification: Trigger tool requiring approval, verify agent suspends until approved; exceed rate limit and verify HTTP 429.
+- [x] `<untrusted_document_context>` delimiters, canary token (never forwarded to the client), secret scrubbing
+- [x] Instruction-like retrieved text is reported to the user (`injectionWarnings`)
+- [x] Token-bucket quota per user (not per IP), per-IP caps for guests, auth-endpoint throttles
+- [x] `tool_audit_logs` is append-only by database trigger; 30-day retention via `scripts/prune_guests.py`
+- [x] Per-request CSP nonce (`proxy.ts`), no script `unsafe-inline`
+- [Removed] Human-in-the-loop approval: all tools are read-only, so there is nothing to approve
 
-### Phase 12: Deterministic Showcase & 1-Click Guest Experience [Completed]
+### Phase 12: Demo Experience [Partial]
 
-- [x] Bundle pre-seeded knowledge benchmarks (BenchLM, CursorBench, OpenRouter, Artificial Analysis)
-- [ ] Implement deterministic cached execution simulator for zero-cost demos (Reality: No simulator exists; backend requires valid GEMINI_API_KEY)
-- [x] Polish 1-Click Guest experience with pre-loaded quota badge
-- [x] Run end-to-end demo flow validation
-      Verification: Open app in guest mode with zero API keys, run demo scenario, verify instant cached DAG trace and rendered diagram.
+- [x] Pre-seeded benchmark knowledge base (`knowledge_base/`, `scripts/seed_kb.py`)
+- [x] One-click guest access with quota badge and refill time
+- [ ] Source URL and retrieval date for every benchmark table (see DOC-05 in `report.md`)
+- [Removed] Deterministic offline simulator: a Gemini API key is required for answers and uploads
 
-### Post-Phase-12 Sturdiness Pass [Applied]
+### Phase 13: Quality [Partial]
 
-- [x] Hermetic offline suite restored: DB-bound showcase/HITL-audit tests marked `@pytest.mark.db` (skip offline, pass against live Neon)
-- [ ] HITL approval timeout configurable via `HITL_APPROVAL_TIMEOUT_SECONDS` (Reality: Removed with HITL in T-01)
-- [x] New guards: unresolved approvals fail closed on timeout; test asserts production default stays human-paced
-- [x] `tool_audit_logs` writes retry once and log at error level before degrading to the memory ring
-
-### Security-Hardening Pass (Applied)
-
-- [x] MCP lockdown: `/api/mcp/{v1,sse,messages}` now require Bearer auth (`mcp_sql_audit` removed — audit S-02)
-- [x] Mermaid XSS fix: DOMPurify SVG sanitizer (scripts, event handlers, `javascript:` URLs stripped; foreignObject safely integrated) in `MermaidViewer`
-- [x] BYOK hardening: `X-User-API-Key` validated against a provider prefix/length allowlist (`validate_byok_key`); junk keys fall back to the rate-limited tier
-- [x] Quota keying: `get_client_ip` uses the socket IP unless `TRUST_PROXY_HEADERS=true` (X-Forwarded-For rotation no longer bypasses guest quota)
-- [ ] HITL approval ownership (Reality: Removed with HITL in T-01)
-- [x] `/api/agent/audit-logs` reads persisted `tool_audit_logs` rows (memory ring only as fallback)
-- [x] Indirect injection defense: retriever scans retrieved chunks (`sanitize_retrieved_chunks`), drops injected content, prunes citations, surfaces an observability warning
-
-### Phase 13: FastMCP Transition, Gemini 3.x Upgrade & Live Benchmark Vault [Completed]
-
-- [ ] Migrate Model Context Protocol server from manual custom router to official `FastMCP` (`apps/backend/app/routes/mcp.py`) (Reality: Custom JSON-RPC 2.0 SSE and stdio server maintained)
-- [x] Removed LangSmith `@traceable` decorators for data privacy compliance (S-19)
-- [x] Fix guest session quota retention across browser page refreshes
-- [x] Upgrade LLM synthesis to active Gemini verified models (`gemini-2.5-flash`, `gemini-2.5-flash-lite`) with cached client factory (T-39)
-- [ ] Implement robust offline deterministic synthesis fallback with sanitized citations, Mermaid diagrams, and conversational greeting handling (Reality: Offline fallback deleted in T-37; errors propagate loudly)
-- [ ] Ingest live scraped benchmark datasets across Artificial Analysis, BenchLM (Bench-Align v5), CursorBench 4.0, and OpenRouter (Reality: Benchmark corpus is pre-seeded markdown in knowledge_base/benchmarks; live scraping removed)
-- [x] Modernize UI with light-mode enterprise palette (`#F4F5F8` canvas, `#004EA1` signature blue) and mobile responsive DAG pipeline
+- [x] Offline backend suite and frontend suite green; CI workflow in `.github/workflows/ci.yml`
+- [x] Upgraded to Gemini 2.5 models (`GEMINI_MODELS`) with fallback cascade
+- [ ] Generate `packages/contracts` types from the backend OpenAPI schema (contracts are hand-written today)
+- [Removed] LangSmith tracing (data privacy)

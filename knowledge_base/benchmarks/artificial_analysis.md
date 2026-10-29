@@ -3,6 +3,7 @@
 Source: artificialanalysis.ai/leaderboard
 Category: Quality Index, Speed/Cost Frontier, Output Throughput, TTFT Latency
 Last Updated: September 2026
+Provenance: curated snapshot kept in this repository. Figures are not scraped live and have not been independently re-verified against the named source; the retrieval date was not recorded. Treat them as illustrative until each table is checked against its source.
 Methodology: Independent third-party evaluation across standardized prompt suites measuring output quality, operational cost, and empirical response latency.
 
 > [!NOTE]

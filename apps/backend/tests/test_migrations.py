@@ -14,11 +14,8 @@ def test_migrations_directory_exists():
 async def test_apply_migrations_idempotent():
     from app.db.neon import neon_db
 
-    await neon_db.connect()
-    try:
-        await apply_migrations(neon_db)
-        # Second run with same directory should find all migrations already in schema_migrations
-        second = await apply_migrations(neon_db)
-        assert second == [], "Second migration application must return empty list"
-    finally:
-        await neon_db.disconnect()
+    # The session fixture owns the pool: never connect/disconnect it from a test.
+    await apply_migrations(neon_db)
+    # Second run with same directory should find all migrations already in schema_migrations
+    second = await apply_migrations(neon_db)
+    assert second == [], "Second migration application must return empty list"
