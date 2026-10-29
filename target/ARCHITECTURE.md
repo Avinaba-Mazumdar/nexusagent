@@ -24,13 +24,13 @@ Browser (Next.js 16)                         FastAPI backend                    
 
 ## 2. Stack
 
-| Layer | Technology |
-| --- | --- |
-| Frontend | Next.js 16 (App Router, React 19, React Compiler), TypeScript, Tailwind CSS v4, Radix UI primitives, Zustand, react-markdown, Mermaid |
-| Backend | Python 3.14, FastAPI, asyncpg, LangGraph, LangChain Google GenAI, LlamaIndex (markdown parsing) |
-| Data | Neon PostgreSQL 18: `pgvector` (HNSW, cosine) and `tsvector` (GIN) |
-| Models | Chat: `GEMINI_MODELS` (default `gemini-2.5-flash`, fallback `gemini-2.5-flash-lite`). Embeddings: `EMBEDDING_MODEL` (default `gemini-embedding-001`, 768-d) |
-| Monorepo | pnpm workspaces + Turborepo; `uv` for Python |
+| Layer    | Technology                                                                                                                                                  |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend | Next.js 16 (App Router, React 19, React Compiler), TypeScript, Tailwind CSS v4, Radix UI primitives, Zustand, react-markdown, Mermaid                       |
+| Backend  | Python 3.14, FastAPI, asyncpg, LangGraph, LangChain Google GenAI, LlamaIndex (markdown parsing)                                                             |
+| Data     | Neon PostgreSQL 18: `pgvector` (HNSW, cosine) and `tsvector` (GIN)                                                                                          |
+| Models   | Chat: `GEMINI_MODELS` (default `gemini-2.5-flash`, fallback `gemini-2.5-flash-lite`). Embeddings: `EMBEDDING_MODEL` (default `gemini-embedding-001`, 768-d) |
+| Monorepo | pnpm workspaces + Turborepo; `uv` for Python                                                                                                                |
 
 Authoritative versions are in `apps/backend/pyproject.toml` and `apps/frontend/package.json`.
 
@@ -50,7 +50,7 @@ apps/backend/app/
   routes/            health, auth, documents, rag, agent, chat, mcp
 apps/frontend/       app/ (pages), proxy.ts (CSP), components/, hooks/, lib/
 packages/contracts/  shared TypeScript types (hand-written)
-migrations/          ordered *.sql, applied once at startup under an advisory lock
+migrations/          core schema, applied once at startup under an advisory lock
 knowledge_base/      Markdown benchmark corpus; scripts/seed_kb.py embeds it
 scripts/             seed_kb.py, prune_guests.py (guests + audit retention)
 ```
@@ -65,12 +65,13 @@ scripts/             seed_kb.py, prune_guests.py (guests + audit retention)
 2. Charge one quota token unless the query is out of scope. Resume a saved conversation (Google users only) and load the last `CHAT_HISTORY_MESSAGES` messages.
 3. Run the LangGraph pipeline, a straight line with no loops:
 
-   `planner → retriever → grounding → synthesizer`
+    `planner → retriever → grounding → synthesizer`
 
-   - **planner**: mints the per-run canary token and builds the plan; out-of-scope queries are answered with a fixed refusal and skip the rest.
-   - **retriever**: hybrid search (limit 5), sanitises chunks, labels them `S1..Sn`, records an audit row.
-   - **grounding**: reports `grounded | weak | none` from the retrieved chunks. It is a plain function, not an LLM step.
-   - **synthesizer**: streams Gemini's answer. The prompt contains the labelled, delimited sources; the answer cites `[S1]`.
+    - **planner**: mints the per-run canary token and builds the plan; out-of-scope queries are answered with a fixed refusal and skip the rest.
+    - **retriever**: hybrid search (limit 5), sanitises chunks, labels them `S1..Sn`, records an audit row.
+    - **grounding**: reports `grounded | weak | none` from the retrieved chunks. It is a plain function, not an LLM step.
+    - **synthesizer**: streams Gemini's answer. The prompt contains the labelled, delimited sources; the answer cites `[S1]`.
+
 4. SSE events: `start`, `node_start`, `plan`, `tool_result` (citations, `injectionWarnings`), `grounding`, `token` (the model's chunks), then `done` or `error`. The turn is saved (Google users) **before** `done`, so `done` carries `conversationId`.
 5. On error, or when a disconnect happens before any output, the charged token is refunded.
 
@@ -90,7 +91,7 @@ Transports: `POST /api/mcp/v1` (HTTP JSON-RPC), `GET /api/mcp/sse` + `POST /api/
 
 ## 5. Data model (summary)
 
-`users` (guest or Google; `google_sub`, `token_version`), `rate_limit_buckets` (one row per user), `documents` / `document_chunks` (embedding, `embedding_model`, generated `search_vector`, JSON metadata with line numbers), `agent_conversations` / `messages`, `tool_audit_logs`. See `migrations/` for definitions. Migrations are immutable once applied; add a new file instead of editing one.
+`users` (guest or Google; `google_sub`, `token_version`), `rate_limit_buckets` (one row per user), `documents` / `document_chunks` (embedding, `embedding_model`, generated `search_vector`, JSON metadata with line numbers), `agent_conversations` / `messages`, `tool_audit_logs`. Definitions live in `migrations/20260901000000_core_schema.sql`.
 
 ---
 
@@ -105,16 +106,16 @@ Transports: `POST /api/mcp/v1` (HTTP JSON-RPC), `GET /api/mcp/sse` + `POST /api/
 
 ## 7. Security
 
-| OWASP ASI | What is implemented |
-| --- | --- |
-| ASI-01 Prompt injection | Retrieved text is escaped and wrapped in `<untrusted_document_context>`; the system prompt forbids following it. Instruction-like chunks are kept inside the delimiters and reported to the user. A per-run canary token is scanned for in the streamed output and never forwarded. These reduce risk; they do not eliminate it. |
-| ASI-02 Data disclosure | Credentials and private keys in ingested text are redacted before storage and prompting. |
-| ASI-04 Data poisoning | Uploads are private to the uploader; the seeded corpus is read-only. |
-| ASI-05 Code execution | None. No user- or model-supplied code is executed. A previous AST sandbox was removed as escapable; any future one needs OS-level isolation. |
-| ASI-06 Excessive agency | The only tool is a read-only search. There is no approval gate because there is nothing mutating to approve; adding such a tool requires one. |
-| ASI-07 Resource exhaustion | Per-user token bucket on every paid path (agent, upload, search, MCP); per-IP guest caps; auth-endpoint throttles; upload size and chunk caps. |
-| ASI-08 Protocol | MCP tool arguments validated by Pydantic; results wrapped as untrusted content; session ownership checked. |
-| ASI-10 Audit | `tool_audit_logs` is append-only by trigger; the retention job (`scripts/prune_guests.py`, 30 days) is the only deleter. |
+| OWASP ASI                  | What is implemented                                                                                                                                                                                                                                                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ASI-01 Prompt injection    | Retrieved text is escaped and wrapped in `<untrusted_document_context>`; the system prompt forbids following it. Instruction-like chunks are kept inside the delimiters and reported to the user. A per-run canary token is scanned for in the streamed output and never forwarded. These reduce risk; they do not eliminate it. |
+| ASI-02 Data disclosure     | Credentials and private keys in ingested text are redacted before storage and prompting.                                                                                                                                                                                                                                         |
+| ASI-04 Data poisoning      | Uploads are private to the uploader; the seeded corpus is read-only.                                                                                                                                                                                                                                                             |
+| ASI-05 Code execution      | None. No user- or model-supplied code is executed. A previous AST sandbox was removed as escapable; any future one needs OS-level isolation.                                                                                                                                                                                     |
+| ASI-06 Excessive agency    | The only tool is a read-only search. There is no approval gate because there is nothing mutating to approve; adding such a tool requires one.                                                                                                                                                                                    |
+| ASI-07 Resource exhaustion | Per-user token bucket on every paid path (agent, upload, search, MCP); per-IP guest caps; auth-endpoint throttles; upload size and chunk caps.                                                                                                                                                                                   |
+| ASI-08 Protocol            | MCP tool arguments validated by Pydantic; results wrapped as untrusted content; session ownership checked.                                                                                                                                                                                                                       |
+| ASI-10 Audit               | `tool_audit_logs` is append-only by trigger; the retention job (`scripts/prune_guests.py`, 30 days) is the only deleter.                                                                                                                                                                                                         |
 
 Web layer: per-request CSP nonce with `'strict-dynamic'` (`proxy.ts`), no script `unsafe-inline`; HSTS, `X-Frame-Options`, `nosniff`; Mermaid in `securityLevel: strict` with DOMPurify; model output rendered without raw HTML; Google ID tokens verified locally (signature, audience, issuer, expiry) and accounts keyed on `sub`; production hides `/docs` and database details on `/api/health`.
 

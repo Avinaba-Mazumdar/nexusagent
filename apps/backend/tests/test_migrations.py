@@ -5,8 +5,8 @@ from app.db.migrations import MIGRATIONS_DIR, apply_migrations
 
 def test_migrations_directory_exists():
     assert MIGRATIONS_DIR.is_dir(), f"Migrations dir not found: {MIGRATIONS_DIR}"
-    files = list(MIGRATIONS_DIR.glob("*.sql"))
-    assert len(files) >= 1, "At least core schema migration must exist"
+    files = sorted(p.name for p in MIGRATIONS_DIR.glob("*.sql"))
+    assert files == ["20260901000000_core_schema.sql"]
 
 
 @pytest.mark.db

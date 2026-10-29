@@ -406,10 +406,10 @@ async def test_prune_audit_logs_uses_retention_switch_and_validates_input():
 
 
 def test_audit_migration_blocks_updates_and_unsanctioned_deletes():
-    """SEC-13: the append-only trigger migration exists and only whitelists FK cleanup + retention."""
+    """SEC-13: the core schema's append-only trigger only whitelists FK cleanup + retention."""
     from app.db.migrations import MIGRATIONS_DIR
 
-    sql = next(MIGRATIONS_DIR.glob("*audit_log_append_only.sql")).read_text(encoding="utf-8")
+    sql = (MIGRATIONS_DIR / "20260901000000_core_schema.sql").read_text(encoding="utf-8")
     assert "BEFORE UPDATE OR DELETE ON tool_audit_logs" in sql
     assert "nexusagent.audit_retention" in sql
     assert "append-only" in sql
