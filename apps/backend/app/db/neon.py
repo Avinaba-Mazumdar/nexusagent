@@ -187,27 +187,29 @@ class NeonDatabase:
             logger.info("Pruned %d expired guest user(s) older than %d hours.", count, ttl_hours)
             return count
 
-    async def consume_rate_limit(self, user_id: UUID, default_tokens: int = 5) -> int | None:
+    async def consume_rate_limit(
+        self, user_id: UUID, default_tokens: int = 5, cost: int = 1
+    ) -> int | None:
         """
-        Atomically insert or replenish and consume one token keyed only by user_id.
+        Atomically insert or replenish and consume `cost` tokens keyed only by user_id.
         Returns tokens_remaining, or None if quota exhausted.
         """
         pool = self.get_pool()
         query = """
             INSERT INTO rate_limit_buckets (user_id, tokens_remaining, bucket_capacity, last_replenished_at)
-            VALUES ($1, $2 - 1, $2, NOW())
+            VALUES ($1, $2 - $3, $2, NOW())
             ON CONFLICT (user_id) DO UPDATE SET
               tokens_remaining = CASE WHEN rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour'
-                                      THEN rate_limit_buckets.bucket_capacity - 1
-                                      ELSE rate_limit_buckets.tokens_remaining - 1 END,
+                                      THEN rate_limit_buckets.bucket_capacity - $3
+                                      ELSE rate_limit_buckets.tokens_remaining - $3 END,
               last_replenished_at = CASE WHEN rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour'
                                          THEN NOW() ELSE rate_limit_buckets.last_replenished_at END
-            WHERE rate_limit_buckets.tokens_remaining > 0
-               OR rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour'
+            WHERE (rate_limit_buckets.last_replenished_at > NOW() - INTERVAL '1 hour' AND rate_limit_buckets.tokens_remaining >= $3)
+               OR (rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour' AND rate_limit_buckets.bucket_capacity >= $3)
             RETURNING tokens_remaining;
         """
         async with pool.acquire() as conn:
-            return await conn.fetchval(query, user_id, default_tokens)
+            return await conn.fetchval(query, user_id, default_tokens, cost)
 
     async def get_or_create_rate_limit(
         self, user_id: UUID, default_tokens: int = 5

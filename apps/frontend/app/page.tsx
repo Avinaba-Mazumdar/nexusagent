@@ -17,7 +17,7 @@ import { useChatHistory, type ChatItem } from '@/hooks/useChatHistory';
 import type { ChatConversation } from '@nexusagent/contracts';
 
 const MAX_LOG_ENTRIES = 200;
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
 const XL_BREAKPOINT_QUERY = '(min-width: 1280px)';
 
 function normalizeDoc(raw: Record<string, unknown>): WorkspaceDoc {

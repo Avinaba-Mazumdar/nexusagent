@@ -1,5 +1,7 @@
+import asyncio
 import hashlib
 import logging
+import math
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
@@ -30,7 +32,22 @@ ALLOWED_MIME_TYPES = {
     "application/x-markdown",
 }
 ALLOWED_EXTENSIONS = {".md", ".markdown", ".txt"}
-MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MB per document
+MAX_FILE_BYTES = 1 * 1024 * 1024  # 1 MB per document
+
+_UPLOAD_LOCKS: dict[UUID, asyncio.Lock] = {}
+_UPLOAD_LOCKS_MAX = 5_000
+
+
+def _get_upload_lock(user_id: UUID) -> asyncio.Lock:
+    lock = _UPLOAD_LOCKS.get(user_id)
+    if lock is None:
+        if len(_UPLOAD_LOCKS) > _UPLOAD_LOCKS_MAX:
+            unlocked = [uid for uid, lk in _UPLOAD_LOCKS.items() if not lk.locked()]
+            for uid in unlocked[:1000]:
+                _UPLOAD_LOCKS.pop(uid, None)
+        lock = asyncio.Lock()
+        _UPLOAD_LOCKS[user_id] = lock
+    return lock
 
 
 def document_to_wire(d: Document) -> DocumentMetadataWire:
@@ -114,113 +131,141 @@ async def upload_document(
 ):
     """
     Upload and parse markdown or RFC documents.
-    Enforces file size ceiling (5MB), computes SHA-256 hash, runs LlamaIndex hierarchical parser,
+    Enforces file size ceiling (1MB), computes SHA-256 hash, runs LlamaIndex hierarchical parser,
     and batch persists document record and chunk rows into Neon PostgreSQL.
     """
-    client_ip = get_client_ip(request)
-
-    await default_rate_limiter.check_and_consume(
-        user_id=current_user.id,
-        client_ip=client_ip,
-        is_guest=current_user.is_guest,
-    )
-    filename = file.filename or "uploaded_document.md"
-    ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-
-    if ext not in ALLOWED_EXTENSIONS and file.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Only Markdown and RFC text files (.md, .markdown, .txt) are supported",
-        )
-
-    user_doc_count = await db.count_user_documents(current_user.id)
-    if user_doc_count >= settings.MAX_DOCUMENTS_PER_USER:
+    user_lock = _get_upload_lock(current_user.id)
+    if user_lock.locked():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Document limit reached ({settings.MAX_DOCUMENTS_PER_USER}). Delete a document first.",
-        )
-
-    raw_bytes = await file.read(MAX_FILE_BYTES + 1)
-    if len(raw_bytes) > MAX_FILE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds maximum allowed size of {MAX_FILE_BYTES // (1024 * 1024)}MB",
-        )
-
-    if not raw_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded file is empty",
+            detail="Upload already in progress",
         )
 
     try:
-        content_text = raw_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        try:
-            content_text = raw_bytes.decode("latin-1")
-        except UnicodeDecodeError:
+        await asyncio.wait_for(user_lock.acquire(), timeout=0.001)
+    except TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Upload already in progress",
+        )
+
+    try:
+        client_ip = get_client_ip(request)
+        filename = file.filename or "uploaded_document.md"
+        ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+        if ext not in ALLOWED_EXTENSIONS and file.content_type not in ALLOWED_MIME_TYPES:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Unable to decode file content as text",
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="Only Markdown and RFC text files (.md, .markdown, .txt) are supported",
             )
 
-    sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
+        user_doc_count = await db.count_user_documents(current_user.id)
+        if user_doc_count >= settings.MAX_DOCUMENTS_PER_USER:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Document limit reached ({settings.MAX_DOCUMENTS_PER_USER}). Delete a document first.",
+            )
 
-    # Deduplication check: If same content was already uploaded by user
-    existing_doc = await db.get_document_by_hash(sha256_hash, user_id=current_user.id)
-    if existing_doc:
-        existing_chunks = await db.get_document_chunks(existing_doc.id)
+        raw_bytes = await file.read(MAX_FILE_BYTES + 1)
+        if len(raw_bytes) > MAX_FILE_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File exceeds maximum allowed size of {MAX_FILE_BYTES // (1024 * 1024)}MB",
+            )
+
+        if not raw_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded file is empty",
+            )
+
+        try:
+            content_text = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                content_text = raw_bytes.decode("latin-1")
+            except UnicodeDecodeError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Unable to decode file content as text",
+                )
+
+        sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
+
+        # Deduplication check: If same content was already uploaded by user
+        existing_doc = await db.get_document_by_hash(sha256_hash, user_id=current_user.id)
+        if existing_doc:
+            existing_chunks = await db.get_document_chunks(existing_doc.id)
+            return DocumentUploadResponseWire(
+                document=document_to_wire(existing_doc),
+                chunksCount=existing_doc.total_chunks,
+                previewChunks=[chunk_to_wire(c) for c in existing_chunks[:5]],
+            )
+
+        if not default_embedding_service.api_key:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Document ingestion is unavailable: embeddings are not configured.",
+            )
+
+        # 1. Parse document into hierarchical chunks off the event loop
+        new_doc_id = uuid4()
+        chunks = await asyncio.to_thread(
+            default_markdown_parser.parse_markdown,
+            markdown_text=content_text,
+            document_id=new_doc_id,
+            extra_metadata={"filename": filename},
+        )
+
+        if len(chunks) > settings.MAX_CHUNKS_PER_DOCUMENT:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Document produced {len(chunks)} chunks, exceeding the maximum allowed limit of {settings.MAX_CHUNKS_PER_DOCUMENT}.",
+            )
+
+        # Charge quota proportional to chunk count
+        cost = max(1, math.ceil(len(chunks) / 100))
+        await default_rate_limiter.check_and_consume(
+            user_id=current_user.id,
+            client_ip=client_ip,
+            is_guest=current_user.is_guest,
+            cost=cost,
+        )
+
+        # 2. Generate dense vector embeddings for all chunks
+        if chunks:
+            texts = [c.content for c in chunks]
+            embeddings = await default_embedding_service.get_embeddings(texts)
+            for chunk, emb in zip(chunks, embeddings):
+                chunk.embedding = emb
+
+        # 3. Persist Document record and chunks transactionally
+        doc_record = Document(
+            id=new_doc_id,
+            user_id=current_user.id,
+            filename=filename,
+            mime_type=file.content_type or "text/markdown",
+            sha256_hash=sha256_hash,
+            total_chunks=len(chunks),
+            storage_path=None,
+            is_seeded=False,
+        )
+        saved_doc = await db.create_document_with_chunks(doc_record, chunks)
+
+        await default_audit_logger.log_tool_audit(
+            tool_name="document_upload",
+            input_args={"filename": filename, "bytes": len(raw_bytes)},
+            output_summary={"document_id": str(new_doc_id), "chunks": len(chunks)},
+            duration_ms=0,
+            user_id=current_user.id,
+            mcp_server="http-api",
+        )
+
         return DocumentUploadResponseWire(
-            document=document_to_wire(existing_doc),
-            chunksCount=existing_doc.total_chunks,
-            previewChunks=[chunk_to_wire(c) for c in existing_chunks[:5]],
+            document=document_to_wire(saved_doc),
+            chunksCount=len(chunks),
+            previewChunks=[chunk_to_wire(c) for c in chunks[:5]],
         )
-
-    if not default_embedding_service.api_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Document ingestion is unavailable: embeddings are not configured.",
-        )
-
-    # 1. Parse document into hierarchical chunks
-    new_doc_id = uuid4()
-    chunks = default_markdown_parser.parse_markdown(
-        markdown_text=content_text,
-        document_id=new_doc_id,
-        extra_metadata={"filename": filename},
-    )
-
-    # 2. Generate dense vector embeddings for all chunks
-    if chunks:
-        texts = [c.content for c in chunks]
-        embeddings = await default_embedding_service.get_embeddings(texts)
-        for chunk, emb in zip(chunks, embeddings):
-            chunk.embedding = emb
-
-    # 3. Persist Document record and chunks transactionally
-    doc_record = Document(
-        id=new_doc_id,
-        user_id=current_user.id,
-        filename=filename,
-        mime_type=file.content_type or "text/markdown",
-        sha256_hash=sha256_hash,
-        total_chunks=len(chunks),
-        storage_path=None,
-        is_seeded=False,
-    )
-    saved_doc = await db.create_document_with_chunks(doc_record, chunks)
-
-    await default_audit_logger.log_tool_audit(
-        tool_name="document_upload",
-        input_args={"filename": filename, "bytes": len(raw_bytes)},
-        output_summary={"document_id": str(new_doc_id), "chunks": len(chunks)},
-        duration_ms=0,
-        user_id=current_user.id,
-        mcp_server="http-api",
-    )
-
-    return DocumentUploadResponseWire(
-        document=document_to_wire(saved_doc),
-        chunksCount=len(chunks),
-        previewChunks=[chunk_to_wire(c) for c in chunks[:5]],
-    )
+    finally:
+        user_lock.release()

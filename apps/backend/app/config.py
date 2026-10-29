@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     GUEST_QUOTA_DEFAULT: int = 5
     USER_QUOTA_DEFAULT: int = 25
     MAX_DOCUMENTS_PER_USER: int = 20
+    MAX_CHUNKS_PER_DOCUMENT: int = 400
     GUEST_SIGNUPS_PER_IP_PER_HOUR: int = 5
     GUEST_IP_QUOTA_PER_HOUR: int = 15
     # Rate-limit keying: enable only when behind a trusted reverse proxy that

@@ -95,11 +95,12 @@ class TokenBucketLimiter:
         user_id: UUID,
         client_ip: str,
         is_guest: bool = True,
+        cost: int = 1,
     ) -> int:
         """
-        Check and consume 1 token.
+        Check and consume tokens (default: 1).
         Returns tokens_remaining after decrement.
-        Raises HTTPException(429) if quota is depleted.
+        Raises HTTPException(429) if quota is depleted or insufficient.
         """
         if is_guest and not guest_ip_llm_limiter.hit(client_ip):
             raise HTTPException(
@@ -113,7 +114,9 @@ class TokenBucketLimiter:
         # 1. Try PostgreSQL if pool is available
         if self.db and self.db.pool:
             try:
-                remaining = await self.db.consume_rate_limit(user_id, default_tokens=default_tokens)
+                remaining = await self.db.consume_rate_limit(
+                    user_id, default_tokens=default_tokens, cost=cost
+                )
                 if remaining is None:
                     raise HTTPException(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -130,14 +133,14 @@ class TokenBucketLimiter:
 
         # 2. Resilient In-Memory Fallback
         bucket = self._get_memory_bucket(user_id, default_tokens)
-        if bucket.tokens_remaining <= 0:
+        if bucket.tokens_remaining < cost:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Free-tier quota limit reached. It replenishes hourly.",
                 headers={"Retry-After": "3600"},
             )
 
-        bucket.tokens_remaining -= 1
+        bucket.tokens_remaining -= cost
         return bucket.tokens_remaining
 
     async def get_quota(

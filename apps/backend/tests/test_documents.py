@@ -188,12 +188,100 @@ async def test_document_upload_size_limit_413():
     transport = ASGITransport(app=app)
     try:
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            large_content = b"A" * (5 * 1024 * 1024 + 10)
+            # 1.5 MB generated file exceeds 1 MB limit
+            large_content = b"A" * int(1.5 * 1024 * 1024)
             files = {"file": ("large.md", large_content, "text/markdown")}
             headers = {"Authorization": "Bearer test-token"}
             resp = await client.post("/api/documents/upload", files=files, headers=headers)
             assert resp.status_code == 413
             assert "exceeds maximum allowed size" in resp.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_document_upload_chunks_cap_413(monkeypatch):
+    """Test that a file producing > 400 chunks returns 413 (SEC-03)."""
+    from unittest.mock import AsyncMock
+
+    from app.core.auth import get_current_user
+    from app.db.neon import get_db
+
+    user = User(
+        id=uuid4(),
+        email="chunk-cap@user.com",
+        name="Chunk Cap",
+        is_guest=False,
+    )
+    mock_db = AsyncMock()
+    mock_db.count_user_documents.return_value = 0
+    mock_db.get_document_by_hash.return_value = None
+
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_db] = lambda: mock_db
+    monkeypatch.setattr("app.routes.documents.default_embedding_service.api_key", "test-key")
+
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            content = "\n\n".join(f"## Header {i}\nContent {i}" for i in range(401))
+            files = {"file": ("many_chunks.md", content.encode("utf-8"), "text/markdown")}
+            headers = {"Authorization": "Bearer test-token"}
+            resp = await client.post("/api/documents/upload", files=files, headers=headers)
+            assert resp.status_code == 413
+            assert "exceeding the maximum allowed limit of 400" in resp.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_document_upload_concurrent_lock_409(monkeypatch):
+    """Test that concurrent uploads by the same user return 409 for the second request (SEC-03)."""
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from app.core.auth import get_current_user
+    from app.db.neon import get_db
+
+    user = User(
+        id=uuid4(),
+        email="lock-test@user.com",
+        name="Lock Test",
+        is_guest=False,
+    )
+    mock_db = AsyncMock()
+    mock_db.count_user_documents.return_value = 0
+    mock_db.get_document_by_hash.return_value = None
+    mock_db.create_document_with_chunks.side_effect = lambda doc, chunks: doc
+
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_db] = lambda: mock_db
+    monkeypatch.setattr("app.routes.documents.default_embedding_service.api_key", "test-key")
+
+    async def slow_get_embeddings(*args, **kwargs):
+        await asyncio.sleep(0.15)
+        return [[0.1] * 768]
+
+    monkeypatch.setattr(
+        "app.routes.documents.default_embedding_service.get_embeddings",
+        slow_get_embeddings,
+    )
+
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            files1 = {"file": ("test1.md", b"# Test 1\nLine 1", "text/markdown")}
+            files2 = {"file": ("test2.md", b"# Test 2\nLine 2", "text/markdown")}
+            headers = {"Authorization": "Bearer test-token"}
+
+            res1, res2 = await asyncio.gather(
+                client.post("/api/documents/upload", files=files1, headers=headers),
+                client.post("/api/documents/upload", files=files2, headers=headers),
+            )
+            statuses = [res1.status_code, res2.status_code]
+            assert 409 in statuses
+            detail_409 = res1.json()["detail"] if res1.status_code == 409 else res2.json()["detail"]
+            assert "Upload already in progress" in detail_409
     finally:
         app.dependency_overrides.clear()
 

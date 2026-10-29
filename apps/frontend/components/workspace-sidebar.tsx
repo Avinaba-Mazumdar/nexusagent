@@ -216,7 +216,7 @@ export function WorkspaceSidebar({
                             )}
                             <span>{token ? 'Upload Markdown (.md, .txt)' : 'Sign in to upload'}</span>
                         </Button>
-                        <p className="text-[10px] text-muted-foreground text-center">Max 5 MB. Each upload uses one query.</p>
+                        <p className="text-[10px] text-muted-foreground text-center">Max 1 MB. Each upload uses one query.</p>
                         {uploadState.status !== 'idle' && (
                             <p
                                 role="status"
