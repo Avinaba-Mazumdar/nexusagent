@@ -23,16 +23,19 @@ async def apply_migrations(db: NeonDatabase, directory: Path = MIGRATIONS_DIR) -
                 "CREATE TABLE IF NOT EXISTS schema_migrations ("
                 "version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW());"
             )
-            done = {r["version"] for r in await conn.fetch("SELECT version FROM schema_migrations;")}
+            done = {
+                r["version"] for r in await conn.fetch("SELECT version FROM schema_migrations;")
+            }
             for f in files:
                 if f.stem in done:
                     continue
                 async with conn.transaction():
                     await conn.execute(f.read_text(encoding="utf-8"))
-                    await conn.execute("INSERT INTO schema_migrations (version) VALUES ($1);", f.stem)
+                    await conn.execute(
+                        "INSERT INTO schema_migrations (version) VALUES ($1);", f.stem
+                    )
                 applied_now.append(f.stem)
                 logger.info("Applied migration %s", f.name)
         finally:
             await conn.execute("SELECT pg_advisory_unlock($1);", LOCK_KEY)
     return applied_now
-

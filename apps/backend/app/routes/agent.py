@@ -221,7 +221,9 @@ async def generate_agent_stream(
                     except ValueError:
                         pass
                     title = (query[:60] + "...") if len(query) > 60 else query
-                    conv = await neon_db.create_conversation(user_id, title=title, conversation_id=conv_id)
+                    conv = await neon_db.create_conversation(
+                        user_id, title=title, conversation_id=conv_id
+                    )
                     if conv and "id" in conv:
                         actual_conv_id = conv["id"]
                         await neon_db.save_message(actual_conv_id, role="user", content=query)
@@ -237,7 +239,9 @@ async def generate_agent_stream(
                             },
                         )
                     else:
-                        logger.warning(f"Could not persist conversation {conv_id} for user {user_id}")
+                        logger.warning(
+                            f"Could not persist conversation {conv_id} for user {user_id}"
+                        )
                 except Exception as save_err:  # noqa: BLE001
                     logger.warning(f"Could not persist conversation history: {save_err}")
 
@@ -251,7 +255,9 @@ async def generate_agent_stream(
                 except Exception as refund_err:  # noqa: BLE001
                     logger.warning(f"Could not refund rate limit token: {refund_err}")
             masked_error = "Internal error. Reference: " + session_id[:8]
-            await event_queue.put(format_sse("error", {"error": masked_error, "sessionId": session_id}))
+            await event_queue.put(
+                format_sse("error", {"error": masked_error, "sessionId": session_id})
+            )
         finally:
             await event_queue.put(None)
 
@@ -315,7 +321,7 @@ async def stream_agent_execution(
         if requested and await neon_db.get_conversation(current_user.id, requested):
             session_id = payload.sessionId
             rows = await neon_db.get_conversation_messages(current_user.id, requested)
-            chat_history = [{"role": r["role"], "content": r["content"]} for r in rows][-2 * 6:]
+            chat_history = [{"role": r["role"], "content": r["content"]} for r in rows][-2 * 6 :]
 
     return StreamingResponse(
         generate_agent_stream(
@@ -348,7 +354,5 @@ async def get_tool_audit_logs(
     Retrieve immutable tool execution audit records (Neon ``tool_audit_logs``
     first, in-memory ring fallback when the database is unavailable).
     """
-    logs = await default_audit_logger.fetch_audit_logs_from_db(
-        user_id=current_user.id, limit=limit
-    )
+    logs = await default_audit_logger.fetch_audit_logs_from_db(user_id=current_user.id, limit=limit)
     return {"logs": logs, "count": len(logs)}

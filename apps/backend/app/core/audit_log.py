@@ -155,4 +155,3 @@ default_audit_logger = ToolAuditLogger()
 # Backwards compatibility aliases
 HitlCoordinator = ToolAuditLogger
 default_hitl_coordinator = default_audit_logger
-

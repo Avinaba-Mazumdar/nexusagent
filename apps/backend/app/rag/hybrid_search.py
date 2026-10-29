@@ -9,6 +9,7 @@ from app.rag.embeddings import EmbeddingService, default_embedding_service
 
 logger = logging.getLogger("nexusagent.rag.hybrid_search")
 
+
 class HybridSearchResult(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -102,7 +103,7 @@ def compute_rrf(
 
             try:
                 meta = json.loads(meta)
-            except (json.JSONDecodeError, TypeError, ValueError):
+            except json.JSONDecodeError, TypeError, ValueError:
                 meta = {}
 
         header_path = meta.get("header_path") or meta.get("headerPath") or []

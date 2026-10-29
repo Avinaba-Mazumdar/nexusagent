@@ -76,7 +76,9 @@ async def test_embedding_service_batch():
         "embeddings": [{"values": [0.1] * EMBEDDING_DIMENSION} for _ in range(3)]
     }
 
-    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp) as mock_post:
+    with patch(
+        "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp
+    ) as mock_post:
         service = EmbeddingService(api_key="test-key")
         texts = [
             "Distributed consensus protocol",

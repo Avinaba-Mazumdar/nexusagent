@@ -51,9 +51,7 @@ SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
     ),
     # OpenAI, Anthropic, or GitHub tokens
     (
-        re.compile(
-            r"\b(sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{22,})\b"
-        ),
+        re.compile(r"\b(sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{22,})\b"),
         "[REDACTED_API_KEY]",
     ),
     # Database URIs with credentials

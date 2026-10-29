@@ -47,9 +47,7 @@ TOOLS: list[ToolDefinition] = [
 ]
 
 # Pinned cryptographic schema hashes for zero-trust MCP tool integrity (detects rug pull modifications)
-PINNED_TOOL_HASHES: dict[str, str] = {
-    tool.name: compute_mcp_tool_hash(tool) for tool in TOOLS
-}
+PINNED_TOOL_HASHES: dict[str, str] = {tool.name: compute_mcp_tool_hash(tool) for tool in TOOLS}
 
 
 # Resource Definitions
@@ -155,7 +153,9 @@ class McpRegistry:
         else:
             is_valid, reason = cls.validate_tool_integrity(target_tool)
             if not is_valid:
-                logger.critical("Execution blocked for poisoned/tampered MCP tool '%s': %s", name, reason)
+                logger.critical(
+                    "Execution blocked for poisoned/tampered MCP tool '%s': %s", name, reason
+                )
                 result = ToolCallResult(
                     content=[ToolCallContent(text=f"Security Violation: {reason}")],
                     isError=True,
@@ -164,11 +164,7 @@ class McpRegistry:
                 result = await cls._exec_hybrid_search(arguments)
             else:
                 result = ToolCallResult(
-                    content=[
-                        ToolCallContent(
-                            text=f"Unknown tool '{name}'."
-                        )
-                    ],
+                    content=[ToolCallContent(text=f"Unknown tool '{name}'.")],
                     isError=True,
                 )
 

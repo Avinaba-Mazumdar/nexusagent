@@ -143,7 +143,7 @@ async def get_current_user_optional(
         if not user_id_str:
             return None
         return await db.get_user_by_id(UUID(user_id_str))
-    except (jwt.PyJWTError, ValueError, HTTPException):
+    except jwt.PyJWTError, ValueError, HTTPException:
         return None
 
 

@@ -47,7 +47,9 @@ class EmbeddingService:
                 slice_embeddings = None
                 last_error = None
 
-                models_to_try = [self.active_model] + [m for m in GEMINI_EMBED_MODELS if m != self.active_model]
+                models_to_try = [self.active_model] + [
+                    m for m in GEMINI_EMBED_MODELS if m != self.active_model
+                ]
 
                 for model_name in models_to_try:
                     try:
@@ -61,7 +63,9 @@ class EmbeddingService:
                             }
                             for t in slice_texts
                         ]
-                        response = await client.post(url, headers=headers, json={"requests": requests_payload})
+                        response = await client.post(
+                            url, headers=headers, json={"requests": requests_payload}
+                        )
                         if response.status_code == 200:
                             data = response.json()
                             embeddings = [item["values"] for item in data.get("embeddings", [])]
@@ -69,7 +73,9 @@ class EmbeddingService:
                                 self.active_model = model_name
                                 slice_embeddings = embeddings
                                 break
-                        last_error = f"Gemini embedding API ({model_name}) status {response.status_code}"
+                        last_error = (
+                            f"Gemini embedding API ({model_name}) status {response.status_code}"
+                        )
                         if response.status_code != 404:
                             break
                     except Exception:  # noqa: BLE001

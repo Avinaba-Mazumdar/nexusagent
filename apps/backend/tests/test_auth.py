@@ -144,6 +144,7 @@ async def test_google_oauth_endpoint(monkeypatch):
 @pytest.mark.asyncio
 async def test_mock_google_token_is_rejected(monkeypatch):
     """Regression (audit S-04): mock google token is rejected unconditionally."""
+
     class FakeResponse:
         status_code = 400
 
@@ -173,7 +174,9 @@ async def test_verify_google_token_audience_and_issuer(monkeypatch):
     from app.config import settings
     from app.core.auth import verify_google_token
 
-    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "test-client-id-123.apps.googleusercontent.com")
+    monkeypatch.setattr(
+        settings, "GOOGLE_CLIENT_ID", "test-client-id-123.apps.googleusercontent.com"
+    )
 
     # 1. Wrong aud -> 401
     class FakeAudResp:

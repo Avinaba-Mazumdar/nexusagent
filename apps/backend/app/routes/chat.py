@@ -26,7 +26,11 @@ def ensure_google_user(current_user: User) -> None:
 
 
 def conversation_to_wire(c: dict) -> dict:
-    created_at = c["created_at"].isoformat() if hasattr(c["created_at"], "isoformat") else str(c["created_at"])
+    created_at = (
+        c["created_at"].isoformat()
+        if hasattr(c["created_at"], "isoformat")
+        else str(c["created_at"])
+    )
     updated_at = (
         c["updated_at"].isoformat()
         if hasattr(c.get("updated_at"), "isoformat")
@@ -51,7 +55,9 @@ def message_to_wire(m: dict) -> dict:
         "content": m["content"],
         "planTrace": m.get("plan_trace"),
         "reflectionSummary": m.get("reflection_summary"),
-        "createdAt": m["created_at"].isoformat() if hasattr(m["created_at"], "isoformat") else str(m["created_at"]),
+        "createdAt": m["created_at"].isoformat()
+        if hasattr(m["created_at"], "isoformat")
+        else str(m["created_at"]),
     }
 
 
@@ -64,7 +70,9 @@ async def list_seeded_documents(db: NeonDatabase = Depends(get_db)):
 
 @router.get("/history")
 async def list_chat_history(
-    q: str | None = Query(None, description="Optional search query across conversation titles and message content"),
+    q: str | None = Query(
+        None, description="Optional search query across conversation titles and message content"
+    ),
     limit: int = Query(50, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: NeonDatabase = Depends(get_db),
@@ -108,7 +116,9 @@ async def get_chat_conversation(
             "id": str(conv["id"]),
             "userId": str(conv["user_id"]),
             "title": conv["title"],
-            "createdAt": conv["created_at"].isoformat() if hasattr(conv["created_at"], "isoformat") else str(conv["created_at"]),
+            "createdAt": conv["created_at"].isoformat()
+            if hasattr(conv["created_at"], "isoformat")
+            else str(conv["created_at"]),
         },
         "messages": [message_to_wire(m) for m in messages],
     }

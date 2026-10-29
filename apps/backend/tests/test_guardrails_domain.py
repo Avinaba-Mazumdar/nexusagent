@@ -23,9 +23,18 @@ def test_classify_query_intent_boundaries():
     assert classify_query_intent("what can you do") == "greeting"
 
     # Architectural queries
-    assert classify_query_intent("Compare Claude Sonnet 3.7 vs GPT-4o on CursorBench") == "architectural"
-    assert classify_query_intent("Explain Raft consensus commit latency under high write throughput") == "architectural"
-    assert classify_query_intent("Calculate quorum size and failover time for 5 replicas") == "architectural"
+    assert (
+        classify_query_intent("Compare Claude Sonnet 3.7 vs GPT-4o on CursorBench")
+        == "architectural"
+    )
+    assert (
+        classify_query_intent("Explain Raft consensus commit latency under high write throughput")
+        == "architectural"
+    )
+    assert (
+        classify_query_intent("Calculate quorum size and failover time for 5 replicas")
+        == "architectural"
+    )
 
 
 @pytest.mark.parametrize(

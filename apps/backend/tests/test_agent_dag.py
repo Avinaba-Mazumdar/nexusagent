@@ -102,15 +102,21 @@ async def test_synthesizer_synthesis_failure_sets_error_not_response():
         assert res.error == "Answer generation is not configured on this server."
         assert res.response == ""
 
-    with patch("app.agent.graph.settings.GEMINI_API_KEY", "fake-key"), patch(
-        "app.agent.graph.ChatGoogleGenerativeAI", side_effect=RuntimeError("Google API quota exhausted")
+    with (
+        patch("app.agent.graph.settings.GEMINI_API_KEY", "fake-key"),
+        patch(
+            "app.agent.graph.ChatGoogleGenerativeAI",
+            side_effect=RuntimeError("Google API quota exhausted"),
+        ),
     ):
         state2 = AgentState(
             query="Explain Raft consensus commit latency under high write throughput",
             user_id=uuid4(),
         )
         res2 = await synthesizer_node(state2)
-        assert res2.error == "The language model is unavailable right now. Please try again shortly."
+        assert (
+            res2.error == "The language model is unavailable right now. Please try again shortly."
+        )
         assert res2.response == ""
 
 
@@ -140,8 +146,9 @@ async def test_multi_turn_history_included_in_llm_messages():
         ],
     )
 
-    with patch("app.agent.graph.settings.GEMINI_API_KEY", "test-key"), patch(
-        "app.agent.graph.ChatGoogleGenerativeAI", return_value=mock_llm
+    with (
+        patch("app.agent.graph.settings.GEMINI_API_KEY", "test-key"),
+        patch("app.agent.graph.ChatGoogleGenerativeAI", return_value=mock_llm),
     ):
         res = await synthesizer_node(state)
         assert res.response == "Multi-turn synthesized answer"

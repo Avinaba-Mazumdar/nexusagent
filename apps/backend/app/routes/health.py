@@ -24,9 +24,11 @@ async def get_health():
                 if db_connected:
                     version = await conn.fetchval("SHOW server_version;")
                     engine_str = f"PostgreSQL {version}"
-                    ext_rows = await conn.fetch("SELECT extname FROM pg_extension ORDER BY extname;")
+                    ext_rows = await conn.fetch(
+                        "SELECT extname FROM pg_extension ORDER BY extname;"
+                    )
                     extensions = [r["extname"] for r in ext_rows]
-        except (asyncpg.PostgresError, OSError):
+        except asyncpg.PostgresError, OSError:
             db_connected = False
             engine_str = None
             extensions = []

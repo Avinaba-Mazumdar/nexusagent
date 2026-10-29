@@ -182,7 +182,7 @@ class NeonDatabase:
             result = await conn.execute(query, ttl_hours)
             try:
                 count = int(result.split()[-1])
-            except (ValueError, IndexError):
+            except ValueError, IndexError:
                 count = 0
             logger.info("Pruned %d expired guest user(s) older than %d hours.", count, ttl_hours)
             return count
@@ -407,7 +407,7 @@ class NeonDatabase:
                 if data.get("embedding") is not None and not isinstance(data["embedding"], list):
                     try:
                         data["embedding"] = [float(x) for x in data["embedding"]]
-                    except (TypeError, ValueError):
+                    except TypeError, ValueError:
                         pass
                 chunks.append(DocumentChunk(**data))
             return chunks

@@ -111,9 +111,7 @@ class TokenBucketLimiter:
                 headers={"Retry-After": "3600"},
             )
 
-        default_tokens = (
-            settings.GUEST_QUOTA_DEFAULT if is_guest else settings.USER_QUOTA_DEFAULT
-        )
+        default_tokens = settings.GUEST_QUOTA_DEFAULT if is_guest else settings.USER_QUOTA_DEFAULT
 
         # 1. Try PostgreSQL if pool is available
         if self.db and self.db.pool:
@@ -155,9 +153,7 @@ class TokenBucketLimiter:
         is_guest: bool = True,
     ) -> int:
         """Fetch current quota without consuming."""
-        default_tokens = (
-            settings.GUEST_QUOTA_DEFAULT if is_guest else settings.USER_QUOTA_DEFAULT
-        )
+        default_tokens = settings.GUEST_QUOTA_DEFAULT if is_guest else settings.USER_QUOTA_DEFAULT
 
         if self.db and self.db.pool:
             try:

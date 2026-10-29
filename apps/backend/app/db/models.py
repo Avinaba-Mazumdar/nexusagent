@@ -71,7 +71,7 @@ class DocumentChunk(BaseModel):
             return [float(x) for x in v.to_numpy().tolist()]
         try:
             return [float(x) for x in v]
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return v
 
 
@@ -149,4 +149,3 @@ class DocumentUploadResponseWire(BaseModel):
     document: DocumentMetadataWire
     chunksCount: int
     previewChunks: list[DocumentChunkWire]
-

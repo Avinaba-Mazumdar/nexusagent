@@ -43,7 +43,9 @@ def document_to_wire(d: Document) -> DocumentMetadataWire:
         totalChunks=d.total_chunks,
         storagePath=d.storage_path,
         isSeeded=d.is_seeded,
-        uploadedAt=d.uploaded_at.isoformat() if hasattr(d.uploaded_at, "isoformat") else str(d.uploaded_at),
+        uploadedAt=d.uploaded_at.isoformat()
+        if hasattr(d.uploaded_at, "isoformat")
+        else str(d.uploaded_at),
     )
 
 
@@ -54,7 +56,9 @@ def chunk_to_wire(c: DocumentChunk) -> DocumentChunkWire:
         chunkIndex=c.chunk_index,
         content=c.content,
         metadata=c.metadata,
-        createdAt=c.created_at.isoformat() if hasattr(c.created_at, "isoformat") else str(c.created_at),
+        createdAt=c.created_at.isoformat()
+        if hasattr(c.created_at, "isoformat")
+        else str(c.created_at),
     )
 
 

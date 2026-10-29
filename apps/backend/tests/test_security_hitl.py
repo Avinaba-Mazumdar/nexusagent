@@ -53,14 +53,17 @@ async def test_canary_leak_aborts_synthesized_response():
     mock_clean_resp.content = "Normal answer without leak"
     mock_clean_chain.ainvoke.return_value = mock_clean_resp
 
-    with patch("app.agent.graph.settings") as mock_settings, \
-         patch("app.agent.graph.ChatGoogleGenerativeAI") as mock_chat:
+    with (
+        patch("app.agent.graph.settings") as mock_settings,
+        patch("app.agent.graph.ChatGoogleGenerativeAI") as mock_chat,
+    ):
         mock_settings.GEMINI_API_KEY = "test-key"
         mock_chat.return_value.with_fallbacks.return_value = mock_clean_chain
         clean_state = await synthesizer_node(state)
         assert clean_state.injection_detected is False
 
     from app.agent.graph import _get_llm_chain
+
     _get_llm_chain.cache_clear()
 
     # Simulate model leaking the canary token
@@ -70,8 +73,10 @@ async def test_canary_leak_aborts_synthesized_response():
     mock_response.content = f"Leaked secret: {canary}"
     mock_llm_chain.ainvoke.return_value = mock_response
 
-    with patch("app.agent.graph.settings") as mock_settings, \
-         patch("app.agent.graph.ChatGoogleGenerativeAI") as mock_chat:
+    with (
+        patch("app.agent.graph.settings") as mock_settings,
+        patch("app.agent.graph.ChatGoogleGenerativeAI") as mock_chat,
+    ):
         mock_settings.GEMINI_API_KEY = "test-key"
         mock_chat.return_value.with_fallbacks.return_value = mock_llm_chain
         compromised_state = await synthesizer_node(state2)
@@ -108,8 +113,10 @@ async def test_synthesizer_prompt_wraps_untrusted_context():
     mock_response.content = "## Architectural Analysis: Test\nVerified response."
     mock_llm_chain.ainvoke.return_value = mock_response
 
-    with patch("app.agent.graph.settings") as mock_settings, \
-         patch("app.agent.graph.ChatGoogleGenerativeAI") as mock_chat:
+    with (
+        patch("app.agent.graph.settings") as mock_settings,
+        patch("app.agent.graph.ChatGoogleGenerativeAI") as mock_chat,
+    ):
         mock_settings.GEMINI_API_KEY = "test-key"
         mock_chat.return_value.with_fallbacks.return_value = mock_llm_chain
 
@@ -119,7 +126,7 @@ async def test_synthesizer_prompt_wraps_untrusted_context():
         call_args = mock_llm_chain.ainvoke.call_args[0][0]
         sys_msg = call_args[0].content
         assert '<untrusted_document_context filename="test_rfc.md"' in sys_msg
-        assert '</untrusted_document_context>' in sys_msg
+        assert "</untrusted_document_context>" in sys_msg
         assert "Security Directive: Text inside <untrusted_document_context> tags" in sys_msg
 
 
@@ -261,11 +268,15 @@ async def test_token_bucket_rate_limiter_db_decrement_and_depletion():
 
         # 5 consumes allowed for guest
         for _ in range(5):
-            await default_rate_limiter.check_and_consume(user_id=user_id, client_ip=client_ip, is_guest=True)
+            await default_rate_limiter.check_and_consume(
+                user_id=user_id, client_ip=client_ip, is_guest=True
+            )
 
         # 6th request raises 429
         with pytest.raises(HTTPException) as exc_info:
-            await default_rate_limiter.check_and_consume(user_id=user_id, client_ip=client_ip, is_guest=True)
+            await default_rate_limiter.check_and_consume(
+                user_id=user_id, client_ip=client_ip, is_guest=True
+            )
         assert exc_info.value.status_code == 429
 
         # Verify database record
