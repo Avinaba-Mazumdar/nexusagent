@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { Instrument_Sans, Outfit, JetBrains_Mono } from 'next/font/google';
 import '../styles/globals.css';
 
@@ -49,11 +50,15 @@ export const metadata: Metadata = {
     manifest: '/site.webmanifest'
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+    // Per-request CSP nonce set by proxy.ts; the inline theme script below needs it to run.
+    const nonce = (await headers()).get('x-nonce') ?? undefined;
     return (
         <html lang="en" suppressHydrationWarning className={`${instrumentSans.variable} ${outfit.variable} ${jetbrainsMono.variable}`}>
             <head>
                 <script
+                    nonce={nonce}
+                    suppressHydrationWarning
                     dangerouslySetInnerHTML={{
                         __html: `(function(){try{var t=localStorage.getItem('nexusagent_theme');if(t==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(e){}})();`
                     }}

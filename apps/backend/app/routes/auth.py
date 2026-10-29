@@ -1,13 +1,18 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
+from fastapi.security import HTTPAuthorizationCredentials
 
 from app.config import settings
 from app.core.auth import (
     create_access_token,
+    decode_access_token,
     get_client_ip,
     get_current_user,
     issue_guest_pass,
+    security_bearer,
+    session_claims,
+    token_lifetime,
     user_to_session,
     verify_google_token,
 )
@@ -60,8 +65,7 @@ async def google_auth(
     )
 
     token_str, expires_in = create_access_token(
-        data={"sub": str(user.id), "role": "user", "is_guest": False},
-        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        data=session_claims(user), expires_delta=token_lifetime(user)
     )
 
     return TokenResponse(
@@ -102,10 +106,20 @@ async def get_current_user_profile(
     }
 
 
-@router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(
+@router.post("/logout")
+async def logout(
     current_user: User = Depends(get_current_user),
     db: NeonDatabase = Depends(get_db),
+):
+    """Revoke every token issued to this user."""
+    await db.bump_token_version(current_user.id)
+    return {"success": True}
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token(
+    credentials: HTTPAuthorizationCredentials = Security(security_bearer),
+    current_user: User = Depends(get_current_user),
 ):
     """Refresh JWT access token for currently authenticated session."""
     tokens_remaining = await default_rate_limiter.get_quota(
@@ -113,13 +127,19 @@ async def refresh_token(
         is_guest=current_user.is_guest,
     )
 
+    payload = decode_access_token(credentials.credentials)
+    auth_time = int(payload.get("auth_time", payload.get("iat", 0)))
+    session_age = datetime.now(UTC) - datetime.fromtimestamp(auth_time, UTC)
+    if session_age > timedelta(days=settings.MAX_SESSION_AGE_DAYS):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired. Please sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     token_str, expires_in = create_access_token(
-        data={
-            "sub": str(current_user.id),
-            "role": "guest" if current_user.is_guest else "user",
-            "is_guest": current_user.is_guest,
-        },
-        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        data=session_claims(current_user, auth_time=auth_time),
+        expires_delta=token_lifetime(current_user),
     )
 
     return TokenResponse(

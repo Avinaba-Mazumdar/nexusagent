@@ -394,3 +394,85 @@ async def test_document_upload_user_cap_409():
             assert "Document limit reached" in resp.json()["detail"]
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def upload_client(monkeypatch, fake_rate_db):
+    """Authenticated client with a mocked DB that has no documents yet."""
+    from unittest.mock import AsyncMock
+
+    from app.core.auth import get_current_user
+    from app.db.neon import get_db
+
+    user = User(id=uuid4(), name="Uploader", is_guest=False, email="up@example.com")
+    mock_db = AsyncMock()
+    mock_db.count_user_documents.return_value = 0
+    mock_db.get_document_by_hash.return_value = None
+    mock_db.create_document_with_chunks.side_effect = lambda doc, chunks: doc
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_db] = lambda: mock_db
+    monkeypatch.setattr("app.routes.documents.default_embedding_service.api_key", "k")
+
+    async def fake_embed(texts, **kwargs):
+        return [[0.1] * 768 for _ in texts]
+
+    monkeypatch.setattr("app.routes.documents.default_embedding_service.get_embeddings", fake_embed)
+    yield AsyncClient(transport=ASGITransport(app=app), base_url="http://test"), mock_db
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("name", "content", "ctype"),
+    [
+        ("evil.png", b"# looks like text", "text/plain"),  # forged MIME, wrong extension
+        ("bin.md", b"abc" + bytes([0]) + b"def", "text/markdown"),  # NUL byte
+        ("latin.md", "caf\u00e9".encode("latin-1"), "text/markdown"),  # not UTF-8
+    ],
+)
+async def test_upload_rejects_non_text_payloads_sec_05(upload_client, name, content, ctype):
+    client, _db = upload_client
+    async with client:
+        res = await client.post("/api/documents/upload", files={"file": (name, content, ctype)})
+    assert res.status_code == 415
+
+
+@pytest.mark.asyncio
+async def test_upload_truncates_overlong_filename_and_ignores_client_mime_sec_05(upload_client):
+    client, db = upload_client
+    long_name = "a" * 300 + ".md"
+    async with client:
+        res = await client.post(
+            "/api/documents/upload",
+            files={"file": (long_name, b"# Title\nbody text", "application/octet-stream")},
+        )
+    assert res.status_code == 200
+    saved = db.create_document_with_chunks.call_args.args[0]
+    assert len(saved.filename) <= 200 and saved.filename.endswith(".md")
+    assert saved.mime_type == "text/markdown"
+
+
+def test_safe_filename_strips_paths_and_control_characters():
+    from app.routes.documents import safe_filename
+
+    BS = chr(92)
+
+    assert safe_filename("../../etc/passwd.md") == "passwd.md"
+    assert safe_filename(BS.join(["C:", "dir", "notes.txt"])) == "notes.txt"
+    assert safe_filename(None) == "uploaded_document.md"
+    assert safe_filename("a" + chr(7) + "b.md") == "ab.md"
+
+
+@pytest.mark.asyncio
+async def test_delete_document_owner_ok_and_others_404_log_13(upload_client):
+    client, db = upload_client
+    doc_id = uuid4()
+    db.delete_user_document.return_value = True
+    async with client:
+        ok = await client.delete(f"/api/documents/{doc_id}")
+        db.delete_user_document.return_value = False
+        missing = await client.delete(f"/api/documents/{doc_id}")
+        bad = await client.delete("/api/documents/not-a-uuid")
+    assert ok.status_code == 200 and ok.json() == {"success": True, "id": str(doc_id)}
+    assert missing.status_code == 404
+    assert bad.status_code == 422

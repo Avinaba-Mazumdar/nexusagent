@@ -27,13 +27,22 @@ logger = logging.getLogger("nexusagent.documents")
 
 router = APIRouter(prefix="/documents", tags=["Document Ingestion & Vault"])
 
-ALLOWED_MIME_TYPES = {
-    "text/markdown",
-    "text/plain",
-    "application/x-markdown",
-}
-ALLOWED_EXTENSIONS = {".md", ".markdown", ".txt"}
+# The extension decides the type; the client-supplied Content-Type is never trusted.
+ALLOWED_EXTENSIONS = {".md": "text/markdown", ".markdown": "text/markdown", ".txt": "text/plain"}
+MAX_FILENAME_CHARS = 200
 MAX_FILE_BYTES = 1 * 1024 * 1024  # 1 MB per document
+
+
+def safe_filename(raw: str | None) -> str:
+    """Basename only, control characters stripped, capped to the DB column; never empty."""
+    name = (raw or "").replace("\\", "/").rsplit("/", 1)[-1]
+    name = "".join(ch for ch in name if ch.isprintable()).strip()
+    if len(name) > MAX_FILENAME_CHARS:
+        stem, dot, ext = name.rpartition(".")
+        keep = MAX_FILENAME_CHARS - len(ext) - 1
+        name = f"{stem[:keep]}.{ext}" if dot and keep > 0 else name[:MAX_FILENAME_CHARS]
+    return name or "uploaded_document.md"
+
 
 _UPLOAD_LOCKS: dict[UUID, asyncio.Lock] = {}
 _UPLOAD_LOCKS_MAX = 5_000
@@ -122,6 +131,26 @@ async def get_document_chunks(
     return {"chunks": [chunk_to_wire(c) for c in chunks]}
 
 
+@router.delete("/{document_id}")
+async def delete_document(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: NeonDatabase = Depends(get_db),
+):
+    """Delete one of the caller's uploaded documents and its chunks."""
+    if not await db.delete_user_document(current_user.id, document_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    await default_audit_logger.log_tool_audit(
+        tool_name="document_delete",
+        input_args={"document_id": str(document_id)},
+        output_summary={"deleted": True},
+        duration_ms=1,
+        user_id=current_user.id,
+        mcp_server="http-api",
+    )
+    return {"success": True, "id": str(document_id)}
+
+
 @router.post("/upload", response_model=DocumentUploadResponseWire)
 async def upload_document(
     request: Request,
@@ -146,10 +175,10 @@ async def upload_document(
     upload_started = time.perf_counter()
     try:
         client_ip = get_client_ip(request)
-        filename = file.filename or "uploaded_document.md"
+        filename = safe_filename(file.filename)
         ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
-        if ext not in ALLOWED_EXTENSIONS and file.content_type not in ALLOWED_MIME_TYPES:
+        if ext not in ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail="Only Markdown and RFC text files (.md, .markdown, .txt) are supported",
@@ -176,15 +205,14 @@ async def upload_document(
             )
 
         try:
-            content_text = raw_bytes.decode("utf-8")
+            content_text = raw_bytes.decode("utf-8-sig")
         except UnicodeDecodeError:
-            try:
-                content_text = raw_bytes.decode("latin-1")
-            except UnicodeDecodeError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Unable to decode file content as text",
-                )
+            content_text = None
+        if content_text is None or "\x00" in content_text:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="File is not valid UTF-8 text.",
+            )
 
         sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
 
@@ -244,7 +272,7 @@ async def upload_document(
             id=new_doc_id,
             user_id=current_user.id,
             filename=filename,
-            mime_type=file.content_type or "text/markdown",
+            mime_type=ALLOWED_EXTENSIONS[ext],
             sha256_hash=sha256_hash,
             total_chunks=len(chunks),
             is_seeded=False,

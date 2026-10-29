@@ -285,3 +285,94 @@ async def test_hourly_rate_limit_replenishment():
     # Calling get_or_create_rate_limit should detect elapsed hour and replenish to 5
     replenished = await neon_db.get_or_create_rate_limit(user.id, default_tokens=5)
     assert replenished.tokens_remaining == 5
+
+
+# ---------------------------------------------------------------------------
+# SEC-04: revocation, session age cap, iss/aud
+# ---------------------------------------------------------------------------
+
+
+def _user(token_version: int = 0, is_guest: bool = False) -> User:
+    return User(
+        id=uuid4(), name="T", email="t@example.com", is_guest=is_guest, token_version=token_version
+    )
+
+
+@pytest.mark.asyncio
+async def test_token_from_before_logout_is_rejected():
+    """Bumping token_version (logout) invalidates previously issued tokens."""
+    from unittest.mock import AsyncMock
+
+    from fastapi.security import HTTPAuthorizationCredentials
+
+    from app.core.auth import get_current_user, session_claims
+
+    user = _user(token_version=0)
+    token, _ = create_access_token(session_claims(user))
+    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+    db = AsyncMock()
+    db.get_user_by_id.return_value = user
+
+    assert (await get_current_user(creds, db)).id == user.id
+
+    user.token_version = 1  # user logged out
+    with pytest.raises(HTTPException) as exc:
+        await get_current_user(creds, db)
+    assert exc.value.status_code == 401
+
+
+def test_tokens_carry_and_require_issuer_and_audience():
+    import jwt as pyjwt
+
+    from app.config import settings
+
+    token, _ = create_access_token({"sub": "x"})
+    claims = pyjwt.decode(token, options={"verify_signature": False})
+    assert claims["iss"] == settings.JWT_ISSUER and claims["aud"] == settings.JWT_AUDIENCE
+
+    foreign = pyjwt.encode(
+        {"sub": "x", "exp": datetime.now(UTC) + timedelta(minutes=5), "aud": "someone-else"},
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+    with pytest.raises(HTTPException) as exc:
+        decode_access_token(foreign)
+    assert exc.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_refresh_cannot_extend_a_session_past_the_max_age(monkeypatch, fake_rate_db):
+    from app.core.auth import get_current_user, session_claims
+
+    user = _user()
+    old_login = int((datetime.now(UTC) - timedelta(days=8)).timestamp())
+    token, _ = create_access_token(session_claims(user, auth_time=old_login))
+    app.dependency_overrides[get_current_user] = lambda: user
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.post(
+                "/api/auth/refresh", headers={"Authorization": f"Bearer {token}"}
+            )
+        assert res.status_code == 401
+
+        fresh, _ = create_access_token(session_claims(user))
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            ok = await client.post(
+                "/api/auth/refresh", headers={"Authorization": f"Bearer {fresh}"}
+            )
+        assert ok.status_code == 200
+        new_claims = decode_access_token(ok.json()["accessToken"])
+        assert new_claims["auth_time"] == decode_access_token(fresh)["auth_time"]
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_guest_refresh_uses_guest_lifetime():
+    from datetime import timedelta as td
+
+    from app.config import settings
+    from app.core.auth import token_lifetime
+
+    assert token_lifetime(_user(is_guest=True)) == td(minutes=settings.GUEST_TOKEN_EXPIRE_MINUTES)
+    assert token_lifetime(_user(is_guest=False)) == td(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

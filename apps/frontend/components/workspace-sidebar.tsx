@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Database, FileText, Loader2, MessageSquare, Terminal, UploadCloud } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Database, FileText, Loader2, MessageSquare, Terminal, Trash2, UploadCloud, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { McpInspector } from '@/components/mcp';
@@ -56,6 +56,58 @@ export function CollapsibleSection({ id, title, icon: Icon, badge, isOpen, onTog
     );
 }
 
+/** One document; uploads get a two-step delete (first click arms it, second confirms). */
+function DocumentRow({ doc, onDelete }: { doc: WorkspaceDoc; onDelete: (id: string) => void }) {
+    const [confirming, setConfirming] = React.useState(false);
+
+    React.useEffect(() => {
+        if (!confirming) return;
+        const timeout = setTimeout(() => setConfirming(false), 4000);
+        return () => clearTimeout(timeout);
+    }, [confirming]);
+
+    return (
+        <div className="flex items-center justify-between gap-1.5 p-2 rounded-lg border border-border/70 bg-secondary/40 text-xs">
+            <div className="flex items-center gap-1.5 truncate">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                <span className="truncate font-mono text-foreground">{doc.filename}</span>
+            </div>
+            {doc.isSeeded ? (
+                <Badge variant="outline" className="text-xs px-1 py-0 shrink-0">
+                    {doc.totalChunks} chunks
+                </Badge>
+            ) : confirming ? (
+                <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setConfirming(false);
+                            onDelete(doc.id);
+                        }}
+                        aria-label={`Confirm delete ${doc.filename}`}
+                        className="px-1.5 py-1 rounded bg-destructive text-destructive-foreground text-xs font-semibold cursor-pointer"
+                    >
+                        Delete
+                    </button>
+                    <button type="button" onClick={() => setConfirming(false)} aria-label="Cancel delete" className="p-1 rounded text-muted-foreground hover:bg-secondary cursor-pointer">
+                        <X className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                </div>
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => setConfirming(true)}
+                    aria-label={`Delete document ${doc.filename}`}
+                    title="Delete document"
+                    className="p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground shrink-0 cursor-pointer"
+                >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+            )}
+        </div>
+    );
+}
+
 export interface WorkspaceSidebarProps {
     mobileActiveTab: 'workspace' | 'chat' | 'observability';
     openCategories: { documents: boolean; chats: boolean; mcp: boolean };
@@ -68,6 +120,7 @@ export interface WorkspaceSidebarProps {
     onUploadClick: () => void;
     onFileSelected: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onInquireAuthor: () => void;
+    onDeleteDocument: (id: string) => void;
     // Chats
     isGoogleUser: boolean;
     activeSessionId: string | null;
@@ -94,6 +147,7 @@ export function WorkspaceSidebar({
     onUploadClick,
     onFileSelected,
     onInquireAuthor,
+    onDeleteDocument,
     isGoogleUser,
     activeSessionId,
     conversations,
@@ -144,18 +198,7 @@ export function WorkspaceSidebar({
                         )}
                         <div className="space-y-1.5 max-h-35 overflow-y-auto">
                             {docs.map((doc) => (
-                                <div
-                                    key={doc.id}
-                                    className="flex items-center justify-between p-2 rounded-lg border border-border/70 bg-secondary/40 text-xs"
-                                >
-                                    <div className="flex items-center gap-1.5 truncate">
-                                        <FileText className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-                                        <span className="truncate font-mono text-foreground">{doc.filename}</span>
-                                    </div>
-                                    <Badge variant="outline" className="text-xs px-1 py-0 shrink-0">
-                                        {doc.isSeeded ? `${doc.totalChunks} chunks` : 'Yours'}
-                                    </Badge>
-                                </div>
+                                <DocumentRow key={doc.id} doc={doc} onDelete={onDeleteDocument} />
                             ))}
                         </div>
 

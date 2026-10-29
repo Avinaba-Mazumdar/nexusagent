@@ -62,12 +62,39 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
+    /** Forget the session locally (no server call: used when the server already rejected it). */
+    function clearSession() {
+        if (typeof window !== 'undefined') {
+            try {
+                localStorage.removeItem(STORAGE_KEY_TOKEN);
+                localStorage.removeItem(STORAGE_KEY_USER);
+                localStorage.removeItem(STORAGE_KEY_QUOTA);
+                // Cached chat lists and transcripts must not outlive the session on a shared device.
+                Object.keys(localStorage)
+                    .filter((key) => CHAT_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)))
+                    .forEach((key) => localStorage.removeItem(key));
+            } catch {
+                // Storage unavailable
+            }
+        }
+        set({
+            user: null,
+            token: null,
+            quotaRemaining: NO_QUOTA.remaining,
+            bucketCapacity: NO_QUOTA.capacity,
+            quotaResetsAt: null,
+            isGuestLoading: false,
+            isGoogleLoading: false,
+            error: null
+        });
+    }
+
     // Register token getter with apiClient so every outbound fetch automatically attaches Authorization header
     setAuthTokenGetter(() => get().token);
 
     // Register 401 callback to smoothly reset session if server revokes or expires JWT token
     setOnUnauthorizedCallback(() => {
-        get().logout();
+        clearSession();
     });
 
     const persistQuota = (quota: QuotaSnapshot) => {
@@ -152,7 +179,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
                     // Handled by 401 interceptor or offline resilience
                 }
             } catch {
-                get().logout();
+                clearSession();
             }
         },
 
@@ -194,29 +221,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
         },
 
         logout: () => {
-            if (typeof window !== 'undefined') {
-                try {
-                    localStorage.removeItem(STORAGE_KEY_TOKEN);
-                    localStorage.removeItem(STORAGE_KEY_USER);
-                    localStorage.removeItem(STORAGE_KEY_QUOTA);
-                    // Cached chat lists and transcripts must not outlive the session on a shared device.
-                    Object.keys(localStorage)
-                        .filter((key) => CHAT_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)))
-                        .forEach((key) => localStorage.removeItem(key));
-                } catch {
-                    // Storage unavailable
-                }
-            }
-            set({
-                user: null,
-                token: null,
-                quotaRemaining: NO_QUOTA.remaining,
-                bucketCapacity: NO_QUOTA.capacity,
-                quotaResetsAt: null,
-                isGuestLoading: false,
-                isGoogleLoading: false,
-                error: null
-            });
+            // Revoke the token server-side (fire and forget), then forget it locally.
+            if (get().token) void apiClient('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+            clearSession();
         }
     };
 });

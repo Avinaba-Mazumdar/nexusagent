@@ -19,6 +19,7 @@ class User(BaseModel):
     is_guest: bool = True
     client_ip: str | None = None
     device_id: str | None = None
+    token_version: int = 0
     created_at: datetime = Field(default_factory=utc_now)
     last_seen_at: datetime = Field(default_factory=utc_now)
 

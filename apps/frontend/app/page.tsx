@@ -145,6 +145,16 @@ export default function Home() {
         fetchDocs();
     }, [fetchDocs]);
 
+    const handleDeleteDocument = async (id: string) => {
+        try {
+            await apiClient(`/api/documents/${id}`, { method: 'DELETE' });
+            setDocs((prev) => prev.filter((d) => d.id !== id));
+            setDocsError(null);
+        } catch (err) {
+            setDocsError(err instanceof Error ? err.message : "Couldn't delete the document.");
+        }
+    };
+
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const handleUploadClick = () => {
@@ -427,6 +437,7 @@ export default function Home() {
                     onUploadClick={handleUploadClick}
                     onFileSelected={handleFileSelected}
                     onInquireAuthor={() => setHireMeModalOpen(true)}
+                    onDeleteDocument={handleDeleteDocument}
                     isGoogleUser={isGoogleUser}
                     activeSessionId={activeSessionId}
                     conversations={conversations}

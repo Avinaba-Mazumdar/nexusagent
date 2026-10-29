@@ -45,7 +45,14 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> t
         expires_in = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         expire = datetime.now(UTC) + timedelta(seconds=expires_in)
 
-    to_encode.update({"exp": expire, "iat": datetime.now(UTC)})
+    to_encode.update(
+        {
+            "exp": expire,
+            "iat": datetime.now(UTC),
+            "iss": settings.JWT_ISSUER,
+            "aud": settings.JWT_AUDIENCE,
+        }
+    )
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt, expires_in
 
@@ -53,8 +60,13 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> t
 def decode_access_token(token: str) -> dict:
     """Decode and validate signed JWT."""
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-        return payload
+        return jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+            audience=settings.JWT_AUDIENCE,
+            issuer=settings.JWT_ISSUER,
+        )
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -67,6 +79,26 @@ def decode_access_token(token: str) -> dict:
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def session_claims(user: User, auth_time: int | None = None) -> dict:
+    """Claims identifying a session: who, which token generation, and when the login happened."""
+    return {
+        "sub": str(user.id),
+        "role": "guest" if user.is_guest else "user",
+        "is_guest": user.is_guest,
+        "tv": user.token_version,
+        "auth_time": auth_time if auth_time is not None else int(datetime.now(UTC).timestamp()),
+    }
+
+
+def token_lifetime(user: User) -> timedelta:
+    minutes = (
+        settings.GUEST_TOKEN_EXPIRE_MINUTES
+        if user.is_guest
+        else settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    return timedelta(minutes=minutes)
 
 
 def user_to_session(user: User) -> UserSession:
@@ -123,6 +155,12 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if payload.get("tv", 0) != user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been signed out",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -194,8 +232,7 @@ async def issue_guest_pass(
     )
 
     token_str, expires_in = create_access_token(
-        data={"sub": str(target_user.id), "role": "guest", "is_guest": True},
-        expires_delta=timedelta(minutes=settings.GUEST_TOKEN_EXPIRE_MINUTES),
+        data=session_claims(target_user), expires_delta=token_lifetime(target_user)
     )
 
     return GuestPassResponse(

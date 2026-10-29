@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     GUEST_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    # Refreshing cannot extend a login beyond this age; the user must sign in again.
+    MAX_SESSION_AGE_DAYS: int = 7
+    JWT_ISSUER: str = "nexusagent-api"
+    JWT_AUDIENCE: str = "nexusagent-web"
     GUEST_QUOTA_DEFAULT: int = 5
     USER_QUOTA_DEFAULT: int = 25
     MAX_DOCUMENTS_PER_USER: int = 20

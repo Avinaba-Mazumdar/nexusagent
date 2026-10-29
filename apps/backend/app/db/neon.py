@@ -141,6 +141,14 @@ class NeonDatabase:
             )
             return User(**dict(row))
 
+    async def bump_token_version(self, user_id: UUID) -> None:
+        """Invalidate every token issued to the user (used by logout)."""
+        pool = self.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE users SET token_version = token_version + 1 WHERE id = $1;", user_id
+            )
+
     async def get_guest_by_device_id(self, device_id: str) -> User | None:
         """Fetch active guest user by unique persistent client device ID."""
         pool = self.get_pool()
@@ -315,6 +323,17 @@ class NeonDatabase:
             if records:
                 await conn.executemany(chunk_query, records)
             return Document(**dict(row))
+
+    async def delete_user_document(self, user_id: UUID, document_id: UUID) -> bool:
+        """Delete a document the user uploaded (chunks cascade). Seeded documents are never deletable."""
+        pool = self.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "DELETE FROM documents WHERE id = $1 AND user_id = $2 AND is_seeded = FALSE RETURNING id;",
+                document_id,
+                user_id,
+            )
+            return row is not None
 
     async def get_document_by_id(self, document_id: UUID) -> Document | None:
         """Fetch document by primary UUID."""
