@@ -15,15 +15,15 @@ async def test_planner_node_formulates_plan():
     assert "planner" in updated_state.node_history
     assert len(updated_state.plan) >= 2
     assert updated_state.plan[0].tool == "hybrid_rag_search"
-    # Query mentions latency/throughput, so sandbox tool step should be planned
-    tools = [s.tool for s in updated_state.plan]
-    assert "python_sandbox" in tools
+    assert updated_state.plan[-1].tool == "synthesizer"
+    # No user-supplied or generated code is ever executed by the agent.
+    assert "python_sandbox" not in [s.tool for s in updated_state.plan]
 
 
 @pytest.mark.db
 @pytest.mark.asyncio
 async def test_agent_graph_invoke_pipeline():
-    """Verify complete DAG pipeline executes plan -> retrieve -> sandbox -> critic -> synthesize."""
+    """Verify complete DAG pipeline executes plan -> retrieve -> critic -> synthesize."""
     graph = AgentGraph()
     state = AgentState(
         query="What is the quorum requirement and commit latency for 5 nodes in Raft?",
@@ -36,7 +36,6 @@ async def test_agent_graph_invoke_pipeline():
     assert final_state.completed_at is not None
     assert "planner" in final_state.node_history
     assert "retriever" in final_state.node_history
-    assert "sandbox" in final_state.node_history
     assert "critic" in final_state.node_history
     assert "synthesizer" in final_state.node_history
 

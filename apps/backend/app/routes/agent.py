@@ -151,30 +151,6 @@ async def generate_agent_stream(
                         )
                     )
 
-                elif node_name == "sandbox":
-                    for call, res in zip(step_state.tool_calls, step_state.tool_results):
-                        await event_queue.put(
-                            format_sse(
-                                "tool_call",
-                                {
-                                    "tool": "python_sandbox",
-                                    "code": call.get("code"),
-                                },
-                            )
-                        )
-                        await event_queue.put(
-                            format_sse(
-                                "tool_result",
-                                {
-                                    "tool": "python_sandbox",
-                                    "success": res.get("success"),
-                                    "stdout": res.get("stdout"),
-                                    "stderr": res.get("stderr"),
-                                    "durationMs": res.get("duration_ms"),
-                                },
-                            )
-                        )
-
                 elif node_name == "critic":
                     await event_queue.put(
                         format_sse(

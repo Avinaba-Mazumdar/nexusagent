@@ -67,7 +67,7 @@ export default function TermsAndConditionsPage() {
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">HITL Autonomous Guardrails</h3>
                             <p className="text-[11px] text-muted-foreground leading-snug">
-                                All high-risk MCP tool invocations and sandboxed executions require explicit user Human-in-the-Loop review and approval.
+                                All high-risk MCP tool invocations require explicit user Human-in-the-Loop review and approval.
                             </p>
                         </CardContent>
                     </Card>
@@ -165,15 +165,15 @@ export default function TermsAndConditionsPage() {
                             3. Autonomous Execution &amp; HITL Approval Disclaimer
                         </h2>
                         <p>
-                            NexusAgent utilizes autonomous agent planning algorithms that evaluate user inputs and can synthesize tool calls, file
-                            manipulations, and code snippets. You acknowledge and agree that:
+                            NexusAgent utilizes autonomous agent planning algorithms that evaluate user inputs and can propose tool calls such as
+                            document searches and read-only database queries. You acknowledge and agree that:
                         </p>
                         <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
                             <p className="font-semibold text-foreground text-xs">User Approval Responsibility:</p>
                             <p className="text-xs">
                                 When high-risk tool operations trigger the Human-in-the-Loop (HITL) Approval Modal, you are solely responsible for reviewing the
-                                proposed action before clicking &ldquo;Approve&rdquo;. Approved actions are executed in isolated environments, but the platform
-                                assumes no liability for unintended consequences arising from approved code execution.
+                                proposed action before clicking &ldquo;Approve&rdquo;. Approved actions are executed on your behalf, and the platform
+                                assumes no liability for unintended consequences arising from approved actions.
                             </p>
                             <p className="text-xs">
                                 Large language models are probabilistic and may produce hallucinations, inaccuracies, or incomplete architectural

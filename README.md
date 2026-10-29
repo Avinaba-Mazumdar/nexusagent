@@ -2,7 +2,7 @@
 
 > **Autonomous Technical Research & Systems Design Intelligence Engine**
 
-NexusAgent is an enterprise-grade autonomous systems analyst that evaluates distributed systems RFCs, cross-references infrastructure whitepapers, verifies latency models in an AST Python sandbox, self-reflects on consensus trade-offs, and synthesizes structured verdicts with dynamic Mermaid architecture diagrams.
+NexusAgent is an enterprise-grade autonomous systems analyst that evaluates distributed systems RFCs, cross-references infrastructure whitepapers, self-reflects on consensus trade-offs, and synthesizes structured verdicts with dynamic Mermaid architecture diagrams.
 
 ---
 
@@ -12,7 +12,7 @@ NexusAgent is an enterprise-grade autonomous systems analyst that evaluates dist
 - **Modern 4-Zone UI**: High-contrast command center built with **Next.js 16**, **React 19**, **shadcn/ui**, and **Tailwind CSS v4** (Header, Left Workspace Panel, Center Canvas Active Chat, Right Live Observability Inspector).
 - **Hybrid RAG Pipeline**: Combines dense vector search with sparse keyword search (**Neon PostgreSQL 18 `pgvector`** + **`tsvector` BM25**) fused via Reciprocal Rank Fusion (RRF), powered by **LlamaIndex** hierarchical parsing.
 - **Model Context Protocol (MCP v2)**: Compliant MCP v2 server (`/api/mcp/sse` + `/api/mcp/messages` + CLI stdio) and client for seamless interoperability with Claude Desktop, Cursor, and Antigravity.
-- **OWASP Top 10 for Agentic AI**: Hardened perimeter with prompt injection delimiters, AST Python execution sandbox, canary token tracking, Human-in-the-Loop (HITL) gates, and immutable audit logs.
+- **OWASP Top 10 for Agentic AI**: Hardened perimeter with prompt injection delimiters, no untrusted code execution, canary token tracking, Human-in-the-Loop (HITL) gates, and immutable audit logs.
 - **100% Free-Tier & Zero-Cost Mode**: 1-Click Guest Pass with token-bucket rate limiting, unified Neon PostgreSQL 18 Data Tier, and a pre-cached Deterministic Simulator ($0 API cost).
 
 ---

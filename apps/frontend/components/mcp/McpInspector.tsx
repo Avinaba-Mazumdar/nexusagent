@@ -1,14 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { Terminal, Play, CheckCircle2, AlertCircle, Loader2, Code2, Database, Search, ArrowRight } from 'lucide-react';
+import { Terminal, Play, CheckCircle2, AlertCircle, Loader2, Database, Search, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 export interface McpToolOption {
-    name: 'hybrid_rag_search' | 'python_sandbox' | 'mcp_sql_audit';
+    name: 'hybrid_rag_search' | 'mcp_sql_audit';
     label: string;
     description: string;
     defaultArgs: Record<string, unknown>;
@@ -20,12 +20,6 @@ const MCP_TOOLS: McpToolOption[] = [
         label: 'RAG Search',
         description: 'Reciprocal Rank Fusion over benchmarks',
         defaultArgs: { query: 'Gemini 2.5 Flash CursorBench score', limit: 3 }
-    },
-    {
-        name: 'python_sandbox',
-        label: 'Python Sandbox',
-        description: 'AST-guarded isolated runtime',
-        defaultArgs: { code: 'import math\nprint(f"Square root of 1764: {math.sqrt(1764)}")' }
     },
     {
         name: 'mcp_sql_audit',
@@ -138,7 +132,7 @@ export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: M
             </CardHeader>
             <CardContent className="p-3 pt-0 space-y-2.5">
                 {/* Tool Selector Tabs */}
-                <div className="grid grid-cols-3 gap-1 bg-secondary/50 p-1 rounded-lg border border-border/60">
+                <div className="grid grid-cols-2 gap-1 bg-secondary/50 p-1 rounded-lg border border-border/60">
                     {MCP_TOOLS.map((t) => {
                         const active = t.name === selectedTool.name;
                         return (
@@ -152,7 +146,6 @@ export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: M
                                 title={t.description}
                             >
                                 {t.name === 'hybrid_rag_search' && <Search className="inline h-2.5 w-2.5 mr-1" />}
-                                {t.name === 'python_sandbox' && <Code2 className="inline h-2.5 w-2.5 mr-1" />}
                                 {t.name === 'mcp_sql_audit' && <Database className="inline h-2.5 w-2.5 mr-1" />}
                                 {t.label}
                             </button>

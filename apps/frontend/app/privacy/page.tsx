@@ -116,7 +116,7 @@ export default function PrivacyPolicyPage() {
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                                 <div>
-                                    <strong className="text-foreground">Ephemeral Guest Pass Data:</strong> When launching an instant sandbox session, we
+                                    <strong className="text-foreground">Ephemeral Guest Pass Data:</strong> When launching an instant guest session, we
                                     generate a pseudo-anonymous UUID token and record your client IP address solely to prevent quota abuse and apply rate
                                     limits. No name, email, or physical identifier is collected.
                                 </div>

@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -61,10 +60,6 @@ class AgentState(BaseModel):
     retrieved_chunks: list[HybridSearchResult] = Field(default_factory=list)
     citations: list[Citation] = Field(default_factory=list)
 
-    # Tool execution phase (Sandbox, MCP, etc.)
-    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
-    tool_results: list[dict[str, Any]] = Field(default_factory=list)
-
     # Reflection Critic & Quality Loop
     reflection_score: float = 0.0  # 0.0 to 1.0 (>= 0.70 considered grounded)
     reflection_feedback: str | None = None
@@ -73,12 +68,10 @@ class AgentState(BaseModel):
     iteration_count: int = 0
     max_iterations: int = 10
 
-    # Security Guardrails & HITL
+    # Security Guardrails
     canary_token: str | None = None
     injection_detected: bool = False
     injection_reason: str | None = None
-    pending_approval: dict[str, Any] | None = None
-    hitl_approved: bool | None = None
 
     # Final Synthesis
     response: str = ""

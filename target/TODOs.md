@@ -52,20 +52,16 @@
 - [x] Expose search endpoint `POST /api/rag/search`
       Verification: Query RFC text via search endpoint, verify top-K results return ranked chunks with similarity scores and line numbers.
 
-### Phase 6: AST Python Code Execution Sandbox [Completed]
+### Phase 6: AST Python Code Execution Sandbox [Removed — audit S-01]
 
-- [x] Create AST static analysis validator blocking dangerous nodes and builtins (`core/sandbox.py`)
-- [x] Implement timeout-bounded subprocess execution runner (5.0s timeout)
-- [x] Expose sandbox execution endpoint `POST /api/sandbox/run`
-- [x] Add automated test suite for safe code and malicious injection attempts
-      Verification: Run safe math script and verify output; submit script with `import os` and assert AST rejects execution.
+The AST-denylist sandbox was escapable (`random._os.system(...)`, `[eval][0](...)`) and ran on the API host, so it was a remote-code-execution vector. Removed: `core/sandbox.py`, `POST /api/sandbox/run`, the MCP `python_sandbox` tool, the agent `sandbox` node, and `packages/contracts/src/sandbox.ts`. Regression guard: `tests/test_mcp.py::test_code_execution_is_not_exposed`. Reintroduction requires the isolation boundary defined in `AGENTs.md` ASI-05.
 
 ### Phase 7: LangGraph Agent DAG Pipeline [Completed]
 
 - [x] Define strongly-typed `AgentState` schema (`agent/state.py`)
 - [x] Implement planner, retriever, and synthesizer nodes (`agent/graph.py`)
 - [x] Implement reflection critic node with loop-back condition (capped at 10 iterations)
-- [x] Wire hybrid search and sandbox tools into agent graph
+- [x] Wire hybrid search into agent graph
       Verification: Invoke agent via test script, assert graph executes state transitions (plan -> retrieve -> reflect -> synthesize).
 
 ### Phase 8: Real-Time SSE Streaming & Observability [Completed]
@@ -87,7 +83,7 @@
 ### Phase 10: Model Context Protocol (MCP v2) Integration [Completed]
 
 - [x] Implement FastAPI MCP SSE endpoint (`/api/mcp/sse`) and CLI stdio entrypoint
-- [x] Register tools (`hybrid_rag_search`, `python_sandbox`, `mcp_sql_audit`) with Pydantic schemas
+- [x] Register tools (`hybrid_rag_search`, `mcp_sql_audit`) with Pydantic schemas (`python_sandbox` removed — audit S-01)
 - [x] Build frontend MCP Inspector panel to test tool calls and view JSON-RPC payloads
 - [x] Add client connection configuration for Claude Desktop and Cursor
       Verification: Connect Claude or run MCP Inspector UI, call `hybrid_rag_search`, verify valid JSON-RPC response.
@@ -114,7 +110,6 @@
 - [x] HITL approval timeout configurable via `HITL_APPROVAL_TIMEOUT_SECONDS` (30s human-paced default; test conftest overrides to 1s)
 - [x] New guards: unresolved approvals fail closed on timeout; test asserts production default stays human-paced
 - [x] `tool_audit_logs` writes retry once and log at error level before degrading to the memory ring
-- [x] Sandbox HITL policy capability-based (imports/functions/loops gate approval; trivial arithmetic runs free)
 
 ### Security-Hardening Pass (Applied)
 
@@ -129,7 +124,7 @@
 ### Phase 13: FastMCP Transition, Gemini 3.x Upgrade & Live Benchmark Vault [Completed]
 
 - [x] Migrate Model Context Protocol server from manual custom router to official `FastMCP` (`apps/backend/app/routes/mcp.py`)
-- [x] Integrate LangSmith `@traceable` decorators across agent execution nodes and sandbox tools
+- [x] Integrate LangSmith `@traceable` decorators across agent execution nodes
 - [x] Fix guest session quota retention across browser page refreshes
 - [x] Upgrade LLM synthesis to active Gemini frontier models (`gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.5-flash`) with automatic cascading fallbacks
 - [x] Implement robust offline deterministic synthesis fallback with sanitized citations, Mermaid diagrams, and conversational greeting handling

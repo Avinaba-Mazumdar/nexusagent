@@ -60,6 +60,5 @@ async def test_agent_graph_fast_path_refusal():
 
     assert final_state.is_complete is True
     assert "Scope Guardrail: Out-of-Domain Request" in final_state.response
-    # Fast-path must not invoke retriever or sandbox
+    # Fast-path must not invoke the retriever
     assert "retriever" not in final_state.node_history
-    assert "sandbox" not in final_state.node_history

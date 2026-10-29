@@ -16,9 +16,8 @@ NexusAgent functions as an autonomous **Staff-Plus Systems Architect**. When pre
 1. Decomposes inquiries into structured multi-phase execution plans using **LangGraph**.
 2. Conducts **Hybrid RAG** retrieval fusing high-dimensional dense embeddings (Neon `pgvector` with HNSW indexing) with exact lexical keywords (Neon PostgreSQL 18 `tsvector` with GIN indexing) via **Reciprocal Rank Fusion (RRF)**, powered by **LlamaIndex** semantic parsing.
 3. Interfaces with external environments and tools via the standardized **Model Context Protocol (MCP v2)** specification.
-4. Validates throughput, latency, and consistency models using an internal AST-sandboxed Python evaluation engine.
-5. Self-reflects and critiques intermediate findings against real-world distributed systems trade-offs (e.g., Raft quorum bottlenecks, split-brain mitigation, write amplification).
-6. Streams live markdown verdicts equipped with interactive citation pills and dynamically rendered **Mermaid.js** architecture diagrams inside a high-contrast **Next.js 16 + shadcn/ui** command center.
+4. Self-reflects and critiques intermediate findings against real-world distributed systems trade-offs (e.g., Raft quorum bottlenecks, split-brain mitigation, write amplification).
+5. Streams live markdown verdicts equipped with interactive citation pills and dynamically rendered **Mermaid.js** architecture diagrams inside a high-contrast **Next.js 16 + shadcn/ui** command center.
 
 Reviewers and hiring executives can explore NexusAgent instantly via **1-Click Guest Mode** (pre-loaded with 5 live LLM quota tokens) or toggle the **Deterministic Simulator** for zero-cost, zero-API-key evaluation.
 
@@ -31,7 +30,7 @@ Reviewers and hiring executives can explore NexusAgent instantly via **1-Click G
 │  - Plan-and-Execute Loop     │  - Neon tsvector (Sparse)       │  - Zero-Cost Simulator Fallback │
 │  - LlamaIndex Ingestion      │  - Reciprocal Rank Fusion (RRF) │  - Live Reactive DAG Inspector  │
 │  - Self-Reflection Critic    │  - Dual MCP Server & Client     │  - Next.js 16 + shadcn/ui       │
-│  - Real-Time SSE Token Stream│  - AST Python Calculation Box   │  - OWASP Top 10 Agentic Shield  │
+│  - Real-Time SSE Token Stream│  - Read-Only SQL Audit Tool     │  - OWASP Top 10 Agentic Shield  │
 └──────────────────────────────┴─────────────────────────────────┴─────────────────────────────────┘
 ```
 
@@ -41,7 +40,7 @@ Reviewers and hiring executives can explore NexusAgent instantly via **1-Click G
 2. **Strict MCP Standard Compliance**: Complete adherence to the Model Context Protocol (MCP v2) specification with dual transports (SSE at `/api/mcp/sse` + `/api/mcp/messages` and stdio launcher for Claude Desktop and Cursor), operating both as an MCP Tool Server and as an interactive Inspector console.
 3. **Provable Architectural Rigor**: Agent outputs must not hallucinate consensus invariants. The critic node enforces strict citations to source RFCs with line-level accuracy.
 4. **Sub-600ms Time-to-First-Token (TTFT)**: Async streaming over Server-Sent Events (SSE) ensures immediate UI responsiveness while LangGraph plans and retrieves in the background.
-5. **OWASP Top 10 for Agentic AI Hardening**: Hardened perimeter covering prompt injection delimiters, AST execution sandboxes, Human-in-the-Loop (HITL) tool gates, least-privilege MCP scopes, and immutable audit logs.
+5. **OWASP Top 10 for Agentic AI Hardening**: Hardened perimeter covering prompt injection delimiters, no untrusted code execution, Human-in-the-Loop (HITL) tool gates, least-privilege MCP scopes, and immutable audit logs.
 6. **Financial Protection & Abuse Resistance**: Sliding-window Token-Bucket rate limiting per IP and Guest Session token, strictly capping live external LLM calls to prevent runaway cloud bills.
 
 ---
@@ -126,7 +125,6 @@ graph TB
         LlamaParser["LlamaIndex Node: Semantic Chunking & Ingestion"]
         RetrieverNode["Retriever Node: Neon Hybrid RAG (pgvector + BM25)"]
         MCPNode["MCP Client Node: Scoped Tool Invocation"]
-        SandboxNode["AST Python Sandbox: Latency & Math Verification"]
         ReflectionNode["Reflection Node: Architectural Critic"]
         SynthesizerNode["Synthesizer Node: Streaming Markdown & Mermaid"]
         GraphState[("AgentState Context")]
@@ -220,7 +218,6 @@ nexusagent-oss/
 │       │   ├── config.py              # Pydantic Settings (Neon, OpenAI, Anthropic keys)
 │       │   ├── core/
 │       │   │   ├── security.py        # OWASP ASI security guards, canary tokens, sanitizers
-│       │   │   ├── sandbox.py         # Subprocess AST Python code validator and runner
 │       │   │   ├── rate_limiter.py    # Sliding token-bucket rate limiter
 │       │   │   └── auth.py            # FastAPI JWT, argon2 hashing, and guest token verification
 │       │   ├── agent/
@@ -230,7 +227,6 @@ nexusagent-oss/
 │       │   │   │   ├── planner.py     # Sub-goal planning and decomposition node
 │       │   │   │   ├── retriever.py   # LlamaIndex + Neon Hybrid RAG node
 │       │   │   │   ├── mcp_tools.py   # Model Context Protocol execution node
-│       │   │   │   ├── sandbox.py     # Computational evaluation node
 │       │   │   │   ├── reflection.py  # Self-reflection critic node
 │       │   │   │   └── synthesizer.py # SSE streaming markdown synthesis node
 │       │   │   └── hitl.py            # Human-in-the-Loop interrupt and resume handler
@@ -539,8 +535,7 @@ CREATE TABLE IF NOT EXISTS citations (
     - Streams Server-Sent Events:
         - `plan`: Directed sub-goals emitted by planner node.
         - `node_start`: Active LangGraph node status (`running`).
-        - `tool_call`: Tool invocation with parameters and `requires_approval` flag.
-        - `tool_result`: Sandboxed output returned from execution.
+        - `tool_result`: Retrieval output (citations) returned from `hybrid_rag_search`.
         - `reflection`: Critic evaluation score and adjustment notes.
         - `token`: Streaming markdown token chunk.
         - `done`: Final message payload, citation mappings, and execution duration.
@@ -557,7 +552,6 @@ CREATE TABLE IF NOT EXISTS citations (
     - **Stdio Transport CLI**: Supported via `fastmcp run app/routes/mcp.py` for direct command-line process spawning.
 - **Registered Tools**:
     - `hybrid_rag_search(query: str, limit: int = 5)`: Dense cosine + BM25 tsvector search over benchmark docs with RRF ranking.
-    - `python_sandbox(code: str)`: Isolated AST validation and subprocess execution with 5.0s timeout.
     - `mcp_sql_audit(query: str)`: Safe, read-only transaction execution on Neon PostgreSQL for systems inspection.
 - **Authentication**: Bearer token required on MCP entrypoints.
 
@@ -582,7 +576,6 @@ CREATE TABLE IF NOT EXISTS citations (
 | **Auth & Rate Limit Check**      | `< 15ms`                    | In-memory token bucket + cached JWT public key verification.           |
 | **Planner Node Decomposition**   | `< 450ms`                   | Fast LLM instruction prompt with structured JSON output formatting.    |
 | **LlamaIndex + Neon Hybrid RAG** | `< 120ms`                   | Concurrent HNSW cosine vector query + GIN BM25 query fused in memory.  |
-| **AST Python Code Sandbox**      | `< 85ms`                    | In-process AST validation (`ast.parse`) with bounded thread execution. |
 | **Self-Reflection Critic Node**  | `< 400ms`                   | Concise invariant checklist evaluated against source citations.        |
 | **Time-to-First-Token (TTFT)**   | `< 550ms`                   | SSE streaming directly from synthesizer node without full buffer wait. |
 
@@ -594,10 +587,10 @@ CREATE TABLE IF NOT EXISTS citations (
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                        NEXUSAGENT OWASP AGENTIC AI DEFENSE PERIMETER                   │
 ├──────────────────────────┬─────────────────────────────┬───────────────────────────────┤
-│   PERIMETER CONTROLS     │      SANDBOX ISOLATION      │     HUMAN-IN-THE-LOOP & RLS   │
-│  - Token-Bucket Limiter  │  - Python AST Inspection    │  - HITL Tool Approval Gates   │
-│  - XML Boundary Delimiters│  - Subprocess Celings       │  - Multi-Tenant Isolation     │
-│  - Cryptographic Canaries│  - Memory & Timeout Guards  │  - Scoped MCP Bearer Tokens   │
+│   PERIMETER CONTROLS     │      TOOL SURFACE           │     HUMAN-IN-THE-LOOP & RLS   │
+│  - Token-Bucket Limiter  │  - No Code Execution Tools  │  - HITL Tool Approval Gates   │
+│  - XML Boundary Delimiters│  - Read-Only SQL Transaction│  - Multi-Tenant Isolation     │
+│  - Cryptographic Canaries│  - Query Timeout Guards     │  - Scoped MCP Bearer Tokens   │
 │  - PII Scrubbing Engine  │  - Zero Host Disk Access    │  - Immutable Tool Audit Logs  │
 └──────────────────────────┴─────────────────────────────┴───────────────────────────────┘
 ```
@@ -641,21 +634,18 @@ NexusAgent implements comprehensive, defense-in-depth mitigations against the **
 
 ### 10.5 ASI-05: Insecure Tool & Code Execution (Sandbox Escape)
 
-- **Risk**: Agent or user attempts to execute malicious Python code (e.g. `os.system`, socket connections, file system traversal) through the calculation tool.
-- **Mitigation**:
-    1. **Pre-Execution AST Inspection**: `ast.parse` validates code syntax and node hierarchy.
-    2. **Immediate AST Rejection (`SecurityViolationException`)** if code contains:
-        - Any `Import` or `ImportFrom` nodes.
-        - Calls to dangerous builtins (`eval`, `exec`, `open`, `compile`, `getattr`, `__import__`).
-        - Dunder attribute traversal (`__subclasses__`, `__globals__`, `__code__`, `__dict__`).
-    3. **Cross-Platform Isolated Subprocess Runner**: Code runs within an isolated worker process (`asyncio.create_subprocess_exec` with memory ceiling and execution timeout). A strict 5.0-second async timeout terminates the worker process cleanly. This guarantees zero thread leakage and predictable termination across Windows, macOS, and Linux without relying on Unix-only `resource.setrlimit` or `SIGALRM`.
+- **Risk**: Agent or user executes malicious code (e.g. `os.system`, socket connections, file system traversal) through a code-execution tool.
+- **Mitigation**: **Eliminated by design.** NexusAgent exposes no code-execution tool, endpoint, or agent node.
+    1. **History**: An earlier AST-denylist sandbox (`ast.parse` + blocked builtins/dunders + host subprocess) was removed after an audit proved it escapable: module-private traversal (`import random; random._os.system(...)`) and aliased builtins (`[eval][0](...)`) both passed validation and ran with the API's privileges (`report.md` S-01).
+    2. **Regression Guard**: `tests/test_mcp.py::test_code_execution_is_not_exposed` asserts that `python_sandbox` is absent from `tools/list`, rejected by `tools/call`, and that `POST /api/sandbox/run` returns 404.
+    3. **Reintroduction Criteria**: Code execution may return only behind an OS-level isolation boundary (managed microVM such as E2B / Modal / Cloudflare Sandbox, or gVisor / nsjail): no network, read-only filesystem, non-root user, memory/CPU/pid limits, no access to API secrets, and routed through quota, HITL and audit at a single choke point. A static AST check may remain only as a UX pre-filter.
 
 ### 10.6 ASI-06: Excessive Agency & Uncontrolled Delegation
 
 - **Risk**: Autonomous agent performing high-cost, destructive, or unauthorized actions without operator consent.
 - **Mitigation**:
     1. **Human-in-the-Loop (HITL) Approval Gate**: Any tool call tagged with mutating or sensitive capabilities (e.g. database schema migrations, external web hooks) halts the LangGraph execution and presents an interactive confirmation modal in the Next.js 16 UI.
-    2. **Principle of Least Privilege**: MCP tools must explicitly declare permission scopes (`read:documents`, `exec:calculation`), validated prior to execution.
+    2. **Principle of Least Privilege**: MCP tools must explicitly declare permission scopes (`read:documents`, `read:sql`), validated prior to execution.
 
 ### 10.7 ASI-07: Denial of Wallet & Resource Exhaustion (Unbounded Consumption)
 
@@ -728,7 +718,7 @@ WHERE is_guest = TRUE
 | :---------------------------------- | :----------------------------- | :------------------------------ | :-------------------------------------------------------------------------- |
 | **Frontend Unit & Component Tests** | Vitest + React Testing Library | `apps/frontend/**/*.test.tsx`   | shadcn/ui components, citation pills, Mermaid rendering, Zustand stores     |
 | **Frontend E2E & Flow Tests**       | Playwright                     | `apps/frontend/e2e/*.spec.ts`   | 1-Click guest flow, SSE streaming, DAG drawer, MCP inspector, mobile layout |
-| **Backend Unit & Logic Tests**      | pytest + pytest-asyncio        | `apps/backend/tests/`           | AST sandbox security, rate limiter, LlamaIndex parser, RRF fusion           |
+| **Backend Unit & Logic Tests**      | pytest + pytest-asyncio        | `apps/backend/tests/`           | Code-execution regression guard, rate limiter, LlamaIndex parser, RRF fusion |
 | **Agent DAG & Reflection Tests**    | pytest                         | `apps/backend/tests/`           | LangGraph node transitions, reflection routing, HITL interrupt/resume       |
 | **MCP v2 Protocol Tests**           | pytest                         | `apps/backend/tests/` (planned) | JSON-RPC 2.0 conformance (`tools/list`, `tools/call`, `resources/list`)     |
-| **OWASP Security Audit Suites**     | pytest + bandit                | `apps/backend/tests/` (planned) | Prompt injection barriers, canary token leaks, sandbox breakout attempts    |
+| **OWASP Security Audit Suites**     | pytest + bandit                | `apps/backend/tests/` (planned) | Prompt injection barriers, canary token leaks, SQL audit read-scope checks   |

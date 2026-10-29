@@ -151,8 +151,8 @@ NexusAgent integrates **shadcn/ui** primitives powered by **Tailwind CSS v4** na
 │  [📁] ├──────────────────────────────────────────────────────┬─────────────────────────────────────────────────┤
 │  [⚡] │ CENTER: Active Synthesis & Streaming Verdict        │ RIGHT: Active Tools & Document Vault            │
 │  [📊] │  - Frontier reasoning benchmark synthesis stream     │  - [x] Hybrid RAG Search (Neon pgvector)        │
-│       │  - Line-level citation pills: [benchlm:L14-28]       │  - [x] AST Python Sandbox                       │
-│  [🛡️] │  - [Execute Plan] (#0a66c2) | [Approve Tool] (dark)  │  - [ ] SQL Schema Audit                         │
+│       │  - Line-level citation pills: [benchlm:L14-28]       │  - [ ] SQL Schema Audit                         │
+│  [🛡️] │  - [Execute Plan] (#0a66c2) | [Approve Tool] (dark)  │                                                 │
 │       ├──────────────────────────────────────────────────────┴─────────────────────────────────────────────────┤
 │       │ BOTTOM SECTION: Telemetry & Mesh Overview                                                              │
 │       │  - TCP Throughput bar chart (Alerts: 52 Excellent | High 439 | Medium 146 | Low 2.3k)                  │

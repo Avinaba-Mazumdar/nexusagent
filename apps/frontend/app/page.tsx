@@ -835,7 +835,7 @@ export default function Home() {
                                             <div className="space-y-1">
                                                 <h3 className="text-sm font-bold text-foreground">Continue as Guest</h3>
                                                 <p className="text-xs text-muted-foreground leading-relaxed max-w-[220px] sm:max-w-[260px]">
-                                                    Immediate sandbox analysis. You will receive a 5 live LLM quota gift with zero registration required.
+                                                    Start analyzing immediately. You will receive a 5 live LLM quota gift with zero registration required.
                                                 </p>
                                             </div>
                                             <Button

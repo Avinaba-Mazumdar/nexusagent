@@ -174,19 +174,10 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     emitLog('INFERENCE', `HITL Security Approval Required: [${data.tool}] (Risk: ${data.riskLevel})`);
                                     break;
 
-                                case 'tool_call':
-                                    emitLog('INFERENCE', `Tool execution triggered: ${data.tool}`, { code: data.code });
-                                    break;
-
                                 case 'tool_result':
                                     if (data.tool === 'hybrid_rag_search' && Array.isArray(data.citations)) {
                                         setCitations(data.citations);
                                         emitLog('RAG', `Retrieved ${data.chunksRetrieved || data.citations.length} verified context chunks`);
-                                    } else if (data.tool === 'python_sandbox') {
-                                        emitLog(
-                                            'INFERENCE',
-                                            `Sandbox script completed (${data.durationMs}ms): ${data.stdout ? data.stdout.slice(0, 100) : 'OK'}`
-                                        );
                                     }
                                     break;
 

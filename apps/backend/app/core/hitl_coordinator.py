@@ -48,18 +48,7 @@ class HitlCoordinator:
         Evaluate security policy for tool execution.
         Returns (requires_approval, risk_level).
         """
-        # 1. Python sandbox: gate non-trivial scripts (imports, functions, loops).
-        # Trivial arithmetic runs free to avoid approval fatigue; the AST validator
-        # remains the hard boundary for dangerous constructs regardless.
-        if tool_name == "python_sandbox":
-            code = arguments.get("code", "")
-            if (
-                any(marker in code for marker in ("import", "def ", "while ", "for ", "open("))
-                or len(code) > 200
-            ):
-                return True, "medium"
-
-        # 2. Database SQL queries with schema inspection require approval
+        # Database SQL queries with schema inspection require approval
         if tool_name == "mcp_sql_audit":
             query = arguments.get("query", "").lower()
             if "pg_" in query or "information_schema" in query:

@@ -29,7 +29,7 @@ You are a **Staff-Plus Systems Architect**, a founding engineer, and a **Cyberse
 **NexusAgent** is an enterprise autonomous systems analyst and architecture intelligence platform.
 
 - **The Problem**: Tech leads and distributed systems engineers drown in massive, opaque RFCs and architecture whitepapers. Validating concurrency guarantees, cache invalidation schemes, and hardware latency models requires cross-referencing dozens of sections.
-- **The Solution**: NexusAgent ingests RFCs with LlamaIndex, indexes them into Neon PostgreSQL 18 (`pgvector` + `tsvector`), executes structured multi-step research plans using LangGraph, safely models performance in an AST-sandboxed Python runtime, self-reflects on consensus edge cases, and emits streaming markdown verdicts with interactive citation pills and dynamic Mermaid architecture diagrams.
+- **The Solution**: NexusAgent ingests RFCs with LlamaIndex, indexes them into Neon PostgreSQL 18 (`pgvector` + `tsvector`), executes structured multi-step research plans using LangGraph, self-reflects on consensus edge cases, and emits streaming markdown verdicts with interactive citation pills and dynamic Mermaid architecture diagrams.
 - **Interoperability**: Dual Model Context Protocol (FastMCP) server and client, allowing external AI agents (Claude Desktop, Cursor, Antigravity) to query NexusAgent tools directly.
 
 ---
@@ -63,14 +63,14 @@ When writing code or proposing changes for NexusAgent, you MUST strictly follow 
 2. **Neon PostgreSQL 18 Data Tier & Python Backend Auth Guarantee**:
     - Single Unified Data Tier: Neon Serverless PostgreSQL 18 with `pgvector` (HNSW indexing), full-text `tsvector` BM25 search, connection pooling, and FastAPI-managed authentication (Guest JWTs + Password/OAuth sessions) is used across local development, wq, and production. Locally, no separate database is maintained.
 3. **Agentic Orchestration & LangGraph DAG**:
-    - The agent execution loop must run on a LangGraph `StateGraph` with explicit nodes: `planner` -> `retriever` -> [`sandbox` (AST-sandboxed Python, conditional)] -> `critic` (reflection) -> `synthesizer`. The `mcp_tools` node joins this graph in the MCP v2 milestone (Phase 10).
+    - The agent execution loop must run on a LangGraph `StateGraph` with explicit nodes: `planner` -> `retriever` -> `critic` (reflection) -> `synthesizer`. The `mcp_tools` node joins this graph in the MCP v2 milestone (Phase 10).
     - Every execution run must have a cycle safeguard (`iteration_count < MAX_STEPS`, default 10).
 4. **Model Context Protocol (FastMCP) Compliance**:
     - Must expose compliant FastMCP transport endpoints (`/api/mcp/sse`, `/api/mcp/messages`) and stdio launcher supporting `tools/list`, `tools/call`, and `resources/list`.
-    - Tools (`hybrid_rag_search`, `python_sandbox`, `mcp_sql_audit`) must validate arguments against typed Pydantic schemas.
+    - Tools (`hybrid_rag_search`, `mcp_sql_audit`) must validate arguments against typed Pydantic schemas.
 5. **OWASP Top 10 for Agentic AI Invariants (ASI-01 through ASI-10)**:
     - **ASI-01**: Ingested RFC text must be encapsulated within `<untrusted_document_context>` XML boundaries. Synthesizer prompts must mandate instruction-data separation. Secret canary tokens must be injected and monitored.
-    - **ASI-05**: Python calculation tools must parse code via `ast.parse()`. Any `Import`, dangerous builtin (`eval`, `exec`, `open`, `compile`, `getattr`, `__import__`), or dunder traversal (`__subclasses__`, `__globals__`, `__code__`) must raise `SecurityViolationException`. Execution must run in an isolated subprocess with a 5.0s timeout and output limits.
+    - **ASI-05**: NexusAgent executes no user- or model-supplied code. The former AST-denylist Python sandbox was removed because it was escapable (`random._os`, aliased builtins such as `[eval][0]`; see `report.md` S-01). Any future code-execution tool requires an OS-level isolation boundary (managed microVM, gVisor or nsjail: no network, read-only filesystem, non-root, memory/CPU/pid limits, no access to API secrets) and must pass through quota, HITL and audit before running. An AST check may only serve as a UX pre-filter, never as the security boundary.
     - **ASI-06**: Mutating or sensitive tool executions must trigger the Human-in-the-Loop (HITL) approval gate before execution.
     - **ASI-07**: Token-bucket rate limiter must restrict guests to 5 live LLM calls/hour. Zero-cost Deterministic Simulator mode must be available at all times.
     - **ASI-10**: Every tool call must generate an immutable record in `tool_audit_logs`.
@@ -85,7 +85,7 @@ To maintain production-grade quality, the AI Agent and developers MUST adhere to
 
 1. **No Phantom Implementations**: Never leave empty stubs, mock implementations in production paths, or `// TODO: implement later` comments.
 2. **No Inline Styling Hacks**: Every frontend component must use shadcn/ui primitives and Tailwind CSS v4 `@theme` tokens. No arbitrary hardcoded pixel widths or arbitrary hex colors.
-3. **No Unsafe Python Code Execution**: Never call raw Python `exec()` or `eval()` without full AST validation and sandboxed subprocess execution.
+3. **No Untrusted Code Execution**: Never run user- or model-supplied code via `exec()`, `eval()` or a subprocess on the API host. AST validation is not isolation (see ASI-05).
 4. **No Direct External Tool Calling Without MCP**: Tools must be registered through the Model Context Protocol or internal LangGraph tool registry.
 5. **No Premature Task Checking**: Never flip `[ ]` to `[x]` in `target/TODOs.md` until code exists, builds cleanly, and tests pass.
 

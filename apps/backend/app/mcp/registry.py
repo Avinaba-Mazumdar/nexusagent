@@ -2,7 +2,6 @@
 MCP Tool & Resource Registry.
 Provides tools:
   - hybrid_rag_search: Dense pgvector + BM25 tsvector with RRF ranking
-  - python_sandbox: AST-isolated execution runtime with 5.0s timeout
   - mcp_sql_audit: Read-only schema introspection and query analysis for Neon PostgreSQL 18
 """
 
@@ -12,7 +11,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from app.core.sandbox import default_python_sandbox
 from app.core.security_guardrails import compute_mcp_tool_hash, scan_mcp_tool_metadata
 from app.db.neon import neon_db
 from app.mcp.protocol import (
@@ -49,24 +47,6 @@ TOOLS: list[ToolDefinition] = [
                 },
             },
             required=["query"],
-        ),
-    ),
-    ToolDefinition(
-        name="python_sandbox",
-        description="Executes sandboxed mathematical or distributed systems verification script inside an AST-isolated Python runtime with a 5.0s timeout ceiling.",
-        inputSchema=ToolInputSchema(
-            properties={
-                "code": {
-                    "type": "string",
-                    "description": "Python source code to execute. Blocked from file I/O, network sockets, and OS syscalls.",
-                },
-                "timeout": {
-                    "type": "number",
-                    "description": "Timeout limit in seconds (default 5.0, maximum 10.0).",
-                    "default": 5.0,
-                },
-            },
-            required=["code"],
         ),
     ),
     ToolDefinition(
@@ -228,15 +208,13 @@ class McpRegistry:
 
         if name == "hybrid_rag_search":
             return await cls._exec_hybrid_search(arguments)
-        elif name == "python_sandbox":
-            return await cls._exec_python_sandbox(arguments)
         elif name == "mcp_sql_audit":
             return await cls._exec_sql_audit(arguments)
         else:
             return ToolCallResult(
                 content=[
                     ToolCallContent(
-                        text=f"Unknown tool '{name}'. Available: hybrid_rag_search, python_sandbox, mcp_sql_audit"
+                        text=f"Unknown tool '{name}'. Available: hybrid_rag_search, mcp_sql_audit"
                     )
                 ],
                 isError=True,
@@ -278,31 +256,6 @@ class McpRegistry:
         return ToolCallResult(
             content=[ToolCallContent(text="\n---\n".join(formatted_chunks))],
             isError=False,
-        )
-
-    @classmethod
-    async def _exec_python_sandbox(cls, arguments: dict[str, Any]) -> ToolCallResult:
-        code = str(arguments.get("code", "")).strip()
-        if not code:
-            return ToolCallResult(
-                content=[ToolCallContent(text="Missing required argument 'code'.")],
-                isError=True,
-            )
-        timeout = float(arguments.get("timeout", 5.0))
-
-        res = await default_python_sandbox.execute(code=code, timeout_seconds=timeout)
-        output_parts = [
-            f"Execution Success: {res.success}",
-            f"Duration: {res.duration_ms:.2f}ms",
-        ]
-        if res.stdout:
-            output_parts.append(f"\n[stdout]\n{res.stdout}")
-        if res.stderr:
-            output_parts.append(f"\n[stderr]\n{res.stderr}")
-
-        return ToolCallResult(
-            content=[ToolCallContent(text="\n".join(output_parts))],
-            isError=not res.success,
         )
 
     @classmethod

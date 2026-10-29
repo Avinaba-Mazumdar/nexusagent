@@ -17,7 +17,7 @@ describe('McpInspector Component', () => {
         expect(screen.getByText('MCP v2 Protocol Inspector')).toBeInTheDocument();
         expect(screen.getByText('v2024-11-05')).toBeInTheDocument();
         expect(screen.getByText('RAG Search')).toBeInTheDocument();
-        expect(screen.getByText('Python Sandbox')).toBeInTheDocument();
+        expect(screen.queryByText('Python Sandbox')).not.toBeInTheDocument();
         expect(screen.getByText('SQL Audit')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Invoke Tool/i })).toBeInTheDocument();
     });
@@ -25,11 +25,8 @@ describe('McpInspector Component', () => {
     it('switches active tool and updates the default arguments textarea', () => {
         render(<McpInspector apiBase="http://localhost:8000" />);
 
-        const pythonTab = screen.getByText('Python Sandbox');
-        fireEvent.click(pythonTab);
-
         const textarea = screen.getByLabelText('MCP Tool Arguments JSON') as HTMLTextAreaElement;
-        expect(textarea.value).toContain('math.sqrt');
+        expect(textarea.value).toContain('CursorBench');
 
         const sqlTab = screen.getByText('SQL Audit');
         fireEvent.click(sqlTab);

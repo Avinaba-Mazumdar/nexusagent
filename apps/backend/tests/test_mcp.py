@@ -1,7 +1,7 @@
 """MCP v2 protocol tests.
 
 All HTTP tests authenticate with a guest Bearer token: the MCP gateway reaches
-the production database and sandbox, so unauthenticated access is rejected by
+the production database, so unauthenticated access is rejected by
 design (covered offline in test_security_hardening.py).
 """
 
@@ -50,7 +50,7 @@ async def test_mcp_initialize_endpoint():
 @pytest.mark.db
 @pytest.mark.asyncio
 async def test_mcp_tools_list_endpoint():
-    """Verify MCP tools/list returns hybrid_rag_search, python_sandbox, and mcp_sql_audit."""
+    """Verify MCP tools/list returns hybrid_rag_search and mcp_sql_audit."""
     async with _auth_client() as client:
         res = await client.post(
             "/api/mcp/v1",
@@ -62,62 +62,32 @@ async def test_mcp_tools_list_endpoint():
         )
         assert res.status_code == 200
         data = res.json()
-        tools = data["result"]["tools"]
-        tool_names = [t["name"] for t in tools]
+        tool_names = [t["name"] for t in data["result"]["tools"]]
         assert "hybrid_rag_search" in tool_names
-        assert "python_sandbox" in tool_names
         assert "mcp_sql_audit" in tool_names
 
-        # Verify inputSchema structure
-        sandbox_tool = next(t for t in tools if t["name"] == "python_sandbox")
-        assert "code" in sandbox_tool["inputSchema"]["properties"]
-        assert "code" in sandbox_tool["inputSchema"]["required"]
 
-
-@pytest.mark.db
 @pytest.mark.asyncio
-async def test_mcp_tool_call_sandbox_safe():
-    """Verify MCP tools/call executes safe code inside AST sandbox."""
-    async with _auth_client() as client:
-        res = await client.post(
-            "/api/mcp/v1",
-            json={
-                "jsonrpc": "2.0",
-                "id": "call-1",
-                "method": "tools/call",
-                "params": {
-                    "name": "python_sandbox",
-                    "arguments": {"code": "print(sum([10, 20, 30]))"},
-                },
-            },
-        )
-        assert res.status_code == 200
-        data = res.json()
-        assert data["result"]["isError"] is False
-        assert "60" in data["result"]["content"][0]["text"]
+async def test_code_execution_is_not_exposed():
+    """Regression (audit S-01): no MCP tool or HTTP route executes user-supplied code."""
+    tools = await handle_jsonrpc_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert "python_sandbox" not in [t["name"] for t in tools["result"]["tools"]]
 
+    call = await handle_jsonrpc_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "python_sandbox", "arguments": {"code": "print(1)"}},
+        }
+    )
+    assert call["result"]["isError"] is True
+    assert "Unknown tool" in call["result"]["content"][0]["text"]
 
-@pytest.mark.db
-@pytest.mark.asyncio
-async def test_mcp_tool_call_sandbox_blocked():
-    """Verify MCP tools/call blocks dangerous code with AST security error."""
-    async with _auth_client() as client:
-        res = await client.post(
-            "/api/mcp/v1",
-            json={
-                "jsonrpc": "2.0",
-                "id": "call-2",
-                "method": "tools/call",
-                "params": {
-                    "name": "python_sandbox",
-                    "arguments": {"code": "import os; os.system('echo pwned')"},
-                },
-            },
-        )
-        assert res.status_code == 200
-        data = res.json()
-        assert data["result"]["isError"] is True
-        assert "AST Security Validation Failed" in data["result"]["content"][0]["text"]
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.post("/api/sandbox/run", json={"code": "print(1)"})
+        assert res.status_code == 404
 
 
 @pytest.mark.db

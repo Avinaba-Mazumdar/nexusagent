@@ -106,7 +106,7 @@ async def direct_jsonrpc_gateway(
 ) -> JsonRpcResponse:
     """
     Direct HTTP JSON-RPC 2.0 gateway accepting tools/list, tools/call, and resources/list.
-    Requires authentication: tools/call reaches the production database and sandbox.
+    Requires authentication: tools/call reaches the production database.
     """
     try:
         body = await request.json()

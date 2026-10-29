@@ -121,28 +121,6 @@ def wrap_untrusted_context(
     )
 
 
-def wrap_untrusted_tool_output(
-    output: str,
-    tool_name: str = "tool",
-) -> str:
-    """
-    Wrap untrusted tool output with strict XML-style security boundaries.
-    Prevents indirect prompt injection or tool poisoning via tool execution outputs.
-    """
-    safe_output = sanitize_untrusted_text(output)
-    safe_output = re.sub(
-        r"</?untrusted_tool_output[^>]*>",
-        lambda m: html.escape(m.group(0)),
-        safe_output,
-        flags=re.IGNORECASE,
-    )
-    return (
-        f'<untrusted_tool_output tool="{html.escape(tool_name)}">\n'
-        f"{safe_output.strip()}\n"
-        f"</untrusted_tool_output>"
-    )
-
-
 def detect_prompt_injection(text: str) -> tuple[bool, str | None]:
     """
     Scan query or text for known adversarial prompt injection indicators.

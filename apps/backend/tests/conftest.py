@@ -6,7 +6,7 @@ so ``uv run pytest`` stays green offline and in CI. When a database *is* configu
 connection pool is opened for the whole session instead of one per test.
 
 HITL note: approval waits default to 30s (human-paced) in production but are shortened to
-1s here so live tests that trip the sandbox HITL gate fail closed fast instead of stalling
+1s here so live tests that trip a HITL gate fail closed fast instead of stalling
 on an operator who will never arrive.
 """
 

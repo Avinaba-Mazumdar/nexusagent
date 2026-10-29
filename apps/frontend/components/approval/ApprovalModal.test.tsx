@@ -7,9 +7,9 @@ describe('ApprovalModal Component', () => {
     const mockApproval: PendingApproval = {
         approvalId: 'hitl-9944a1b2',
         sessionId: 'sess-test-123',
-        tool: 'python_sandbox',
+        tool: 'mcp_sql_audit',
         arguments: {
-            code: 'import math\nprint(math.sqrt(1764))'
+            query: 'SELECT table_name FROM information_schema.tables;'
         },
         riskLevel: 'medium',
         timeoutSeconds: 15
@@ -24,10 +24,10 @@ describe('ApprovalModal Component', () => {
         render(<ApprovalModal open={true} approval={mockApproval} onResolve={vi.fn()} />);
 
         expect(screen.getByText('HITL Security Authorization Required')).toBeInTheDocument();
-        expect(screen.getAllByText(/python_sandbox/i)[0]).toBeInTheDocument();
+        expect(screen.getAllByText(/mcp_sql_audit/i)[0]).toBeInTheDocument();
         expect(screen.getByText('hitl-9944a1b2')).toBeInTheDocument();
         expect(screen.getByText(/medium risk/i)).toBeInTheDocument();
-        expect(screen.getByText(/math\.sqrt\(1764\)/)).toBeInTheDocument();
+        expect(screen.getByText(/information_schema\.tables/)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Authorize & Run/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Deny & Abort/i })).toBeInTheDocument();
     });

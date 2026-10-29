@@ -41,9 +41,8 @@ export interface ObservabilityPanelProps {
 const DAG_NODES = [
     { id: 'planner', label: 'Planner', step: 1 },
     { id: 'retriever', label: 'Retriever', step: 2 },
-    { id: 'sandbox', label: 'Sandbox', step: 3 },
-    { id: 'critic', label: 'Critic', step: 4 },
-    { id: 'synthesizer', label: 'Synthesizer', step: 5 }
+    { id: 'critic', label: 'Critic', step: 3 },
+    { id: 'synthesizer', label: 'Synthesizer', step: 4 }
 ];
 
 export function ObservabilityPanel({
