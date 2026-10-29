@@ -179,9 +179,7 @@ async def generate_agent_stream(
             if final_state.error:
                 if user_id:
                     try:
-                        await default_rate_limiter.refund(
-                            user_id=user_id, client_ip=client_ip, is_guest=is_guest
-                        )
+                        await default_rate_limiter.refund(user_id=user_id, is_guest=is_guest)
                     except Exception as refund_err:  # noqa: BLE001
                         logger.warning(f"Could not refund rate limit token: {refund_err}")
                 await event_queue.put(
@@ -249,9 +247,7 @@ async def generate_agent_stream(
             logger.exception("Error during agent SSE streaming")
             if user_id:
                 try:
-                    await default_rate_limiter.refund(
-                        user_id=user_id, client_ip=client_ip, is_guest=is_guest
-                    )
+                    await default_rate_limiter.refund(user_id=user_id, is_guest=is_guest)
                 except Exception as refund_err:  # noqa: BLE001
                     logger.warning(f"Could not refund rate limit token: {refund_err}")
             masked_error = "Internal error. Reference: " + session_id[:8]
@@ -296,7 +292,6 @@ async def stream_agent_execution(
     else:
         remaining = await default_rate_limiter.get_quota(
             user_id=current_user.id,
-            client_ip=client_ip,
             is_guest=current_user.is_guest,
         )
 

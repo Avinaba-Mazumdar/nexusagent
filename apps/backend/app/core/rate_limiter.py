@@ -22,10 +22,10 @@ logger = logging.getLogger("nexusagent.core.rate_limiter")
 @dataclass
 class MemoryBucket:
     user_id: str
-    client_ip: str
     tokens_remaining: int
     bucket_capacity: int
     last_replenished_at: datetime
+    client_ip: str | None = None
 
 
 class SlidingWindowCounter:
@@ -60,20 +60,17 @@ class TokenBucketLimiter:
 
     def __init__(self, db: NeonDatabase | None = None):
         self.db = db
-        # In-memory store keyed by (str(user_id), client_ip)
-        self._memory_buckets: dict[tuple[str, str], MemoryBucket] = {}
+        # In-memory store keyed by str(user_id)
+        self._memory_buckets: dict[str, MemoryBucket] = {}
 
-    def _get_memory_bucket(
-        self, user_id: UUID | str, client_ip: str, default_tokens: int
-    ) -> MemoryBucket:
-        key = (str(user_id), client_ip)
+    def _get_memory_bucket(self, user_id: UUID | str, default_tokens: int) -> MemoryBucket:
+        key = str(user_id)
         now = datetime.now(UTC)
         bucket = self._memory_buckets.get(key)
 
         if not bucket:
             bucket = MemoryBucket(
-                user_id=str(user_id),
-                client_ip=client_ip,
+                user_id=key,
                 tokens_remaining=default_tokens,
                 bucket_capacity=default_tokens,
                 last_replenished_at=now,
@@ -116,10 +113,7 @@ class TokenBucketLimiter:
         # 1. Try PostgreSQL if pool is available
         if self.db and self.db.pool:
             try:
-                await self.db.get_or_create_rate_limit(
-                    user_id, client_ip, default_tokens=default_tokens
-                )
-                remaining = await self.db.decrement_rate_limit(user_id, client_ip)
+                remaining = await self.db.consume_rate_limit(user_id, default_tokens=default_tokens)
                 if remaining is None:
                     raise HTTPException(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -135,7 +129,7 @@ class TokenBucketLimiter:
                 )
 
         # 2. Resilient In-Memory Fallback
-        bucket = self._get_memory_bucket(user_id, client_ip, default_tokens)
+        bucket = self._get_memory_bucket(user_id, default_tokens)
         if bucket.tokens_remaining <= 0:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -149,7 +143,6 @@ class TokenBucketLimiter:
     async def get_quota(
         self,
         user_id: UUID,
-        client_ip: str,
         is_guest: bool = True,
     ) -> int:
         """Fetch current quota without consuming."""
@@ -157,33 +150,30 @@ class TokenBucketLimiter:
 
         if self.db and self.db.pool:
             try:
-                row = await self.db.get_or_create_rate_limit(
-                    user_id, client_ip, default_tokens=default_tokens
-                )
+                row = await self.db.get_or_create_rate_limit(user_id, default_tokens=default_tokens)
                 return row.tokens_remaining
             except Exception as e:  # noqa: BLE001
                 logger.warning(
                     f"Database rate limit query failed, falling back to memory bucket: {e}"
                 )
 
-        bucket = self._get_memory_bucket(user_id, client_ip, default_tokens)
+        bucket = self._get_memory_bucket(user_id, default_tokens)
         return bucket.tokens_remaining
 
     async def refund(
         self,
         user_id: UUID,
-        client_ip: str,
         is_guest: bool = True,
     ) -> None:
         """Refund 1 token (capped at capacity) after a failed run."""
         if self.db and self.db.pool:
             try:
-                await self.db.refund_rate_limit(user_id, client_ip)
+                await self.db.refund_rate_limit(user_id)
                 return
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"Database rate limit refund failed: {e}")
 
-        key = (str(user_id), client_ip)
+        key = str(user_id)
         bucket = self._memory_buckets.get(key)
         if bucket:
             bucket.tokens_remaining = min(bucket.bucket_capacity, bucket.tokens_remaining + 1)

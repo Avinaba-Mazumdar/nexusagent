@@ -29,7 +29,7 @@ class RateLimitBucket(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     user_id: UUID
-    client_ip: str
+    client_ip: str | None = None
     tokens_remaining: int = 5
     bucket_capacity: int = 5
     last_replenished_at: datetime = Field(default_factory=utc_now)

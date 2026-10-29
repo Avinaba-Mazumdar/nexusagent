@@ -56,7 +56,6 @@ async def google_auth(
 
     tokens_remaining = await default_rate_limiter.get_quota(
         user_id=user.id,
-        client_ip=client_ip,
         is_guest=False,
     )
 
@@ -88,7 +87,6 @@ async def get_current_user_profile(
 
     tokens_remaining = await default_rate_limiter.get_quota(
         user_id=current_user.id,
-        client_ip=client_ip,
         is_guest=current_user.is_guest,
     )
 
@@ -106,15 +104,12 @@ async def get_current_user_profile(
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
-    request: Request,
     current_user: User = Depends(get_current_user),
     db: NeonDatabase = Depends(get_db),
 ):
     """Refresh JWT access token for currently authenticated session."""
-    client_ip = get_client_ip(request)
     tokens_remaining = await default_rate_limiter.get_quota(
         user_id=current_user.id,
-        client_ip=client_ip,
         is_guest=current_user.is_guest,
     )
 

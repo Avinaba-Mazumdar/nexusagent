@@ -187,15 +187,37 @@ class NeonDatabase:
             logger.info("Pruned %d expired guest user(s) older than %d hours.", count, ttl_hours)
             return count
 
+    async def consume_rate_limit(self, user_id: UUID, default_tokens: int = 5) -> int | None:
+        """
+        Atomically insert or replenish and consume one token keyed only by user_id.
+        Returns tokens_remaining, or None if quota exhausted.
+        """
+        pool = self.get_pool()
+        query = """
+            INSERT INTO rate_limit_buckets (user_id, tokens_remaining, bucket_capacity, last_replenished_at)
+            VALUES ($1, $2 - 1, $2, NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+              tokens_remaining = CASE WHEN rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour'
+                                      THEN rate_limit_buckets.bucket_capacity - 1
+                                      ELSE rate_limit_buckets.tokens_remaining - 1 END,
+              last_replenished_at = CASE WHEN rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour'
+                                         THEN NOW() ELSE rate_limit_buckets.last_replenished_at END
+            WHERE rate_limit_buckets.tokens_remaining > 0
+               OR rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour'
+            RETURNING tokens_remaining;
+        """
+        async with pool.acquire() as conn:
+            return await conn.fetchval(query, user_id, default_tokens)
+
     async def get_or_create_rate_limit(
-        self, user_id: UUID, client_ip: str, default_tokens: int = 5
+        self, user_id: UUID, default_tokens: int = 5
     ) -> RateLimitBucket:
-        """Get or initialize rate limit bucket for user and IP, replenishing hourly if expired."""
+        """Get or initialize rate limit bucket for user, replenishing hourly if expired."""
         pool = self.get_pool()
         now = datetime.now(UTC)
-        select_query = "SELECT * FROM rate_limit_buckets WHERE user_id = $1 AND client_ip = $2;"
+        select_query = "SELECT * FROM rate_limit_buckets WHERE user_id = $1;"
         async with pool.acquire() as conn:
-            row = await conn.fetchrow(select_query, user_id, client_ip)
+            row = await conn.fetchrow(select_query, user_id)
             if row:
                 bucket = RateLimitBucket(**dict(row))
                 last_rep = bucket.last_replenished_at
@@ -205,56 +227,38 @@ class NeonDatabase:
                     replenish_query = """
                         UPDATE rate_limit_buckets
                         SET tokens_remaining = bucket_capacity,
-                            last_replenished_at = $3
-                        WHERE user_id = $1 AND client_ip = $2
+                            last_replenished_at = $2
+                        WHERE user_id = $1
                         RETURNING *;
                     """
-                    updated_row = await conn.fetchrow(replenish_query, user_id, client_ip, now)
+                    updated_row = await conn.fetchrow(replenish_query, user_id, now)
                     if updated_row:
                         return RateLimitBucket(**dict(updated_row))
                 return bucket
 
             insert_query = """
-                INSERT INTO rate_limit_buckets (user_id, client_ip, tokens_remaining, bucket_capacity, last_replenished_at)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (user_id, client_ip) DO UPDATE SET last_replenished_at = EXCLUDED.last_replenished_at
+                INSERT INTO rate_limit_buckets (user_id, tokens_remaining, bucket_capacity, last_replenished_at)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (user_id) DO UPDATE SET last_replenished_at = EXCLUDED.last_replenished_at
                 RETURNING *;
             """
             row = await conn.fetchrow(
                 insert_query,
                 user_id,
-                client_ip,
                 default_tokens,
                 default_tokens,
                 now,
             )
             return RateLimitBucket(**dict(row))
 
-    async def decrement_rate_limit(self, user_id: UUID, client_ip: str) -> int | None:
-        """Atomically replenish (if the hour elapsed) and consume one token. Returns tokens left, or None if empty."""
-        pool = self.get_pool()
-        query = """
-            UPDATE rate_limit_buckets
-            SET tokens_remaining = CASE WHEN last_replenished_at <= NOW() - INTERVAL '1 hour'
-                                        THEN bucket_capacity - 1 ELSE tokens_remaining - 1 END,
-                last_replenished_at = CASE WHEN last_replenished_at <= NOW() - INTERVAL '1 hour'
-                                           THEN NOW() ELSE last_replenished_at END
-            WHERE user_id = $1 AND client_ip = $2
-              AND (tokens_remaining > 0 OR last_replenished_at <= NOW() - INTERVAL '1 hour')
-            RETURNING tokens_remaining;
-        """
-        async with pool.acquire() as conn:
-            return await conn.fetchval(query, user_id, client_ip)
-
-    async def refund_rate_limit(self, user_id: UUID, client_ip: str) -> None:
+    async def refund_rate_limit(self, user_id: UUID) -> None:
         """Return one token (capped at capacity) after a failed run."""
         pool = self.get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE rate_limit_buckets SET tokens_remaining = LEAST(tokens_remaining + 1, bucket_capacity) "
-                "WHERE user_id = $1 AND client_ip = $2;",
+                "WHERE user_id = $1;",
                 user_id,
-                client_ip,
             )
 
     async def get_seeded_documents(self) -> list[dict]:

@@ -265,7 +265,7 @@ async def test_hourly_rate_limit_replenishment():
     )
 
     # Initialize bucket with 5 tokens
-    bucket = await neon_db.get_or_create_rate_limit(user.id, client_ip, default_tokens=5)
+    bucket = await neon_db.get_or_create_rate_limit(user.id, default_tokens=5)
     assert bucket.tokens_remaining == 5
 
     # Simulate manual depletion & setting timestamp in the past (2 hours ago)
@@ -275,14 +275,13 @@ async def test_hourly_rate_limit_replenishment():
         await conn.execute(
             """
             UPDATE rate_limit_buckets
-            SET tokens_remaining = 0, last_replenished_at = $3
-            WHERE user_id = $1 AND client_ip = $2;
+            SET tokens_remaining = 0, last_replenished_at = $2
+            WHERE user_id = $1;
             """,
             user.id,
-            client_ip,
             past_time,
         )
 
     # Calling get_or_create_rate_limit should detect elapsed hour and replenish to 5
-    replenished = await neon_db.get_or_create_rate_limit(user.id, client_ip, default_tokens=5)
+    replenished = await neon_db.get_or_create_rate_limit(user.id, default_tokens=5)
     assert replenished.tokens_remaining == 5

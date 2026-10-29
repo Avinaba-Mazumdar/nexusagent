@@ -191,7 +191,6 @@ async def issue_guest_pass(
 
     tokens_remaining = await default_rate_limiter.get_quota(
         user_id=target_user.id,
-        client_ip=client_ip,
         is_guest=True,
     )
 

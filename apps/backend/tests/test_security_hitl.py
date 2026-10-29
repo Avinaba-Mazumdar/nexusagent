@@ -242,6 +242,30 @@ async def test_token_bucket_rate_limiter_depletion():
 
 
 @pytest.mark.asyncio
+async def test_ip_rotation_does_not_reset_quota_sec_02():
+    """Regression (SEC-02): rotating IP address does not reset a user's rate limit quota."""
+    default_rate_limiter.reset_for_test()
+    test_user_id = uuid4()
+    ip_a = "192.0.2.1"
+    ip_b = "198.51.100.1"
+
+    # Consume all 5 guest tokens from IP A
+    for i in range(5):
+        rem = await default_rate_limiter.check_and_consume(
+            user_id=test_user_id, client_ip=ip_a, is_guest=True
+        )
+        assert rem == (4 - i)
+
+    # Calling from IP B for the same user must still trigger 429
+    with pytest.raises(HTTPException) as exc_info:
+        await default_rate_limiter.check_and_consume(
+            user_id=test_user_id, client_ip=ip_b, is_guest=True
+        )
+    assert exc_info.value.status_code == 429
+    assert "Free-tier quota limit reached" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
 async def test_guest_signup_and_ip_rate_limits():
     """Verify sliding-window caps on guest signups and IP LLM quota (audit S-07)."""
     from app.core.rate_limiter import guest_ip_llm_limiter, guest_signup_limiter
