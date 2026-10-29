@@ -70,9 +70,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
         initAuth: async () => {
             if (typeof window === 'undefined') return;
             try {
-                localStorage.removeItem('nexusagent_byok_key');
-                localStorage.removeItem('nexusagent_byok_provider');
-
                 const token = localStorage.getItem(STORAGE_KEY_TOKEN);
                 const userStr = localStorage.getItem(STORAGE_KEY_USER);
                 const quota = localStorage.getItem(STORAGE_KEY_QUOTA);
@@ -190,8 +187,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
                 localStorage.removeItem(STORAGE_KEY_TOKEN);
                 localStorage.removeItem(STORAGE_KEY_USER);
                 localStorage.removeItem(STORAGE_KEY_QUOTA);
-                localStorage.removeItem('nexusagent_byok_key');
-                localStorage.removeItem('nexusagent_byok_provider');
                 // Cached chat lists and transcripts must not outlive the session on a shared device.
                 Object.keys(localStorage)
                     .filter((key) => CHAT_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)))

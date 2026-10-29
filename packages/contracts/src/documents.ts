@@ -5,7 +5,6 @@ export interface DocumentMetadata {
     mimeType: string;
     sha256Hash: string;
     totalChunks: number;
-    storagePath?: string | null;
     isSeeded: boolean;
     uploadedAt: string;
 }

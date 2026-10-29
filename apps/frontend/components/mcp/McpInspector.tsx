@@ -7,21 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
-export interface McpToolOption {
-    name: 'hybrid_rag_search';
-    label: string;
-    description: string;
-    defaultArgs: Record<string, unknown>;
-}
-
-const MCP_TOOLS: McpToolOption[] = [
-    {
-        name: 'hybrid_rag_search',
-        label: 'RAG Search',
-        description: 'Reciprocal Rank Fusion over benchmarks',
-        defaultArgs: { query: 'Gemini 2.5 Flash CursorBench score', limit: 3 }
-    }
-];
+const MCP_TOOL = {
+    name: 'hybrid_rag_search',
+    label: 'RAG Search',
+    description: 'Reciprocal Rank Fusion over benchmarks',
+    defaultArgs: { query: 'Gemini 2.5 Flash CursorBench score', limit: 3 }
+};
 
 interface McpInspectorProps {
     apiBase?: string;
@@ -29,8 +20,8 @@ interface McpInspectorProps {
 }
 
 export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: McpInspectorProps) {
-    const selectedTool = MCP_TOOLS[0];
-    const [argsJson, setArgsJson] = React.useState<string>(JSON.stringify(MCP_TOOLS[0].defaultArgs, null, 2));
+    const selectedTool = MCP_TOOL;
+    const [argsJson, setArgsJson] = React.useState<string>(JSON.stringify(MCP_TOOL.defaultArgs, null, 2));
     const [isLoading, setIsLoading] = React.useState(false);
     const [lastRequest, setLastRequest] = React.useState<Record<string, unknown> | null>(null);
     const [lastResponse, setLastResponse] = React.useState<Record<string, unknown> | null>(null);

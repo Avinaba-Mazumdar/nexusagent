@@ -84,7 +84,6 @@ async def seed_knowledge_base():
             mime_type="text/markdown",
             sha256_hash=sha256_hash,
             total_chunks=len(chunks),
-            storage_path=str(doc_path.relative_to(BASE_DIR)),
             is_seeded=True,
             uploaded_at=now,
         )
@@ -106,12 +105,11 @@ async def seed_knowledge_base():
             )
 
     doc_query = """
-        INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded, uploaded_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, is_seeded, uploaded_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (id) DO UPDATE SET
             sha256_hash = EXCLUDED.sha256_hash,
             total_chunks = EXCLUDED.total_chunks,
-            storage_path = EXCLUDED.storage_path,
             uploaded_at = EXCLUDED.uploaded_at;
     """
     chunk_query = """
@@ -138,7 +136,6 @@ async def seed_knowledge_base():
                 doc.mime_type,
                 doc.sha256_hash,
                 doc.total_chunks,
-                doc.storage_path,
                 doc.is_seeded,
                 doc.uploaded_at,
             )

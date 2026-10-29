@@ -58,7 +58,6 @@ def document_to_wire(d: Document) -> DocumentMetadataWire:
         mimeType=d.mime_type,
         sha256Hash=d.sha256_hash,
         totalChunks=d.total_chunks,
-        storagePath=d.storage_path,
         isSeeded=d.is_seeded,
         uploadedAt=d.uploaded_at.isoformat()
         if hasattr(d.uploaded_at, "isoformat")
@@ -252,7 +251,6 @@ async def upload_document(
             mime_type=file.content_type or "text/markdown",
             sha256_hash=sha256_hash,
             total_chunks=len(chunks),
-            storage_path=None,
             is_seeded=False,
         )
         saved_doc = await db.create_document_with_chunks(doc_record, chunks)

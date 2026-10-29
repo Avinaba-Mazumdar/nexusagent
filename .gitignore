@@ -53,9 +53,3 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
-
-# Custom & Local Caches
-.freebuff
-.freebuff/
-apps/frontend/AGENTS.md
-apps/frontend/CLAUDE.md

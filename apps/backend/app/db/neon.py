@@ -30,7 +30,7 @@ class DatabaseUnavailable(RuntimeError):
 
 class NeonDatabase:
     def __init__(self, dsn: str | None = None):
-        self.dsn = dsn or settings.NEON_DATABASE_URL or settings.DATABASE_URL
+        self.dsn = dsn or settings.NEON_DATABASE_URL
         self.pool: asyncpg.Pool | None = None
 
     def get_pool(self) -> asyncpg.Pool:
@@ -81,16 +81,15 @@ class NeonDatabase:
         """Insert a new user record."""
         pool = self.get_pool()
         query = """
-            INSERT INTO users (id, email, hashed_password, name, avatar_url, is_guest, client_ip, device_id, created_at, last_seen_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            RETURNING id, email, hashed_password, name, avatar_url, is_guest, client_ip, device_id, created_at, last_seen_at;
+            INSERT INTO users (id, email, name, avatar_url, is_guest, client_ip, device_id, created_at, last_seen_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id, email, name, avatar_url, is_guest, client_ip, device_id, created_at, last_seen_at;
         """
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 query,
                 user.id,
                 user.email,
-                user.hashed_password,
                 user.name,
                 user.avatar_url,
                 user.is_guest,
@@ -128,7 +127,7 @@ class NeonDatabase:
                 is_guest = FALSE,
                 client_ip = COALESCE(EXCLUDED.client_ip, users.client_ip),
                 last_seen_at = EXCLUDED.last_seen_at
-            RETURNING id, email, hashed_password, name, avatar_url, is_guest, client_ip, device_id, created_at, last_seen_at;
+            RETURNING id, email, name, avatar_url, is_guest, client_ip, device_id, created_at, last_seen_at;
         """
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -280,9 +279,9 @@ class NeonDatabase:
         """Insert a document and its chunks transactionally."""
         pool = self.get_pool()
         doc_query = """
-            INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded, uploaded_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded, uploaded_at;
+            INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, is_seeded, uploaded_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id, user_id, filename, mime_type, sha256_hash, total_chunks, is_seeded, uploaded_at;
         """
         chunk_query = """
             INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, embedding_model, metadata, created_at)
@@ -310,7 +309,6 @@ class NeonDatabase:
                 document.mime_type,
                 document.sha256_hash,
                 document.total_chunks,
-                document.storage_path,
                 document.is_seeded,
                 document.uploaded_at,
             )

@@ -11,7 +11,6 @@ import os
 os.environ.setdefault("ENVIRONMENT", "test")
 # db-marked tests only ever touch a dedicated database (e.g. a Neon branch per CI run).
 os.environ["NEON_DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "")
-os.environ["DATABASE_URL"] = ""
 
 from types import SimpleNamespace
 from uuid import UUID

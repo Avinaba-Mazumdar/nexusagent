@@ -81,7 +81,7 @@ export function ChatCanvas({
                 </Button>
             </div>
 
-            <div ref={scrollContainerRef as any} onScroll={onScroll} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+            <div ref={scrollContainerRef} onScroll={onScroll} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
                 {/* Quota Depleted Lead Magnet Alert */}
                 {user && quotaRemaining <= 0 && (
                     <div

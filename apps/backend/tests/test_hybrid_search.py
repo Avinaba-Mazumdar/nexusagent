@@ -1,5 +1,4 @@
 import hashlib
-import math
 from uuid import uuid4
 
 import numpy as np
@@ -37,32 +36,6 @@ def generate_deterministic_embedding(text: str, dim: int = EMBEDDING_DIMENSION) 
     if norm > 0:
         vector = vector / norm
     return vector.tolist()
-
-
-def test_embedding_generation_dimension_and_norm():
-    """Verify that deterministic embeddings produce normalized 768-d vectors."""
-    text = "Raft linearizable consensus protocol with monotonic log sequencing"
-    emb = generate_deterministic_embedding(text)
-
-    assert len(emb) == EMBEDDING_DIMENSION
-    assert isinstance(emb, list)
-    assert all(isinstance(x, float) for x in emb)
-
-    # Assert L2 unit norm
-    norm = math.sqrt(sum(x * x for x in emb))
-    assert abs(norm - 1.0) < 1e-4
-
-
-def test_embedding_determinism():
-    """Verify identical text produces identical embeddings."""
-    text = "Multi-Paxos leader election under network partition"
-    emb1 = generate_deterministic_embedding(text)
-    emb2 = generate_deterministic_embedding(text)
-    assert emb1 == emb2
-
-    # Different text should produce different vectors
-    emb3 = generate_deterministic_embedding("Completely unrelated string about databases")
-    assert emb1 != emb3
 
 
 @pytest.mark.asyncio

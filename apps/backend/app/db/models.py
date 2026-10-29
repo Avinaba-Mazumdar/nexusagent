@@ -14,7 +14,6 @@ class User(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     email: str | None = None
-    hashed_password: str | None = None
     name: str = "Guest Reviewer"
     avatar_url: str | None = None
     is_guest: bool = True
@@ -44,7 +43,6 @@ class Document(BaseModel):
     mime_type: str = "text/markdown"
     sha256_hash: str
     total_chunks: int = 0
-    storage_path: str | None = None
     is_seeded: bool = False
     uploaded_at: datetime = Field(default_factory=utc_now)
 
@@ -131,7 +129,6 @@ class DocumentMetadataWire(BaseModel):
     mimeType: str
     sha256Hash: str
     totalChunks: int
-    storagePath: str | None = None
     isSeeded: bool
     uploadedAt: str
 

@@ -178,7 +178,7 @@ export function WorkspaceSidebar({
 
                         {/* Document Upload */}
                         <input
-                            ref={fileInputRef as any}
+                            ref={fileInputRef}
                             type="file"
                             accept=".md,.markdown,.txt,text/markdown,text/plain"
                             onChange={onFileSelected}

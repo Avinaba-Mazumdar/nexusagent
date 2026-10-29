@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 // Mermaid renders node labels as HTML inside <foreignObject>, so allow the SVG and HTML profiles.
-// Mermaid renders node labels as HTML inside <foreignObject>, so allow the SVG and HTML profiles.
 const sanitizeSvg = (svg: string): string =>
     DOMPurify.sanitize(svg, {
         USE_PROFILES: { svg: true, svgFilters: true, html: true },

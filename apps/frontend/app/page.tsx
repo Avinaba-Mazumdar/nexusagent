@@ -518,7 +518,6 @@ export default function Home() {
                     plan={agentStream.plan}
                     reflectionScore={agentStream.reflectionScore}
                     isStreaming={agentStream.isStreaming}
-                    isOpen={isObservabilityOpen}
                     onClose={() => setIsObservabilityOpen(false)}
                     className={mobileActiveTab === 'observability' ? 'flex' : isObservabilityOpen ? 'hidden xl:flex' : 'hidden'}
                 />

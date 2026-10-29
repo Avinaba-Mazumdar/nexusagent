@@ -1,14 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import type { ChatConversation, ChatMessageRecord, ChatHistoryResponse, ChatConversationDetailResponse } from '@nexusagent/contracts';
+import type { ChatConversation, ChatMessageRecord, ChatHistoryResponse, ChatConversationDetailResponse, Citation } from '@nexusagent/contracts';
 import { apiClient } from '@/lib/api-client';
 
 export interface ChatItem {
     id: string;
     role: 'user' | 'assistant';
     content: string;
-    citations?: any[];
+    citations?: Citation[];
     query?: string;
     error?: string;
     stopped?: boolean;

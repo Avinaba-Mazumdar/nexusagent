@@ -1,1 +1,1 @@
-export { McpInspector, type McpToolOption } from './McpInspector';
+export { McpInspector } from './McpInspector';

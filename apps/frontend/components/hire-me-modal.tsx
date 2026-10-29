@@ -3,23 +3,21 @@
 import * as React from 'react';
 import { Briefcase, Calendar, CheckCircle2, ChevronRight, ExternalLink, Mail, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 
 interface HireMeModalProps {
-    trigger?: React.ReactNode;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
 }
 
-export function HireMeModal({ trigger, open, onOpenChange }: HireMeModalProps) {
+export function HireMeModal({ open, onOpenChange }: HireMeModalProps) {
     const calUrl = process.env.NEXT_PUBLIC_CAL_URL || 'https://cal.com/avinaba';
     // No fallback address: an unconfigured email would be a dead mailto link.
     const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
             <DialogContent className="sm:max-w-lg p-0 overflow-hidden border border-border bg-card rounded-2xl shadow-2xl">
                 {/* Header Graphic Gradient */}
                 <div className="relative p-6 pb-4 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent border-b border-border">

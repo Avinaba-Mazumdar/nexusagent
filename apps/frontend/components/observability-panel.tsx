@@ -13,7 +13,6 @@ export interface LogEntry {
     timestamp: string;
     stage: 'ROUTER' | 'RAG' | 'INFERENCE' | 'STREAM';
     message: string;
-    meta?: Record<string, unknown>;
 }
 
 /** Client-measured timings for the most recent run; null until observed. */
@@ -31,7 +30,6 @@ export interface ObservabilityPanelProps {
     reflectionScore?: number;
     isStreaming?: boolean;
     className?: string;
-    isOpen?: boolean;
     onClose?: () => void;
 }
 
@@ -75,7 +73,7 @@ export function ObservabilityPanel({
         <aside
             role="complementary"
             aria-label="Agent Telemetry & Observability"
-            className={cn('w-full xl:w-72 lg:w-80 bg-card border-l border-border flex flex-col shrink-0 overflow-y-auto p-2.5 space-y-2.5', className)}
+            className={cn('w-full xl:w-72 bg-card border-l border-border flex flex-col shrink-0 overflow-y-auto p-2.5 space-y-2.5', className)}
         >
             {/* Header with Collapse Action */}
             <div className="flex items-center justify-between pb-2 border-b border-border">

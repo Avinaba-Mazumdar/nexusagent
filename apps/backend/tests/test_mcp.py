@@ -39,7 +39,6 @@ async def test_mcp_notification_returns_202_empty_body():
     mock_user = User(
         id=uuid4(),
         email="guest@example.com",
-        hashed_password=None,
         name="Guest",
         avatar_url=None,
         is_guest=True,
@@ -185,7 +184,6 @@ async def test_mcp_read_unknown_resource_returns_invalid_params():
     mock_user = User(
         id=uuid4(),
         email="guest@example.com",
-        hashed_password=None,
         name="Guest",
         avatar_url=None,
         is_guest=True,
@@ -261,7 +259,6 @@ async def test_mcp_session_owner_isolation():
     attacker_user = User(
         id=other_user_id,
         email="attacker@example.com",
-        hashed_password=None,
         name="Attacker",
         avatar_url=None,
         is_guest=True,
@@ -294,7 +291,6 @@ async def test_mcp_tools_call_guest_quota_enforcement(monkeypatch, fake_rate_db)
     guest_user = User(
         id=uuid4(),
         email="guest-sec01@example.com",
-        hashed_password=None,
         name="Guest",
         avatar_url=None,
         is_guest=True,

@@ -81,13 +81,12 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
             const startTime = performance.now();
             options?.onMetricUpdate?.(() => ({ firstTokenMs: null, totalLatencyMs: null, iterationCount: null }));
 
-            const emitLog = (stage: LogEntry['stage'], message: string, meta?: Record<string, unknown>) => {
+            const emitLog = (stage: LogEntry['stage'], message: string) => {
                 options?.onLog?.({
                     id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                     timestamp: new Date().toLocaleTimeString(),
                     stage,
-                    message,
-                    meta
+                    message
                 });
             };
 

@@ -178,7 +178,6 @@ async def issue_guest_pass(
         user = User(
             id=guest_uuid,
             email=None,
-            hashed_password=None,
             name=guest_name,
             avatar_url=None,
             is_guest=True,
