@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -148,3 +148,106 @@ class DocumentUploadResponseWire(BaseModel):
     chunksCount: int
     previewChunks: list[DocumentChunkWire]
     quotaRemaining: int | None = None
+
+
+class DocumentListResponseWire(BaseModel):
+    documents: list[DocumentMetadataWire]
+
+
+class DocumentChunksResponseWire(BaseModel):
+    chunks: list[DocumentChunkWire]
+
+
+class MeResponse(BaseModel):
+    user: UserSession
+    quota: QuotaStatus
+
+
+class SuccessResponse(BaseModel):
+    success: bool
+    id: str | None = None
+
+
+# Wire Schemas matching packages/contracts/src/chat.ts
+
+
+class ChatConversationWire(BaseModel):
+    id: str
+    userId: str
+    title: str
+    createdAt: str
+    updatedAt: str | None = None
+    messageCount: int | None = None
+    lastSnippet: str | None = None
+
+
+class ChatMessageWire(BaseModel):
+    id: str
+    conversationId: str
+    role: Literal["user", "assistant", "system"]
+    content: str
+    planTrace: Any = None
+    reflectionSummary: Any = None
+    createdAt: str
+
+
+class ChatHistoryResponseWire(BaseModel):
+    conversations: list[ChatConversationWire]
+    total: int
+
+
+class ChatConversationDetailWire(BaseModel):
+    conversation: ChatConversationWire
+    messages: list[ChatMessageWire]
+
+
+# Wire Schemas matching packages/contracts/src/agent.ts (SSE payloads, not routes)
+
+
+class PlanStepWire(BaseModel):
+    stepNumber: int
+    description: str
+    status: Literal["pending", "in_progress", "completed", "failed"]
+    tool: str | None = None
+
+
+class CitationWire(BaseModel):
+    """A source shown to the model. The answer cites it inline as `[label]`, e.g. `[S1]`."""
+
+    id: str
+    label: str
+    chunkId: str
+    documentId: str
+    filename: str
+    startLine: int | None = None
+    endLine: int | None = None
+    headerPath: list[str]
+    preview: str
+
+
+class InjectionWarningWire(BaseModel):
+    """Retrieved text that looks like instructions (kept inside untrusted delimiters, but reported)."""
+
+    filename: str
+    reason: str
+
+
+class AgentDoneEventWire(BaseModel):
+    """Payload of the final `done` SSE event."""
+
+    sessionId: str
+    conversationId: str | None = None
+    query: str
+    response: str
+    nodeHistory: list[str]
+    plan: list[PlanStepWire]
+    citations: list[CitationWire]
+    injectionWarnings: list[InjectionWarningWire]
+    mermaidDiagrams: list[str]
+    grounding: Literal["grounded", "weak", "none"]
+    isComplete: bool
+    completedAt: str | None = None
+
+
+# Models that never appear in a route signature but are part of the wire contract.
+SSE_WIRE_MODELS: list[type[BaseModel]] = [AgentDoneEventWire]

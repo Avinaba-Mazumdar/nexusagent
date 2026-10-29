@@ -14,9 +14,12 @@ from app.core.rate_limiter import default_rate_limiter
 from app.db.models import (
     Document,
     DocumentChunk,
+    DocumentChunksResponseWire,
     DocumentChunkWire,
+    DocumentListResponseWire,
     DocumentMetadataWire,
     DocumentUploadResponseWire,
+    SuccessResponse,
     User,
 )
 from app.db.neon import NeonDatabase, get_db
@@ -88,7 +91,7 @@ def chunk_to_wire(c: DocumentChunk) -> DocumentChunkWire:
     )
 
 
-@router.get("", response_model=dict[str, list[DocumentMetadataWire]])
+@router.get("", response_model=DocumentListResponseWire)
 async def list_documents(
     current_user: User | None = Depends(get_current_user_optional),
     db: NeonDatabase = Depends(get_db),
@@ -108,7 +111,7 @@ async def require_document_access(db: NeonDatabase, document_id: UUID, user: Use
     return doc
 
 
-@router.get("/{document_id}/chunks", response_model=dict[str, list[DocumentChunkWire]])
+@router.get("/{document_id}/chunks", response_model=DocumentChunksResponseWire)
 async def get_document_chunks(
     document_id: str,
     current_user: User = Depends(get_current_user),
@@ -131,7 +134,7 @@ async def get_document_chunks(
     return {"chunks": [chunk_to_wire(c) for c in chunks]}
 
 
-@router.delete("/{document_id}")
+@router.delete("/{document_id}", response_model=SuccessResponse)
 async def delete_document(
     document_id: UUID,
     current_user: User = Depends(get_current_user),

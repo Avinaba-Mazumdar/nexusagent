@@ -5,7 +5,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.auth import get_current_user
-from app.db.models import User
+from app.db.models import (
+    ChatConversationDetailWire,
+    ChatHistoryResponseWire,
+    SuccessResponse,
+    User,
+)
 from app.db.neon import NeonDatabase, get_db
 
 router = APIRouter(prefix="/chat", tags=["Chat History & Seeded Knowledge Base"])
@@ -56,7 +61,7 @@ def message_to_wire(m: dict) -> dict:
     }
 
 
-@router.get("/history")
+@router.get("/history", response_model=ChatHistoryResponseWire)
 async def list_chat_history(
     q: str | None = Query(
         None,
@@ -74,7 +79,7 @@ async def list_chat_history(
     return {"conversations": formatted, "total": len(formatted)}
 
 
-@router.get("/history/{conversation_id}")
+@router.get("/history/{conversation_id}", response_model=ChatConversationDetailWire)
 async def get_chat_conversation(
     conversation_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -102,7 +107,7 @@ async def get_chat_conversation(
     }
 
 
-@router.delete("/history/{conversation_id}")
+@router.delete("/history/{conversation_id}", response_model=SuccessResponse)
 async def delete_chat_conversation(
     conversation_id: UUID,
     current_user: User = Depends(get_current_user),

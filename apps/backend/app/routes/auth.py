@@ -27,7 +27,9 @@ from app.db.models import (
     GoogleAuthRequest,
     GuestPassRequest,
     GuestPassResponse,
+    MeResponse,
     QuotaStatus,
+    SuccessResponse,
     TokenResponse,
     User,
 )
@@ -86,7 +88,7 @@ async def google_auth(
     )
 
 
-@router.get("/me")
+@router.get("/me", response_model=MeResponse)
 async def get_current_user_profile(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -114,7 +116,7 @@ async def get_current_user_profile(
     }
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=SuccessResponse)
 async def logout(
     current_user: User = Depends(get_current_user),
     db: NeonDatabase = Depends(get_db),

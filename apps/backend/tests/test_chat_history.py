@@ -1,4 +1,4 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -82,3 +82,31 @@ async def test_chat_history_google_user_crud():
         res_del = await client.delete(f"/api/chat/history/{conv_id}", headers=headers)
         assert res_del.status_code == 200
         assert res_del.json()["success"] is True
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_follow_up_turn_keeps_first_title():
+    """LOG-02: a follow-up turn must not rename the conversation to the latest question."""
+    from app.agent.state import AgentState
+    from app.routes.agent import persist_turn
+
+    user_id = uuid4()
+    await neon_db.create_user(
+        User(
+            id=user_id,
+            email=f"title-{uuid4().hex[:8]}@nexusagent.test",
+            name="Title Tester",
+            is_guest=False,
+        )
+    )
+    session_id = str(uuid4())
+
+    for query in ("How does Raft elect a leader?", "And what about log compaction?"):
+        state = AgentState(query=query, session_id=session_id, response="answer")
+        assert await persist_turn(user_id, session_id, query, state) == session_id
+
+    conv, messages = await neon_db.get_conversation_with_messages(user_id, UUID(session_id))
+    assert conv is not None
+    assert conv["title"] == "How does Raft elect a leader?"
+    assert len(messages) == 4

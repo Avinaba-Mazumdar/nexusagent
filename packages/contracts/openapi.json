@@ -1,0 +1,1735 @@
+{
+    "components": {
+        "schemas": {
+            "AgentDoneEventWire": {
+                "description": "Payload of the final `done` SSE event.",
+                "properties": {
+                    "citations": {
+                        "items": {
+                            "$ref": "#/components/schemas/CitationWire"
+                        },
+                        "title": "Citations",
+                        "type": "array"
+                    },
+                    "completedAt": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": null,
+                        "title": "Completedat"
+                    },
+                    "conversationId": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": null,
+                        "title": "Conversationid"
+                    },
+                    "grounding": {
+                        "enum": ["grounded", "weak", "none"],
+                        "title": "Grounding",
+                        "type": "string"
+                    },
+                    "injectionWarnings": {
+                        "items": {
+                            "$ref": "#/components/schemas/InjectionWarningWire"
+                        },
+                        "title": "Injectionwarnings",
+                        "type": "array"
+                    },
+                    "isComplete": {
+                        "title": "Iscomplete",
+                        "type": "boolean"
+                    },
+                    "mermaidDiagrams": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Mermaiddiagrams",
+                        "type": "array"
+                    },
+                    "nodeHistory": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Nodehistory",
+                        "type": "array"
+                    },
+                    "plan": {
+                        "items": {
+                            "$ref": "#/components/schemas/PlanStepWire"
+                        },
+                        "title": "Plan",
+                        "type": "array"
+                    },
+                    "query": {
+                        "title": "Query",
+                        "type": "string"
+                    },
+                    "response": {
+                        "title": "Response",
+                        "type": "string"
+                    },
+                    "sessionId": {
+                        "title": "Sessionid",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "sessionId",
+                    "query",
+                    "response",
+                    "nodeHistory",
+                    "plan",
+                    "citations",
+                    "injectionWarnings",
+                    "mermaidDiagrams",
+                    "grounding",
+                    "isComplete"
+                ],
+                "title": "AgentDoneEventWire",
+                "type": "object"
+            },
+            "AgentStreamRequestWire": {
+                "properties": {
+                    "documentId": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Optional document UUID filter to scope retrieval to a specific RFC/document",
+                        "title": "Documentid"
+                    },
+                    "query": {
+                        "description": "Natural language prompt or architectural inquiry for autonomous agent",
+                        "maxLength": 2000,
+                        "minLength": 1,
+                        "title": "Query",
+                        "type": "string"
+                    },
+                    "sessionId": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Optional existing session ID for conversation continuity",
+                        "title": "Sessionid"
+                    }
+                },
+                "required": ["query"],
+                "title": "AgentStreamRequestWire",
+                "type": "object"
+            },
+            "AuthTokens": {
+                "properties": {
+                    "accessToken": {
+                        "title": "Accesstoken",
+                        "type": "string"
+                    },
+                    "expiresIn": {
+                        "title": "Expiresin",
+                        "type": "integer"
+                    },
+                    "tokenType": {
+                        "default": "bearer",
+                        "title": "Tokentype",
+                        "type": "string"
+                    }
+                },
+                "required": ["accessToken", "expiresIn"],
+                "title": "AuthTokens",
+                "type": "object"
+            },
+            "Body_upload_document_api_documents_upload_post": {
+                "properties": {
+                    "file": {
+                        "contentMediaType": "application/octet-stream",
+                        "title": "File",
+                        "type": "string"
+                    }
+                },
+                "required": ["file"],
+                "title": "Body_upload_document_api_documents_upload_post",
+                "type": "object"
+            },
+            "ChatConversationDetailWire": {
+                "properties": {
+                    "conversation": {
+                        "$ref": "#/components/schemas/ChatConversationWire"
+                    },
+                    "messages": {
+                        "items": {
+                            "$ref": "#/components/schemas/ChatMessageWire"
+                        },
+                        "title": "Messages",
+                        "type": "array"
+                    }
+                },
+                "required": ["conversation", "messages"],
+                "title": "ChatConversationDetailWire",
+                "type": "object"
+            },
+            "ChatConversationWire": {
+                "properties": {
+                    "createdAt": {
+                        "title": "Createdat",
+                        "type": "string"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "lastSnippet": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Lastsnippet"
+                    },
+                    "messageCount": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Messagecount"
+                    },
+                    "title": {
+                        "title": "Title",
+                        "type": "string"
+                    },
+                    "updatedAt": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Updatedat"
+                    },
+                    "userId": {
+                        "title": "Userid",
+                        "type": "string"
+                    }
+                },
+                "required": ["id", "userId", "title", "createdAt"],
+                "title": "ChatConversationWire",
+                "type": "object"
+            },
+            "ChatHistoryResponseWire": {
+                "properties": {
+                    "conversations": {
+                        "items": {
+                            "$ref": "#/components/schemas/ChatConversationWire"
+                        },
+                        "title": "Conversations",
+                        "type": "array"
+                    },
+                    "total": {
+                        "title": "Total",
+                        "type": "integer"
+                    }
+                },
+                "required": ["conversations", "total"],
+                "title": "ChatHistoryResponseWire",
+                "type": "object"
+            },
+            "ChatMessageWire": {
+                "properties": {
+                    "content": {
+                        "title": "Content",
+                        "type": "string"
+                    },
+                    "conversationId": {
+                        "title": "Conversationid",
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "title": "Createdat",
+                        "type": "string"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "planTrace": {
+                        "title": "Plantrace"
+                    },
+                    "reflectionSummary": {
+                        "title": "Reflectionsummary"
+                    },
+                    "role": {
+                        "enum": ["user", "assistant", "system"],
+                        "title": "Role",
+                        "type": "string"
+                    }
+                },
+                "required": ["id", "conversationId", "role", "content", "createdAt"],
+                "title": "ChatMessageWire",
+                "type": "object"
+            },
+            "CitationWire": {
+                "description": "A source shown to the model. The answer cites it inline as `[label]`, e.g. `[S1]`.",
+                "properties": {
+                    "chunkId": {
+                        "title": "Chunkid",
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "title": "Documentid",
+                        "type": "string"
+                    },
+                    "endLine": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": null,
+                        "title": "Endline"
+                    },
+                    "filename": {
+                        "title": "Filename",
+                        "type": "string"
+                    },
+                    "headerPath": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Headerpath",
+                        "type": "array"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "label": {
+                        "title": "Label",
+                        "type": "string"
+                    },
+                    "preview": {
+                        "title": "Preview",
+                        "type": "string"
+                    },
+                    "startLine": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": null,
+                        "title": "Startline"
+                    }
+                },
+                "required": ["id", "label", "chunkId", "documentId", "filename", "headerPath", "preview"],
+                "title": "CitationWire",
+                "type": "object"
+            },
+            "DocumentChunkWire": {
+                "properties": {
+                    "chunkIndex": {
+                        "title": "Chunkindex",
+                        "type": "integer"
+                    },
+                    "content": {
+                        "title": "Content",
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "title": "Createdat",
+                        "type": "string"
+                    },
+                    "documentId": {
+                        "title": "Documentid",
+                        "type": "string"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "metadata": {
+                        "additionalProperties": true,
+                        "title": "Metadata",
+                        "type": "object"
+                    }
+                },
+                "required": ["id", "documentId", "chunkIndex", "content", "metadata", "createdAt"],
+                "title": "DocumentChunkWire",
+                "type": "object"
+            },
+            "DocumentChunksResponseWire": {
+                "properties": {
+                    "chunks": {
+                        "items": {
+                            "$ref": "#/components/schemas/DocumentChunkWire"
+                        },
+                        "title": "Chunks",
+                        "type": "array"
+                    }
+                },
+                "required": ["chunks"],
+                "title": "DocumentChunksResponseWire",
+                "type": "object"
+            },
+            "DocumentListResponseWire": {
+                "properties": {
+                    "documents": {
+                        "items": {
+                            "$ref": "#/components/schemas/DocumentMetadataWire"
+                        },
+                        "title": "Documents",
+                        "type": "array"
+                    }
+                },
+                "required": ["documents"],
+                "title": "DocumentListResponseWire",
+                "type": "object"
+            },
+            "DocumentMetadataWire": {
+                "properties": {
+                    "filename": {
+                        "title": "Filename",
+                        "type": "string"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "isSeeded": {
+                        "title": "Isseeded",
+                        "type": "boolean"
+                    },
+                    "mimeType": {
+                        "title": "Mimetype",
+                        "type": "string"
+                    },
+                    "sha256Hash": {
+                        "title": "Sha256Hash",
+                        "type": "string"
+                    },
+                    "totalChunks": {
+                        "title": "Totalchunks",
+                        "type": "integer"
+                    },
+                    "uploadedAt": {
+                        "title": "Uploadedat",
+                        "type": "string"
+                    },
+                    "userId": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Userid"
+                    }
+                },
+                "required": ["id", "filename", "mimeType", "sha256Hash", "totalChunks", "isSeeded", "uploadedAt"],
+                "title": "DocumentMetadataWire",
+                "type": "object"
+            },
+            "DocumentUploadResponseWire": {
+                "properties": {
+                    "chunksCount": {
+                        "title": "Chunkscount",
+                        "type": "integer"
+                    },
+                    "document": {
+                        "$ref": "#/components/schemas/DocumentMetadataWire"
+                    },
+                    "previewChunks": {
+                        "items": {
+                            "$ref": "#/components/schemas/DocumentChunkWire"
+                        },
+                        "title": "Previewchunks",
+                        "type": "array"
+                    },
+                    "quotaRemaining": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Quotaremaining"
+                    }
+                },
+                "required": ["document", "chunksCount", "previewChunks"],
+                "title": "DocumentUploadResponseWire",
+                "type": "object"
+            },
+            "GoogleAuthRequest": {
+                "properties": {
+                    "credential": {
+                        "maxLength": 4096,
+                        "minLength": 10,
+                        "title": "Credential",
+                        "type": "string"
+                    }
+                },
+                "required": ["credential"],
+                "title": "GoogleAuthRequest",
+                "type": "object"
+            },
+            "GuestPassRequest": {
+                "properties": {
+                    "deviceId": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Deviceid"
+                    }
+                },
+                "title": "GuestPassRequest",
+                "type": "object"
+            },
+            "GuestPassResponse": {
+                "properties": {
+                    "bucketCapacity": {
+                        "title": "Bucketcapacity",
+                        "type": "integer"
+                    },
+                    "quotaRemaining": {
+                        "title": "Quotaremaining",
+                        "type": "integer"
+                    },
+                    "tokens": {
+                        "$ref": "#/components/schemas/AuthTokens"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/UserSession"
+                    }
+                },
+                "required": ["user", "tokens", "quotaRemaining", "bucketCapacity"],
+                "title": "GuestPassResponse",
+                "type": "object"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "title": "Detail",
+                        "type": "array"
+                    }
+                },
+                "title": "HTTPValidationError",
+                "type": "object"
+            },
+            "HybridSearchRequestWire": {
+                "properties": {
+                    "denseWeight": {
+                        "default": 0.5,
+                        "description": "Weight for dense vector cosine similarity rankings (0.0 to 1.0)",
+                        "maximum": 1.0,
+                        "minimum": 0.0,
+                        "title": "Denseweight",
+                        "type": "number"
+                    },
+                    "documentId": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Optional document UUID filter to restrict search to a single file",
+                        "title": "Documentid"
+                    },
+                    "limit": {
+                        "default": 5,
+                        "description": "Maximum number of top-K results to return after RRF fusion",
+                        "maximum": 50.0,
+                        "minimum": 1.0,
+                        "title": "Limit",
+                        "type": "integer"
+                    },
+                    "query": {
+                        "description": "Search query string for hybrid vector and lexical retrieval",
+                        "maxLength": 1000,
+                        "minLength": 1,
+                        "title": "Query",
+                        "type": "string"
+                    },
+                    "rrfK": {
+                        "default": 60,
+                        "description": "Reciprocal Rank Fusion smoothing constant k (standard default: 60)",
+                        "maximum": 200.0,
+                        "minimum": 1.0,
+                        "title": "Rrfk",
+                        "type": "integer"
+                    },
+                    "sparseWeight": {
+                        "default": 0.5,
+                        "description": "Weight for BM25 tsvector lexical rankings (0.0 to 1.0)",
+                        "maximum": 1.0,
+                        "minimum": 0.0,
+                        "title": "Sparseweight",
+                        "type": "number"
+                    }
+                },
+                "required": ["query"],
+                "title": "HybridSearchRequestWire",
+                "type": "object"
+            },
+            "HybridSearchResponseWire": {
+                "properties": {
+                    "query": {
+                        "title": "Query",
+                        "type": "string"
+                    },
+                    "results": {
+                        "items": {
+                            "$ref": "#/components/schemas/HybridSearchResultWire"
+                        },
+                        "title": "Results",
+                        "type": "array"
+                    },
+                    "totalResults": {
+                        "title": "Totalresults",
+                        "type": "integer"
+                    }
+                },
+                "required": ["query", "totalResults", "results"],
+                "title": "HybridSearchResponseWire",
+                "type": "object"
+            },
+            "HybridSearchResultWire": {
+                "properties": {
+                    "chunkIndex": {
+                        "title": "Chunkindex",
+                        "type": "integer"
+                    },
+                    "content": {
+                        "title": "Content",
+                        "type": "string"
+                    },
+                    "denseRank": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Denserank"
+                    },
+                    "denseScore": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Densescore"
+                    },
+                    "documentId": {
+                        "title": "Documentid",
+                        "type": "string"
+                    },
+                    "endLine": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Endline"
+                    },
+                    "filename": {
+                        "title": "Filename",
+                        "type": "string"
+                    },
+                    "headerPath": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Headerpath",
+                        "type": "array"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "metadata": {
+                        "additionalProperties": true,
+                        "title": "Metadata",
+                        "type": "object"
+                    },
+                    "similarityScore": {
+                        "title": "Similarityscore",
+                        "type": "number"
+                    },
+                    "sparseRank": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Sparserank"
+                    },
+                    "sparseScore": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Sparsescore"
+                    },
+                    "startLine": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Startline"
+                    }
+                },
+                "required": ["id", "documentId", "chunkIndex", "content", "filename", "similarityScore"],
+                "title": "HybridSearchResultWire",
+                "type": "object"
+            },
+            "InjectionWarningWire": {
+                "description": "Retrieved text that looks like instructions (kept inside untrusted delimiters, but reported).",
+                "properties": {
+                    "filename": {
+                        "title": "Filename",
+                        "type": "string"
+                    },
+                    "reason": {
+                        "title": "Reason",
+                        "type": "string"
+                    }
+                },
+                "required": ["filename", "reason"],
+                "title": "InjectionWarningWire",
+                "type": "object"
+            },
+            "MeResponse": {
+                "properties": {
+                    "quota": {
+                        "$ref": "#/components/schemas/QuotaStatus"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/UserSession"
+                    }
+                },
+                "required": ["user", "quota"],
+                "title": "MeResponse",
+                "type": "object"
+            },
+            "PlanStepWire": {
+                "properties": {
+                    "description": {
+                        "title": "Description",
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": ["pending", "in_progress", "completed", "failed"],
+                        "title": "Status",
+                        "type": "string"
+                    },
+                    "stepNumber": {
+                        "title": "Stepnumber",
+                        "type": "integer"
+                    },
+                    "tool": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": null,
+                        "title": "Tool"
+                    }
+                },
+                "required": ["stepNumber", "description", "status"],
+                "title": "PlanStepWire",
+                "type": "object"
+            },
+            "QuotaStatus": {
+                "properties": {
+                    "bucketCapacity": {
+                        "title": "Bucketcapacity",
+                        "type": "integer"
+                    },
+                    "resetsAt": {
+                        "title": "Resetsat",
+                        "type": "string"
+                    },
+                    "tokensRemaining": {
+                        "title": "Tokensremaining",
+                        "type": "integer"
+                    }
+                },
+                "required": ["tokensRemaining", "bucketCapacity", "resetsAt"],
+                "title": "QuotaStatus",
+                "type": "object"
+            },
+            "SuccessResponse": {
+                "properties": {
+                    "id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Id"
+                    },
+                    "success": {
+                        "title": "Success",
+                        "type": "boolean"
+                    }
+                },
+                "required": ["success"],
+                "title": "SuccessResponse",
+                "type": "object"
+            },
+            "TokenResponse": {
+                "properties": {
+                    "accessToken": {
+                        "title": "Accesstoken",
+                        "type": "string"
+                    },
+                    "bucketCapacity": {
+                        "default": 25,
+                        "title": "Bucketcapacity",
+                        "type": "integer"
+                    },
+                    "expiresIn": {
+                        "title": "Expiresin",
+                        "type": "integer"
+                    },
+                    "quotaRemaining": {
+                        "default": 25,
+                        "title": "Quotaremaining",
+                        "type": "integer"
+                    },
+                    "tokenType": {
+                        "default": "bearer",
+                        "title": "Tokentype",
+                        "type": "string"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/UserSession"
+                    }
+                },
+                "required": ["accessToken", "expiresIn", "user"],
+                "title": "TokenResponse",
+                "type": "object"
+            },
+            "UserSession": {
+                "properties": {
+                    "avatarUrl": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Avatarurl"
+                    },
+                    "createdAt": {
+                        "title": "Createdat",
+                        "type": "string"
+                    },
+                    "email": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Email"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "isGuest": {
+                        "title": "Isguest",
+                        "type": "boolean"
+                    },
+                    "lastSeenAt": {
+                        "title": "Lastseenat",
+                        "type": "string"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    }
+                },
+                "required": ["id", "name", "isGuest", "createdAt", "lastSeenAt"],
+                "title": "UserSession",
+                "type": "object"
+            },
+            "ValidationError": {
+                "properties": {
+                    "ctx": {
+                        "title": "Context",
+                        "type": "object"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "title": "Location",
+                        "type": "array"
+                    },
+                    "msg": {
+                        "title": "Message",
+                        "type": "string"
+                    },
+                    "type": {
+                        "title": "Error Type",
+                        "type": "string"
+                    }
+                },
+                "required": ["loc", "msg", "type"],
+                "title": "ValidationError",
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "HTTPBearer": {
+                "scheme": "bearer",
+                "type": "http"
+            }
+        }
+    },
+    "info": {
+        "description": "NexusAgent - Production-Grade Autonomous Orchestration Engine with Neon PostgreSQL 18 & LangGraph.",
+        "title": "NexusAgent",
+        "version": "0.1.0-alpha"
+    },
+    "openapi": "3.1.0",
+    "paths": {
+        "/": {
+            "get": {
+                "operationId": "root__get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Root",
+                "tags": ["Root"]
+            }
+        },
+        "/api/agent/audit-logs": {
+            "get": {
+                "description": "Retrieve the caller's persisted tool execution audit records (``tool_audit_logs``).",
+                "operationId": "get_tool_audit_logs_api_agent_audit_logs_get",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "required": false,
+                        "schema": {
+                            "default": 50,
+                            "maximum": 200,
+                            "minimum": 1,
+                            "title": "Limit",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Get Tool Audit Logs",
+                "tags": ["Agent Autonomous Orchestration & SSE Streaming"]
+            }
+        },
+        "/api/agent/stream": {
+            "post": {
+                "description": "Server-Sent Events (SSE) streaming endpoint for the agent pipeline.\nEnforces the token-bucket rate limiter with automatic 429 and retry headers.",
+                "operationId": "stream_agent_execution_api_agent_stream_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AgentStreamRequestWire"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Stream Agent Execution",
+                "tags": ["Agent Autonomous Orchestration & SSE Streaming"]
+            }
+        },
+        "/api/auth/google": {
+            "post": {
+                "description": "Authenticate or register user via verified Google ID token.",
+                "operationId": "google_auth_api_auth_google_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GoogleAuthRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenResponse"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Google Auth",
+                "tags": ["Authentication"]
+            }
+        },
+        "/api/auth/guest": {
+            "post": {
+                "description": "Issue 1-Click Ephemeral Guest Pass token pre-loaded with quota.",
+                "operationId": "create_guest_pass_api_auth_guest_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/components/schemas/GuestPassRequest"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ],
+                                "title": "Payload"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GuestPassResponse"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Create Guest Pass",
+                "tags": ["Authentication"]
+            }
+        },
+        "/api/auth/logout": {
+            "post": {
+                "description": "Revoke every token issued to this user.",
+                "operationId": "logout_api_auth_logout_post",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Logout",
+                "tags": ["Authentication"]
+            }
+        },
+        "/api/auth/me": {
+            "get": {
+                "description": "Return active user profile and quota bucket status.",
+                "operationId": "get_current_user_profile_api_auth_me_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MeResponse"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Get Current User Profile",
+                "tags": ["Authentication"]
+            }
+        },
+        "/api/auth/refresh": {
+            "post": {
+                "description": "Refresh JWT access token for currently authenticated session.",
+                "operationId": "refresh_token_api_auth_refresh_post",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenResponse"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Refresh Token",
+                "tags": ["Authentication"]
+            }
+        },
+        "/api/chat/history": {
+            "get": {
+                "description": "List persistent conversations for authenticated Google user.",
+                "operationId": "list_chat_history_api_chat_history_get",
+                "parameters": [
+                    {
+                        "description": "Optional search query across conversation titles and message content",
+                        "in": "query",
+                        "name": "q",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "maxLength": 200,
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Optional search query across conversation titles and message content",
+                            "title": "Q"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "required": false,
+                        "schema": {
+                            "default": 50,
+                            "maximum": 100,
+                            "minimum": 1,
+                            "title": "Limit",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ChatHistoryResponseWire"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "List Chat History",
+                "tags": ["Chat History & Seeded Knowledge Base"]
+            }
+        },
+        "/api/chat/history/{conversation_id}": {
+            "delete": {
+                "description": "Delete a conversation and its messages.",
+                "operationId": "delete_chat_conversation_api_chat_history__conversation_id__delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "conversation_id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "title": "Conversation Id",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Delete Chat Conversation",
+                "tags": ["Chat History & Seeded Knowledge Base"]
+            },
+            "get": {
+                "description": "Fetch complete message history for a conversation.",
+                "operationId": "get_chat_conversation_api_chat_history__conversation_id__get",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "conversation_id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "title": "Conversation Id",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ChatConversationDetailWire"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Get Chat Conversation",
+                "tags": ["Chat History & Seeded Knowledge Base"]
+            }
+        },
+        "/api/documents": {
+            "get": {
+                "description": "List documents visible to the caller: seeded documents, plus the user's uploads if signed in.",
+                "operationId": "list_documents_api_documents_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DocumentListResponseWire"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "List Documents",
+                "tags": ["Document Ingestion & Vault"]
+            }
+        },
+        "/api/documents/upload": {
+            "post": {
+                "description": "Upload and parse markdown or RFC documents.\nEnforces file size ceiling (1MB), computes SHA-256 hash, runs LlamaIndex hierarchical parser,\nand batch persists document record and chunk rows into Neon PostgreSQL.",
+                "operationId": "upload_document_api_documents_upload_post",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_upload_document_api_documents_upload_post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DocumentUploadResponseWire"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Upload Document",
+                "tags": ["Document Ingestion & Vault"]
+            }
+        },
+        "/api/documents/{document_id}": {
+            "delete": {
+                "description": "Delete one of the caller's uploaded documents and its chunks.",
+                "operationId": "delete_document_api_documents__document_id__delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "document_id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "title": "Document Id",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Delete Document",
+                "tags": ["Document Ingestion & Vault"]
+            }
+        },
+        "/api/documents/{document_id}/chunks": {
+            "get": {
+                "description": "Fetch chunks for a specific document with line-level section metadata.",
+                "operationId": "get_document_chunks_api_documents__document_id__chunks_get",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "document_id",
+                        "required": true,
+                        "schema": {
+                            "title": "Document Id",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DocumentChunksResponseWire"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Get Document Chunks",
+                "tags": ["Document Ingestion & Vault"]
+            }
+        },
+        "/api/health": {
+            "get": {
+                "description": "Return health check and runtime status information, including Neon DB connectivity.",
+                "operationId": "get_health_api_health_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Get Health",
+                "tags": ["Health"]
+            }
+        },
+        "/api/mcp/messages": {
+            "post": {
+                "description": "Inbound JSON-RPC 2.0 message handler for active SSE client sessions.\nPushes response frame to client's SSE stream.",
+                "operationId": "mcp_messages_endpoint_api_mcp_messages_post",
+                "parameters": [
+                    {
+                        "description": "Active MCP SSE session ID",
+                        "in": "query",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "description": "Active MCP SSE session ID",
+                            "title": "Sessionid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Mcp Messages Endpoint",
+                "tags": ["Model Context Protocol (MCP v2)"]
+            }
+        },
+        "/api/mcp/sse": {
+            "get": {
+                "description": "MCP Server-Sent Events (SSE) stream initialization.\nComplies with MCP transport specification: emits 'endpoint' event with target URL for POST messages.\nRequires authentication: MCP clients reach the production database via these routes.",
+                "operationId": "mcp_sse_endpoint_api_mcp_sse_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Mcp Sse Endpoint",
+                "tags": ["Model Context Protocol (MCP v2)"]
+            }
+        },
+        "/api/mcp/v1": {
+            "post": {
+                "description": "Direct HTTP JSON-RPC 2.0 gateway accepting tools/list, tools/call, and resources/list.\nRequires authentication: tools/call reaches the production database.",
+                "operationId": "direct_jsonrpc_gateway_api_mcp_v1_post",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Direct Jsonrpc Gateway",
+                "tags": ["Model Context Protocol (MCP v2)"]
+            }
+        },
+        "/api/rag/search": {
+            "post": {
+                "description": "Execute hybrid dense (pgvector HNSW) and sparse (BM25 tsvector GIN) search\nwith Reciprocal Rank Fusion (RRF) re-ranking. Metered by token bucket rate limiter.",
+                "operationId": "hybrid_search_documents_api_rag_search_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/HybridSearchRequestWire"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HybridSearchResponseWire"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "summary": "Hybrid Search Documents",
+                "tags": ["RAG Hybrid Search & Embeddings"]
+            }
+        }
+    }
+}

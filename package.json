@@ -12,6 +12,7 @@
         "test:fe": "pnpm --filter @nexusagent/frontend test",
         "test:be": "uv run --project apps/backend python -m pytest apps/backend/tests",
         "lint": "turbo run lint",
+        "contracts:generate": "uv run --project apps/backend python scripts/export_openapi.py && pnpm --filter @nexusagent/contracts generate",
         "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
         "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\""
     },

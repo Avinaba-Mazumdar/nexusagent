@@ -23,7 +23,7 @@ NexusAgent is an enterprise-grade autonomous systems analyst that evaluates dist
 nexusagent/
 ├── apps/
 │   ├── frontend/         # Next.js 16 + React 19 + TypeScript 7 + shadcn/ui + Tailwind v4 + Zustand + Mermaid.js
-│   └── backend/          # FastAPI 0.141 + Python 3.14 + LangGraph 1.2 + LlamaIndex + Neon Postgres 18 + MCP v2
+│   └── backend/          # FastAPI 0.141 + Python 3.14 + LangGraph 1.2 + LlamaIndex + Neon Postgres 18 + MCP server
 ├── packages/
 │   └── contracts/        # Shared TypeScript interfaces & wire schemas
 ├── target/

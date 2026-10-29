@@ -19,7 +19,7 @@ from app.config import settings
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
 from app.core.rate_limiter import default_rate_limiter
-from app.db.models import User
+from app.db.models import AgentDoneEventWire, User
 from app.db.neon import neon_db
 from app.routes.documents import require_document_access
 
@@ -142,7 +142,7 @@ async def generate_agent_stream(
 
     event_queue: asyncio.Queue[str | None] = asyncio.Queue()
 
-    start_payload = {
+    start_payload: dict[str, str | int] = {
         "sessionId": session_id,
         "query": query,
         "timestamp": initial_state.created_at.isoformat(),
@@ -240,24 +240,26 @@ async def generate_agent_stream(
             await event_queue.put(
                 format_sse(
                     "done",
-                    {
-                        "sessionId": session_id,
-                        "conversationId": conversation_id_out,
-                        "query": query,
-                        "response": final_state.response,
-                        "nodeHistory": final_state.node_history,
-                        "plan": [plan_step_to_wire(s) for s in final_state.plan],
-                        "citations": [citation_to_wire(c) for c in final_state.citations],
-                        "injectionWarnings": [
-                            warning_to_wire(w) for w in final_state.injection_warnings
-                        ],
-                        "mermaidDiagrams": final_state.mermaid_diagrams,
-                        "grounding": final_state.grounding,
-                        "isComplete": True,
-                        "completedAt": final_state.completed_at.isoformat()
-                        if final_state.completed_at
-                        else None,
-                    },
+                    AgentDoneEventWire.model_validate(
+                        {
+                            "sessionId": session_id,
+                            "conversationId": conversation_id_out,
+                            "query": query,
+                            "response": final_state.response,
+                            "nodeHistory": final_state.node_history,
+                            "plan": [plan_step_to_wire(s) for s in final_state.plan],
+                            "citations": [citation_to_wire(c) for c in final_state.citations],
+                            "injectionWarnings": [
+                                warning_to_wire(w) for w in final_state.injection_warnings
+                            ],
+                            "mermaidDiagrams": final_state.mermaid_diagrams,
+                            "grounding": final_state.grounding,
+                            "isComplete": True,
+                            "completedAt": final_state.completed_at.isoformat()
+                            if final_state.completed_at
+                            else None,
+                        }
+                    ).model_dump(),
                 )
             )
 

@@ -1,41 +1,8 @@
-export interface DocumentMetadata {
-    id: string;
-    userId?: string | null;
-    filename: string;
-    mimeType: string;
-    sha256Hash: string;
-    totalChunks: number;
-    isSeeded: boolean;
-    uploadedAt: string;
-}
+import type { DocumentChunksResponseWire, DocumentChunkWire, DocumentListResponseWire, DocumentMetadataWire, DocumentUploadResponseWire } from './generated';
 
-export interface DocumentChunkMetadata {
-    headerPath?: string[];
-    startLine?: number;
-    endLine?: number;
-    charCount?: number;
-    tokenCount?: number;
-    sha256?: string;
-    [key: string]: unknown;
-}
-
-export interface DocumentChunkResponse {
-    id: string;
-    documentId: string;
-    chunkIndex: number;
-    content: string;
-    metadata: DocumentChunkMetadata;
-    createdAt: string;
-}
-
-export interface DocumentUploadResponse {
-    document: DocumentMetadata;
-    chunksCount: number;
-    previewChunks: DocumentChunkResponse[];
-    /** Remaining quota after this upload. */
-    quotaRemaining?: number;
-}
-
-export interface DocumentListResponse {
-    documents: DocumentMetadata[];
-}
+export type DocumentMetadata = DocumentMetadataWire;
+export type DocumentChunkResponse = DocumentChunkWire;
+export type DocumentChunkMetadata = DocumentChunkWire['metadata'];
+export type DocumentChunksResponse = DocumentChunksResponseWire;
+export type DocumentUploadResponse = DocumentUploadResponseWire;
+export type DocumentListResponse = DocumentListResponseWire;

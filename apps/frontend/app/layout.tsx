@@ -30,7 +30,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
     title: 'NexusAgent — Autonomous Systems Analyst',
     description:
-        'Enterprise-grade autonomous systems analyst and architecture intelligence engine powered by LangGraph, LlamaIndex, Neon PostgreSQL 18, and MCP v2.',
+        'Enterprise-grade autonomous systems analyst and architecture intelligence engine powered by LangGraph, LlamaIndex, Neon PostgreSQL 18, and MCP.',
     icons: {
         icon: [
             { url: '/favicon.ico', sizes: 'any' },
