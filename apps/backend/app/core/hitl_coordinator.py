@@ -1,167 +1,24 @@
-"""
-Human-in-the-Loop (HITL) Approval Coordinator & Immutable Tool Audit Logger.
-Coordinates interactive operator authorization for sensitive operations and records
-unalterable audit trails into Postgres `tool_audit_logs` with memory ring-buffer fallback.
-"""
+"""Immutable tool audit logger: Postgres tool_audit_logs with an in-memory ring-buffer fallback."""
 
-import asyncio
 import json
 import logging
 from collections import deque
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from app.config import settings
 from app.db.neon import NeonDatabase, neon_db
 
 logger = logging.getLogger("nexusagent.core.hitl")
 
 
-@dataclass
-class PendingApproval:
-    approval_id: str
-    session_id: str
-    tool_name: str
-    arguments: dict[str, Any]
-    risk_level: str
-    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
-    event: asyncio.Event = field(default_factory=asyncio.Event)
-    decision: str | None = None  # "approve" | "reject"
-    resolved_by: str | None = None
-
-
 class HitlCoordinator:
-    """Manages asynchronous human approval requests and immutable audit logs."""
+    """Manages immutable tool audit logs."""
 
     def __init__(self, db: NeonDatabase | None = None):
         self.db = db or neon_db
-        self._pending_approvals: dict[str, PendingApproval] = {}
-        self._notifiers: dict[str, Callable[[dict[str, Any]], Awaitable[None]]] = {}
         # Thread-safe in-memory ring-buffer for audit logs (capped at 500)
         self._memory_audit_logs: deque[dict[str, Any]] = deque(maxlen=500)
-
-    def is_approval_required(self, tool_name: str, arguments: dict[str, Any]) -> tuple[bool, str]:
-        """
-        Evaluate security policy for tool execution.
-        Returns (requires_approval, risk_level).
-        """
-        # Database SQL queries with schema inspection require approval
-        if tool_name == "mcp_sql_audit":
-            query = arguments.get("query", "").lower()
-            if "pg_" in query or "information_schema" in query:
-                return True, "high"
-
-        return False, "low"
-
-    async def request_approval(
-        self,
-        session_id: str,
-        tool_name: str,
-        arguments: dict[str, Any],
-        risk_level: str = "medium",
-        timeout_seconds: float = settings.HITL_APPROVAL_TIMEOUT_SECONDS,
-    ) -> tuple[bool, str]:
-        """
-        Suspend execution until an operator approves/rejects the action or timeout occurs.
-        Returns (is_approved, approval_id).
-        """
-        approval_id = f"hitl-{uuid4().hex[:8]}"
-        pending = PendingApproval(
-            approval_id=approval_id,
-            session_id=session_id,
-            tool_name=tool_name,
-            arguments=arguments,
-            risk_level=risk_level,
-        )
-        self._pending_approvals[approval_id] = pending
-
-        logger.info(
-            f"HITL approval required: id={approval_id} tool={tool_name} session={session_id} risk={risk_level}"
-        )
-
-        notifier = self._notifiers.get(session_id)
-        if notifier:
-            try:
-                await notifier(
-                    {
-                        "approvalId": approval_id,
-                        "sessionId": session_id,
-                        "tool": tool_name,
-                        "arguments": arguments,
-                        "riskLevel": risk_level,
-                        "timeoutSeconds": int(timeout_seconds),
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"Error invoking approval notifier: {e}")
-
-        try:
-            await asyncio.wait_for(pending.event.wait(), timeout=timeout_seconds)
-            is_approved = pending.decision == "approve"
-            logger.info(f"HITL approval resolved: id={approval_id} decision={pending.decision}")
-            return is_approved, approval_id
-        except TimeoutError:
-            logger.warning(f"HITL approval timed out after {timeout_seconds}s for id={approval_id}")
-            pending.decision = "reject"
-            return False, approval_id
-        finally:
-            self._pending_approvals.pop(approval_id, None)
-
-    def register_notifier(
-        self, session_id: str, callback: Callable[[dict[str, Any]], Awaitable[None]]
-    ) -> None:
-        """Register a notification callback for a session."""
-        self._notifiers[session_id] = callback
-
-    def unregister_notifier(self, session_id: str) -> None:
-        """Unregister a notification callback for a session."""
-        self._notifiers.pop(session_id, None)
-
-    def resolve_approval(
-        self,
-        approval_id: str,
-        decision: str,
-        resolved_by: str = "operator",
-        session_id: str | None = None,
-    ) -> bool:
-        """
-        Resolve a pending approval with 'approve' or 'reject'.
-
-        When ``session_id`` is provided it must match the approval's owning
-        session; this prevents cross-session approval tampering.
-        """
-        pending = self._pending_approvals.get(approval_id)
-        if not pending:
-            logger.warning(f"Approval ID '{approval_id}' not found or already completed.")
-            return False
-        if session_id is not None and pending.session_id != session_id:
-            logger.warning(
-                f"Approval '{approval_id}' session mismatch: expected "
-                f"{pending.session_id}, got {session_id}."
-            )
-            return False
-
-        pending.decision = "approve" if decision.lower() == "approve" else "reject"
-        pending.resolved_by = resolved_by
-        pending.event.set()
-        return True
-
-    def get_pending_approvals(self) -> list[dict[str, Any]]:
-        """List currently pending approvals."""
-        return [
-            {
-                "approvalId": p.approval_id,
-                "sessionId": p.session_id,
-                "tool": p.tool_name,
-                "arguments": p.arguments,
-                "riskLevel": p.risk_level,
-                "createdAt": p.created_at.isoformat(),
-            }
-            for p in self._pending_approvals.values()
-        ]
 
     async def log_tool_audit(
         self,

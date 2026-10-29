@@ -37,12 +37,6 @@ class AgentStreamRequestWire(BaseModel):
     )
 
 
-class HitlApprovalRequestWire(BaseModel):
-    approvalId: str = Field(..., description="Unique approval identifier")
-    sessionId: str = Field(..., description="Agent session ID")
-    decision: str = Field("approve", description="'approve' or 'reject'")
-
-
 def format_sse(event_type: str, data: dict) -> str:
     """Format structured payload into valid Server-Sent Event frame."""
     json_str = json.dumps(data, default=str)
@@ -60,7 +54,6 @@ async def generate_agent_stream(
     """
     Asynchronously run AgentGraph pipeline and yield SSE event chunks:
     plan -> node_start -> tool_call -> tool_result -> critic -> token -> done.
-    Concurrently surfaces approval_required events for HITL authorization without deadlocking.
     """
     initial_state = AgentState(
         session_id=session_id,
@@ -82,12 +75,6 @@ async def generate_agent_stream(
             },
         )
     )
-
-    async def hitl_approval_listener(data: dict):
-        """Immediately enqueue approval_required event down the SSE stream."""
-        await event_queue.put(format_sse("approval_required", data))
-
-    default_hitl_coordinator.register_notifier(session_id, hitl_approval_listener)
 
     async def run_pipeline():
         try:
@@ -265,7 +252,6 @@ async def generate_agent_stream(
             logger.exception("Error during agent SSE streaming")
             await event_queue.put(format_sse("error", {"error": str(e), "sessionId": session_id}))
         finally:
-            default_hitl_coordinator.unregister_notifier(session_id)
             await event_queue.put(None)
 
     pipeline_task = asyncio.create_task(run_pipeline())
@@ -277,7 +263,6 @@ async def generate_agent_stream(
                 break
             yield chunk
     finally:
-        default_hitl_coordinator.unregister_notifier(session_id)
         if not pipeline_task.done():
             pipeline_task.cancel()
 
@@ -334,32 +319,6 @@ async def stream_agent_execution(
             "Content-Type": "text/event-stream; charset=utf-8",
         },
     )
-
-
-@router.post("/approval")
-async def resolve_hitl_approval(
-    payload: HitlApprovalRequestWire,
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Resolve pending human-in-the-loop (HITL) authorization for paused tool execution.
-    """
-    resolved = default_hitl_coordinator.resolve_approval(
-        approval_id=payload.approvalId,
-        decision=payload.decision,
-        resolved_by=str(current_user.email or current_user.name),
-        session_id=payload.sessionId,
-    )
-    if not resolved:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Approval ID not found or already completed/timed out.",
-        )
-    return {
-        "status": "resolved",
-        "approvalId": payload.approvalId,
-        "decision": payload.decision,
-    }
 
 
 @router.get("/audit-logs")

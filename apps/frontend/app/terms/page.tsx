@@ -65,9 +65,9 @@ export default function TermsAndConditionsPage() {
                             <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2">
                                 <Cpu className="h-4 w-4" />
                             </div>
-                            <h3 className="font-heading font-bold text-xs text-foreground">HITL Autonomous Guardrails</h3>
+                            <h3 className="font-heading font-bold text-xs text-foreground">Read-Only Tools</h3>
                             <p className="text-[11px] text-muted-foreground leading-snug">
-                                All high-risk MCP tool invocations require explicit user Human-in-the-Loop review and approval.
+                                Agent tools only search the knowledge base; they never modify data or execute code.
                             </p>
                         </CardContent>
                     </Card>
@@ -158,23 +158,17 @@ export default function TermsAndConditionsPage() {
                         </ul>
                     </section>
 
-                    {/* 3. Human-in-the-Loop & Autonomous Execution Disclaimer */}
+                    {/* 3. Autonomous Execution Disclaimer */}
                     <section className="space-y-3">
                         <h2 className="text-lg font-heading font-bold text-foreground flex items-center gap-2">
                             <Terminal className="h-4 w-4 text-primary" />
-                            3. Autonomous Execution &amp; HITL Approval Disclaimer
+                            3. Autonomous Execution Disclaimer
                         </h2>
                         <p>
-                            NexusAgent utilizes autonomous agent planning algorithms that evaluate user inputs and can propose tool calls such as
-                            document searches and read-only database queries. You acknowledge and agree that:
+                            NexusAgent utilizes autonomous agent planning algorithms that evaluate user inputs and can propose tool calls such as document
+                            searches and read-only database queries. You acknowledge and agree that:
                         </p>
                         <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
-                            <p className="font-semibold text-foreground text-xs">User Approval Responsibility:</p>
-                            <p className="text-xs">
-                                When high-risk tool operations trigger the Human-in-the-Loop (HITL) Approval Modal, you are solely responsible for reviewing the
-                                proposed action before clicking &ldquo;Approve&rdquo;. Approved actions are executed on your behalf, and the platform
-                                assumes no liability for unintended consequences arising from approved actions.
-                            </p>
                             <p className="text-xs">
                                 Large language models are probabilistic and may produce hallucinations, inaccuracies, or incomplete architectural
                                 recommendations. All generated architecture blueprints, Mermaid diagrams, and benchmark evaluations must be independently

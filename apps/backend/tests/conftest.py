@@ -4,15 +4,10 @@ The suite is hermetic by default: tests that require a live Neon PostgreSQL inst
 marked ``@pytest.mark.db`` and skipped when ``NEON_DATABASE_URL`` is missing or unreachable,
 so ``uv run pytest`` stays green offline and in CI. When a database *is* configured, one
 connection pool is opened for the whole session instead of one per test.
-
-HITL note: approval waits default to 30s (human-paced) in production but are shortened to
-1s here so live tests that trip a HITL gate fail closed fast instead of stalling
-on an operator who will never arrive.
 """
 
 import pytest
 
-from app.config import settings
 from app.db.neon import neon_db
 
 DB_STATE = {"connected": False}
@@ -23,8 +18,6 @@ def pytest_configure(config):
         "markers",
         "db: integration test requiring a reachable Neon PostgreSQL instance",
     )
-    # Fail closed fast under test; production keeps the human-paced default.
-    settings.HITL_APPROVAL_TIMEOUT_SECONDS = 1.0
 
 
 @pytest.fixture(scope="session", autouse=True)

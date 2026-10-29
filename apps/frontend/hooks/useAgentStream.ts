@@ -44,15 +44,6 @@ function describeHttpError(status: number, body: string): string {
     return `Server returned status ${status}: ${detail}`;
 }
 
-export interface PendingApproval {
-    approvalId: string;
-    sessionId: string;
-    tool: string;
-    arguments: Record<string, unknown>;
-    riskLevel: 'low' | 'medium' | 'high';
-    timeoutSeconds?: number;
-}
-
 export function useAgentStream(options?: UseAgentStreamOptions) {
     const [isStreaming, setIsStreaming] = React.useState(false);
     const [streamError, setStreamError] = React.useState<string | null>(null);
@@ -65,10 +56,8 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
     const [isGrounded, setIsGrounded] = React.useState(false);
     const [isComplete, setIsComplete] = React.useState(false);
     const [sessionId, setSessionId] = React.useState<string | null>(null);
-    const [pendingApproval, setPendingApproval] = React.useState<PendingApproval | null>(null);
 
     const abortControllerRef = React.useRef<AbortController | null>(null);
-    const tokenRef = React.useRef<string | null>(null);
 
     const cancelStream = React.useCallback(() => {
         if (abortControllerRef.current) {
@@ -83,7 +72,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
             const { query, documentId, sessionId: existingSessionId, token, byokKey } = params;
 
             cancelStream();
-            tokenRef.current = token ?? null;
 
             setIsStreaming(true);
             setStreamError(null);
@@ -196,11 +184,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     }
                                     break;
 
-                                case 'approval_required':
-                                    setPendingApproval(data as PendingApproval);
-                                    emitLog('INFERENCE', `HITL Security Approval Required: [${data.tool}] (Risk: ${data.riskLevel})`);
-                                    break;
-
                                 case 'tool_result':
                                     if (data.tool === 'hybrid_rag_search' && Array.isArray(data.citations)) {
                                         setCitations(data.citations);
@@ -279,35 +262,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
         [options, cancelStream]
     );
 
-    const resolveApproval = React.useCallback(
-        async (decision: 'approve' | 'reject') => {
-            if (!pendingApproval) return;
-            const currentApproval = pendingApproval;
-            setPendingApproval(null);
-
-            try {
-                const headers: Record<string, string> = {
-                    'Content-Type': 'application/json'
-                };
-                if (tokenRef.current) {
-                    headers.Authorization = `Bearer ${tokenRef.current}`;
-                }
-                await fetch(`${API_BASE}/api/agent/approval`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                        approvalId: currentApproval.approvalId,
-                        sessionId: currentApproval.sessionId,
-                        decision
-                    })
-                });
-            } catch (err) {
-                console.error('Failed to send HITL approval decision:', err);
-            }
-        },
-        [pendingApproval]
-    );
-
     return {
         isStreaming,
         streamError,
@@ -320,8 +274,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
         isGrounded,
         isComplete,
         sessionId,
-        pendingApproval,
-        resolveApproval,
         startStream,
         cancelStream
     };

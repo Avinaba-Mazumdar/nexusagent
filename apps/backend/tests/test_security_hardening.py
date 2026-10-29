@@ -1,11 +1,11 @@
 """Regression tests for the security-hardening pass (fresh-audit fixes)."""
 
-import asyncio
 from types import SimpleNamespace
-from uuid import uuid4
+from typing import cast
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from starlette.requests import Request
 
 from app.core.auth import get_client_ip, validate_byok_key
 from app.core.hitl_coordinator import default_hitl_coordinator
@@ -40,46 +40,12 @@ def _make_request(headers: dict[str, str], host: str = "10.0.0.5"):
 
 def test_get_client_ip_ignores_forwarded_header_by_default():
     req = _make_request({"X-Forwarded-For": "1.2.3.4, 5.6.7.8"})
-    assert get_client_ip(req) == "10.0.0.5"
+    assert get_client_ip(cast(Request, req)) == "10.0.0.5"
 
 
 def test_get_client_ip_honors_forwarded_header_only_when_trusted():
     req = _make_request({"X-Forwarded-For": "1.2.3.4, 5.6.7.8"})
-    assert get_client_ip(req, trust_proxy=True) == "1.2.3.4"
-
-
-# ---------------------------------------------------------------------------
-# Approval ownership (cross-session tampering)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_approval_resolution_rejects_foreign_session():
-    owner, attacker = f"own-{uuid4().hex[:6]}", f"atk-{uuid4().hex[:6]}"
-    got: dict = {}
-
-    async def notifier(data: dict):
-        got.update(data)
-
-    default_hitl_coordinator.register_notifier(owner, notifier)
-    task = asyncio.create_task(
-        default_hitl_coordinator.request_approval(
-            session_id=owner,
-            tool_name="mcp_sql_audit",
-            arguments={"query": "SELECT 1 FROM information_schema.tables;"},
-            timeout_seconds=2.0,
-        )
-    )
-    await asyncio.sleep(0.05)
-
-    resolved = default_hitl_coordinator.resolve_approval(
-        got["approvalId"], decision="approve", resolved_by="attacker", session_id=attacker
-    )
-    assert resolved is False
-
-    approved, _ = await task
-    assert approved is False  # foreign session could not approve; wait timed out fail-closed
-    default_hitl_coordinator.unregister_notifier(owner)
+    assert get_client_ip(cast(Request, req), trust_proxy=True) == "1.2.3.4"
 
 
 # ---------------------------------------------------------------------------

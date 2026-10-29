@@ -42,7 +42,6 @@ import { ObservabilityPanel, type LogEntry, type TelemetryMetrics } from '@/comp
 import { AgentStreamError, useAgentStream } from '@/hooks/useAgentStream';
 import { MarkdownRenderer } from '@/components/canvas';
 import { McpInspector } from '@/components/mcp';
-import { ApprovalModal } from '@/components/approval';
 import { SidebarChatHistory } from '@/components/sidebar';
 import type { Citation, ChatMessageRecord, ChatConversation, ChatHistoryResponse, ChatConversationDetailResponse } from '@nexusagent/contracts';
 
@@ -1473,7 +1472,6 @@ export default function Home() {
 
             {/* Modals */}
             <HireMeModal open={hireMeModalOpen} onOpenChange={setHireMeModalOpen} />
-            <ApprovalModal open={Boolean(agentStream.pendingApproval)} approval={agentStream.pendingApproval} onResolve={agentStream.resolveApproval} />
         </div>
     );
 }
