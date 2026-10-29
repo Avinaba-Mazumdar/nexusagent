@@ -9,9 +9,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.agent.graph import AgentGraph, classify_query_intent, default_agent_graph
-from app.agent.state import AgentState
+from app.agent.state import AgentState, Citation, PlanStep
+from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
-from app.core.hitl_coordinator import default_hitl_coordinator
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import User
 from app.db.neon import neon_db
@@ -43,6 +43,28 @@ def format_sse(event_type: str, data: dict) -> str:
     """Format structured payload into valid Server-Sent Event frame."""
     json_str = json.dumps(data, default=str)
     return f"event: {event_type}\ndata: {json_str}\n\n"
+
+
+def plan_step_to_wire(s: PlanStep) -> dict:
+    return {
+        "stepNumber": s.step_number,
+        "description": s.description,
+        "status": s.status,
+        "tool": s.tool,
+    }
+
+
+def citation_to_wire(c: Citation) -> dict:
+    return {
+        "id": c.id,
+        "chunkId": c.chunk_id,
+        "documentId": c.document_id,
+        "filename": c.filename,
+        "startLine": c.start_line,
+        "endLine": c.end_line,
+        "headerPath": c.header_path,
+        "preview": c.preview,
+    }
 
 
 async def generate_agent_stream(
@@ -106,15 +128,7 @@ async def generate_agent_stream(
                             "plan",
                             {
                                 "sessionId": session_id,
-                                "plan": [
-                                    {
-                                        "stepNumber": s.step_number,
-                                        "description": s.description,
-                                        "status": s.status,
-                                        "tool": s.tool,
-                                    }
-                                    for s in step_state.plan
-                                ],
+                                "plan": [plan_step_to_wire(s) for s in step_state.plan],
                             },
                         )
                     )
@@ -126,19 +140,7 @@ async def generate_agent_stream(
                             {
                                 "tool": "hybrid_rag_search",
                                 "chunksRetrieved": len(step_state.retrieved_chunks),
-                                "citations": [
-                                    {
-                                        "id": c.id,
-                                        "chunkId": c.chunk_id,
-                                        "documentId": c.document_id,
-                                        "filename": c.filename,
-                                        "startLine": c.start_line,
-                                        "endLine": c.end_line,
-                                        "headerPath": c.header_path,
-                                        "preview": c.preview,
-                                    }
-                                    for c in step_state.citations
-                                ],
+                                "citations": [citation_to_wire(c) for c in step_state.citations],
                             },
                         )
                     )
@@ -196,28 +198,8 @@ async def generate_agent_stream(
                         "query": query,
                         "response": final_state.response,
                         "nodeHistory": final_state.node_history,
-                        "plan": [
-                            {
-                                "stepNumber": s.step_number,
-                                "description": s.description,
-                                "status": s.status,
-                                "tool": s.tool,
-                            }
-                            for s in final_state.plan
-                        ],
-                        "citations": [
-                            {
-                                "id": c.id,
-                                "chunkId": c.chunk_id,
-                                "documentId": c.document_id,
-                                "filename": c.filename,
-                                "startLine": c.start_line,
-                                "endLine": c.end_line,
-                                "headerPath": c.header_path,
-                                "preview": c.preview,
-                            }
-                            for c in final_state.citations
-                        ],
+                        "plan": [plan_step_to_wire(s) for s in final_state.plan],
+                        "citations": [citation_to_wire(c) for c in final_state.citations],
                         "mermaidDiagrams": final_state.mermaid_diagrams,
                         "reflectionScore": final_state.reflection_score,
                         "isGrounded": final_state.is_grounded,
@@ -247,15 +229,7 @@ async def generate_agent_stream(
                             actual_conv_id,
                             role="assistant",
                             content=final_state.response,
-                            plan_trace=[
-                                {
-                                    "stepNumber": s.step_number,
-                                    "description": s.description,
-                                    "status": s.status,
-                                    "tool": s.tool,
-                                }
-                                for s in final_state.plan
-                            ],
+                            plan_trace=[plan_step_to_wire(s) for s in final_state.plan],
                             reflection_summary={
                                 "reflectionScore": final_state.reflection_score,
                                 "isGrounded": final_state.is_grounded,
@@ -374,7 +348,7 @@ async def get_tool_audit_logs(
     Retrieve immutable tool execution audit records (Neon ``tool_audit_logs``
     first, in-memory ring fallback when the database is unavailable).
     """
-    logs = await default_hitl_coordinator.fetch_audit_logs_from_db(
+    logs = await default_audit_logger.fetch_audit_logs_from_db(
         user_id=current_user.id, limit=limit
     )
     return {"logs": logs, "count": len(logs)}

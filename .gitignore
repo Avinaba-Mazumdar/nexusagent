@@ -35,6 +35,7 @@ htmlcov/
 .env.test.local
 .env.production.local
 .env*
+!.env.example
 *.pem
 
 # Debug Logs

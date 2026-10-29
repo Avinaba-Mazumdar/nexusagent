@@ -16,10 +16,10 @@ describe('Badge component', () => {
         expect(badge).toHaveClass('bg-accent');
         expect(badge).toHaveClass('text-accent-foreground');
 
-        rerender(<Badge variant="citation">RFC-104:L128</Badge>);
-        const citationBadge = screen.getByText('RFC-104:L128');
-        expect(citationBadge).toHaveClass('border-citation-border');
-        expect(citationBadge).toHaveClass('bg-citation-bg');
-        expect(citationBadge).toHaveClass('font-mono');
+        rerender(<Badge variant="secondary">RFC-104:L128</Badge>);
+        const secondaryBadge = screen.getByText('RFC-104:L128');
+        expect(secondaryBadge).toHaveClass('border-border');
+        expect(secondaryBadge).toHaveClass('bg-secondary');
+        expect(secondaryBadge).toHaveClass('text-secondary-foreground');
     });
 });

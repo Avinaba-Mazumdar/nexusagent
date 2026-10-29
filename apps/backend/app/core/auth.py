@@ -5,8 +5,6 @@ from uuid import UUID, uuid4
 
 import httpx
 import jwt
-from argon2 import PasswordHasher
-from argon2.exceptions import Argon2Error
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -17,11 +15,7 @@ from app.db.neon import NeonDatabase, get_db
 
 logger = logging.getLogger("nexusagent.core.auth")
 
-password_hasher = PasswordHasher()
 security_bearer = HTTPBearer(auto_error=False)
-
-# Constant-time dummy hash to mitigate user enumeration timing attacks on failed logins
-DUMMY_ARGON2_HASH = "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$P2T9k55E4jXNnO6aL5Q9rw"
 
 
 def get_client_ip(request: Request, trust_proxy: bool | None = None) -> str:
@@ -39,19 +33,6 @@ def get_client_ip(request: Request, trust_proxy: bool | None = None) -> str:
         if forwarded:
             return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "127.0.0.1"
-
-
-def hash_password(password: str) -> str:
-    """Hash password using Argon2."""
-    return password_hasher.hash(password)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password against Argon2 hash with timing attack resistance."""
-    try:
-        return password_hasher.verify(hashed_password, plain_password)
-    except Argon2Error:
-        return False
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> tuple[str, int]:

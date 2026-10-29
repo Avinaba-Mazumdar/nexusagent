@@ -1,4 +1,3 @@
-import re
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -8,9 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
-
-
-EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 
 
 class User(BaseModel):
@@ -61,7 +57,6 @@ class DocumentChunk(BaseModel):
     chunk_index: int
     content: str
     embedding: list[float] | None = None
-    search_vector: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=utc_now)
 
@@ -78,53 +73,6 @@ class DocumentChunk(BaseModel):
             return [float(x) for x in v]
         except (TypeError, ValueError):
             return v
-
-
-class AgentConversation(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID = Field(default_factory=uuid4)
-    user_id: UUID
-    title: str = "New Architectural Inquiry"
-    created_at: datetime = Field(default_factory=utc_now)
-
-
-class Message(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID = Field(default_factory=uuid4)
-    conversation_id: UUID
-    role: str
-    content: str
-    plan_trace: dict[str, Any] | None = None
-    reflection_summary: dict[str, Any] | None = None
-    created_at: datetime = Field(default_factory=utc_now)
-
-
-class ToolAuditLog(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID = Field(default_factory=uuid4)
-    conversation_id: UUID | None = None
-    user_id: UUID | None = None
-    tool_name: str
-    mcp_server: str = "nexusagent-internal"
-    input_args: dict[str, Any] = Field(default_factory=dict)
-    output_summary: dict[str, Any] | None = None
-    duration_ms: int = 0
-    hitl_approved: bool = True
-    executed_at: datetime = Field(default_factory=utc_now)
-
-
-class Citation(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID = Field(default_factory=uuid4)
-    message_id: UUID
-    chunk_id: UUID
-    start_line: int | None = None
-    end_line: int | None = None
-    relevance_score: float = 0.0
 
 
 # Wire Schemas matching packages/contracts/src/auth.ts
@@ -201,23 +149,4 @@ class DocumentUploadResponseWire(BaseModel):
     document: DocumentMetadataWire
     chunksCount: int
     previewChunks: list[DocumentChunkWire]
-
-
-class AgentConversationWire(BaseModel):
-    id: str
-    userId: str
-    title: str
-    createdAt: str
-    messageCount: int = 0
-    lastSnippet: str | None = None
-
-
-class ChatMessageWire(BaseModel):
-    id: str
-    conversationId: str
-    role: str
-    content: str
-    planTrace: Any = None
-    reflectionSummary: Any = None
-    createdAt: str
 

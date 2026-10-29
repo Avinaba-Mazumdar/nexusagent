@@ -73,18 +73,18 @@ Reviewers and hiring executives can explore NexusAgent instantly via **1-Click G
 
 ### 2.3 Backend Stack (`apps/backend` — FastAPI & Agent Engine)
 
-| Category                     | Technology / Library                | Version    | Engineering Rationale                                                                                           |
-| :--------------------------- | :---------------------------------- | :--------- | :-------------------------------------------------------------------------------------------------------------- |
-| **API Framework**            | **FastAPI** (`fastapi[standard]`)   | `^0.141.1` | High-throughput asynchronous routing, Pydantic v2 validation, native SSE streaming support.                     |
-| **Agent DAG Orchestrator**   | **LangGraph**                       | `^1.2.12`  | Cyclical graph execution with strongly typed `AgentState`, node-level `astream` updates, and bounded recursion. |
-| **LangChain Core**           | `langchain-core`                    | `^1.6.5`   | Base primitives, message abstractions, and prompt template management.                                          |
-| **RAG Ingestion & Chunking** | **LlamaIndex** (`llama-index-core`) | `^0.14.25` | Markdown-aware node parsing, hierarchical section boundary preservation, and chunk metadata tags.               |
-| **Model Context Protocol**   | **mcp** (`mcp[cli]`)                | `^2.0.0`   | Official MCP Python SDK supporting stdio and SSE transport protocols.                                           |
-| **Database Driver**          | **asyncpg**                         | `^0.30.0`  | High-performance asynchronous binary driver connecting directly to Neon PostgreSQL 18 connection pooler.        |
-| **Vector Driver**            | **pgvector** (`pgvector-python`)    | `^0.3.6`   | Native async integration with PostgreSQL pgvector extension for HNSW cosine distance queries.                   |
-| **Validation & Schemas**     | **Pydantic**                        | `^2.10.6`  | Rust-backed `pydantic-core` delivering microsecond schema validation and JSON serialization.                    |
-| **Rate Limiting**            | Custom Token-Bucket + Redis/Memory  | Native     | Sub-microsecond sliding token bucket tracking IP addresses and Guest UUIDs.                                     |
-| **Authentication & Crypto**  | **PyJWT** + **Passlib** (`argon2`)  | `^2.10.1`  | Cryptographic JWT token issuance/verification, secure argon2 password hashing, and guest sessions.              |
+| Category                     | Technology / Library                       | Version    | Engineering Rationale                                                                                           |
+| :--------------------------- | :----------------------------------------- | :--------- | :-------------------------------------------------------------------------------------------------------------- |
+| **API Framework**            | **FastAPI** (`fastapi[standard]`)          | `^0.141.1` | High-throughput asynchronous routing, Pydantic v2 validation, native SSE streaming support.                     |
+| **Agent DAG Orchestrator**   | **LangGraph**                              | `^1.2.12`  | Cyclical graph execution with strongly typed `AgentState`, node-level `astream` updates, and bounded recursion. |
+| **LangChain Core**           | `langchain-core`                           | `^1.6.5`   | Base primitives, message abstractions, and prompt template management.                                          |
+| **RAG Ingestion & Chunking** | **LlamaIndex** (`llama-index-core`)        | `^0.14.25` | Markdown-aware node parsing, hierarchical section boundary preservation, and chunk metadata tags.               |
+| **Model Context Protocol**   | **mcp** (`mcp[cli]`)                       | `^2.0.0`   | Official MCP Python SDK supporting stdio and SSE transport protocols.                                           |
+| **Database Driver**          | **asyncpg**                                | `^0.30.0`  | High-performance asynchronous binary driver connecting directly to Neon PostgreSQL 18 connection pooler.        |
+| **Vector Driver**            | **pgvector** (`pgvector-python`)           | `^0.3.6`   | Native async integration with PostgreSQL pgvector extension for HNSW cosine distance queries.                   |
+| **Validation & Schemas**     | **Pydantic**                               | `^2.10.6`  | Rust-backed `pydantic-core` delivering microsecond schema validation and JSON serialization.                    |
+| **Rate Limiting**            | Custom Token-Bucket (Postgres + In-Memory) | Native     | Sliding token bucket tracking IP addresses and Guest UUIDs in Neon PostgreSQL.                                  |
+| **Authentication & Crypto**  | **PyJWT** + **Passlib** (`argon2`)         | `^2.10.1`  | Cryptographic JWT token issuance/verification, secure argon2 password hashing, and guest sessions.              |
 
 ### 2.4 Persistence, Vector & Infrastructure
 
@@ -528,20 +528,17 @@ CREATE TABLE IF NOT EXISTS citations (
 - `POST /api/documents/upload`: Multipart file upload (`.md`, `.pdf`, `.txt`). Processes document with LlamaIndex `MarkdownNodeParser`, generates dense vector embeddings, and stores chunks in Neon PostgreSQL 18.
 - `GET /api/documents/:id/chunks`: Retrieves chunks and vector metadata for interactive inspection.
 
-### 7.3 Agent Execution, Streaming & HITL
+### 7.3 Agent Execution & Streaming
 
 - `POST /api/agent/stream` (SSE):
-    - Request: `{ prompt: string, document_ids?: string[], session_id?: string, use_simulation?: boolean }`
+    - Request: `{ prompt: string, document_ids?: string[], session_id?: string }`
     - Streams Server-Sent Events:
         - `plan`: Directed sub-goals emitted by planner node.
         - `node_start`: Active LangGraph node status (`running`).
         - `tool_result`: Retrieval output (citations) returned from `hybrid_rag_search`.
-        - `reflection`: Critic evaluation score and adjustment notes.
+        - `critic`: Grounding critic evaluation score and feedback.
         - `token`: Streaming markdown token chunk.
         - `done`: Final message payload, citation mappings, and execution duration.
-- `POST /api/agent/approval`:
-    - Request: `{ execution_id: string, approved: boolean, feedback?: string }`
-    - Resumes graph execution halted at a Human-in-the-Loop interrupt gate.
 
 ### 7.4 Model Context Protocol (FastMCP) Endpoints & Transports
 
@@ -586,11 +583,11 @@ CREATE TABLE IF NOT EXISTS citations (
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                        NEXUSAGENT OWASP AGENTIC AI DEFENSE PERIMETER                   │
 ├──────────────────────────┬─────────────────────────────┬───────────────────────────────┤
-│   PERIMETER CONTROLS     │      TOOL SURFACE           │     HUMAN-IN-THE-LOOP & RLS   │
-│  - Token-Bucket Limiter  │  - No Code Execution Tools  │  - HITL Tool Approval Gates   │
-│  - XML Boundary Delimiters│  - Read-Only SQL Transaction│  - Multi-Tenant Isolation     │
+│   PERIMETER CONTROLS     │      TOOL SURFACE           │     TENANCY & AUDIT LOGS      │
+│  - Token-Bucket Limiter  │  - No Code Execution Tools  │  - Read-Only Agent Tools      │
+│  - XML Boundary Delimiters│  - Read-Only SQL Queries   │  - Multi-Tenant Isolation     │
 │  - Cryptographic Canaries│  - Query Timeout Guards     │  - Scoped MCP Bearer Tokens   │
-│  - PII Scrubbing Engine  │  - Zero Host Disk Access    │  - Immutable Tool Audit Logs  │
+│  - PII Scrubbing Engine  │  - Zero Host Disk Access    │  - Append-Only Tool Audit Logs│
 └──────────────────────────┴─────────────────────────────┴───────────────────────────────┘
 ```
 
@@ -713,11 +710,11 @@ WHERE is_guest = TRUE
 
 ## 13. Testing Workflows & Verification Matrix
 
-| Test Suite                          | Framework                      | Target Location                 | Scope                                                                       |
-| :---------------------------------- | :----------------------------- | :------------------------------ | :-------------------------------------------------------------------------- |
-| **Frontend Unit & Component Tests** | Vitest + React Testing Library | `apps/frontend/**/*.test.tsx`   | shadcn/ui components, citation pills, Mermaid rendering, Zustand stores     |
-| **Frontend E2E & Flow Tests**       | Playwright                     | `apps/frontend/e2e/*.spec.ts`   | 1-Click guest flow, SSE streaming, DAG drawer, MCP inspector, mobile layout |
+| Test Suite                          | Framework                      | Target Location                 | Scope                                                                        |
+| :---------------------------------- | :----------------------------- | :------------------------------ | :--------------------------------------------------------------------------- |
+| **Frontend Unit & Component Tests** | Vitest + React Testing Library | `apps/frontend/**/*.test.tsx`   | shadcn/ui components, citation pills, Mermaid rendering, Zustand stores      |
+| **Frontend E2E & Flow Tests**       | Playwright                     | `apps/frontend/e2e/*.spec.ts`   | 1-Click guest flow, SSE streaming, DAG drawer, MCP inspector, mobile layout  |
 | **Backend Unit & Logic Tests**      | pytest + pytest-asyncio        | `apps/backend/tests/`           | Code-execution regression guard, rate limiter, LlamaIndex parser, RRF fusion |
-| **Agent DAG & Reflection Tests**    | pytest                         | `apps/backend/tests/`           | LangGraph node transitions, reflection routing, HITL interrupt/resume       |
-| **MCP v2 Protocol Tests**           | pytest                         | `apps/backend/tests/` (planned) | JSON-RPC 2.0 conformance (`tools/list`, `tools/call`, `resources/list`)     |
+| **Agent DAG & Reflection Tests**    | pytest                         | `apps/backend/tests/`           | LangGraph node transitions, reflection routing, HITL interrupt/resume        |
+| **MCP v2 Protocol Tests**           | pytest                         | `apps/backend/tests/` (planned) | JSON-RPC 2.0 conformance (`tools/list`, `tools/call`, `resources/list`)      |
 | **OWASP Security Audit Suites**     | pytest + bandit                | `apps/backend/tests/` (planned) | Prompt injection barriers, canary token leaks, RAG search integrity checks   |

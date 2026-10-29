@@ -21,7 +21,7 @@ from langgraph.graph import END, StateGraph
 
 from app.agent.state import AgentState, Citation, PlanStep
 from app.config import settings
-from app.core.hitl_coordinator import default_hitl_coordinator
+from app.core.audit_log import default_audit_logger
 from app.core.security_guardrails import (
     detect_prompt_injection,
     generate_canary_token,
@@ -162,21 +162,6 @@ def classify_query_intent(query: str) -> str:
     return "out_of_scope"
 
 
-def is_architectural_query(query: str) -> bool:
-    """Return True if query pertains to distributed systems, LLM benchmarks, or system architecture."""
-    return classify_query_intent(query) == "architectural"
-
-
-def is_chitchat(query: str) -> bool:
-    """Return True if the query is a simple greeting or general talk."""
-    return classify_query_intent(query) == "greeting"
-
-
-def is_out_of_scope(query: str) -> bool:
-    """Return True if query is outside the architectural/benchmarking domain."""
-    return classify_query_intent(query) == "out_of_scope"
-
-
 async def planner_node(state: AgentState) -> AgentState:
     """
     Planner Node: Analyzes user query and formulates bounded architectural plan steps.
@@ -303,7 +288,7 @@ async def retriever_node(
         state.citations = [c for c in state.citations if c.chunk_id in kept_chunk_ids]
 
     # Audit log retrieval tool execution
-    await default_hitl_coordinator.log_tool_audit(
+    await default_audit_logger.log_tool_audit(
         tool_name="hybrid_rag_search",
         input_args={"query": state.query, "limit": 5},
         output_summary={"chunks_found": len(chunks)},

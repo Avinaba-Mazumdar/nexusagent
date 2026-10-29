@@ -8,8 +8,8 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from starlette.requests import Request
 
+from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip
-from app.core.hitl_coordinator import default_hitl_coordinator
 from app.core.security_guardrails import sanitize_retrieved_chunks
 from app.main import app
 from app.rag.hybrid_search import HybridSearchResult
@@ -105,7 +105,7 @@ async def test_audit_logs_endpoint_reads_db_rows():
         token = guest.json()["tokens"]["accessToken"]
         user_id = UUID(guest.json()["user"]["id"])
 
-        await default_hitl_coordinator.log_tool_audit(
+        await default_audit_logger.log_tool_audit(
             tool_name="hybrid_rag_search",
             input_args={"query": "Raft consensus"},
             output_summary={"rows": 1},

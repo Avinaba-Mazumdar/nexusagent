@@ -9,7 +9,7 @@ import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
-from app.core.hitl_coordinator import default_hitl_coordinator
+from app.core.audit_log import default_audit_logger
 from app.core.rate_limiter import default_rate_limiter
 from app.core.security_guardrails import (
     detect_prompt_injection,
@@ -289,14 +289,14 @@ async def test_audit_logs_per_user_isolation_in_memory():
     user_a = uuid4()
     user_b = uuid4()
 
-    await default_hitl_coordinator.log_tool_audit(
+    await default_audit_logger.log_tool_audit(
         tool_name="hybrid_rag_search",
         input_args={"query": "User A Query"},
         output_summary={"ok": True},
         duration_ms=10,
         user_id=user_a,
     )
-    await default_hitl_coordinator.log_tool_audit(
+    await default_audit_logger.log_tool_audit(
         tool_name="hybrid_rag_search",
         input_args={"query": "User B Query"},
         output_summary={"ok": True},
@@ -304,7 +304,7 @@ async def test_audit_logs_per_user_isolation_in_memory():
         user_id=user_b,
     )
 
-    logs_a = default_hitl_coordinator.get_recent_audit_logs(user_id=user_a)
+    logs_a = default_audit_logger.get_recent_audit_logs(user_id=user_a)
     assert len(logs_a) >= 1
     assert all(l["user_id"] == str(user_a) for l in logs_a)
     assert not any(l["user_id"] == str(user_b) for l in logs_a)
@@ -321,7 +321,7 @@ async def test_immutable_audit_logging_and_endpoint():
         user_id = UUID(guest_res.json()["user"]["id"])
 
         # 2. Log tool execution via coordinator for user
-        await default_hitl_coordinator.log_tool_audit(
+        await default_audit_logger.log_tool_audit(
             tool_name="hybrid_rag_search",
             input_args={"query": "Raft consensus"},
             output_summary={"count": 3},

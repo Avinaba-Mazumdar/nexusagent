@@ -68,7 +68,7 @@ export default function PrivacyPolicyPage() {
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">Host-Only Scoping</h3>
                             <p className="text-[11px] text-muted-foreground leading-snug">
-                                Cookies and tokens remain strictly partitioned to{' '}
+                                Session tokens remain strictly partitioned to{' '}
                                 <code className="text-primary font-mono text-[10px]">nexusagent.avinaba.com</code> with no cross-subdomain sharing.
                             </p>
                         </CardContent>
@@ -116,8 +116,7 @@ export default function PrivacyPolicyPage() {
                                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                                 <div>
                                     <strong className="text-foreground">Ephemeral Guest Pass Data:</strong> When launching an instant guest session, we
-                                    generate a pseudo-anonymous UUID token and record your client IP address solely to prevent quota abuse and apply rate
-                                    limits. No name, email, or physical identifier is collected.
+                                    generate a pseudo-anonymous UUID token. Your IP address is stored to enforce rate limits and abuse protection. No name, email, or physical identifier is collected.
                                 </div>
                             </li>
                             <li className="flex items-start gap-2">
@@ -139,11 +138,11 @@ export default function PrivacyPolicyPage() {
                         </ul>
                     </section>
 
-                    {/* 2. Subdomain & Cookie Security */}
+                    {/* 2. Subdomain Architecture & Security */}
                     <section className="space-y-3">
                         <h2 className="text-lg font-heading font-bold text-foreground flex items-center gap-2">
                             <Globe className="h-4 w-4 text-primary" />
-                            2. Subdomain Architecture &amp; Cookie Boundary
+                            2. Subdomain Architecture &amp; Security Boundary
                         </h2>
                         <p>
                             NexusAgent is deployed exclusively at the dedicated subdomain{' '}
@@ -151,16 +150,11 @@ export default function PrivacyPolicyPage() {
                             cross-subdomain attacks:
                         </p>
                         <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
-                            <p className="font-semibold text-foreground text-xs">Host-Only Cookie Enforcement:</p>
+                            <p className="font-semibold text-foreground text-xs">Host-Only Token Scoping:</p>
                             <p className="text-xs">
-                                All session cookies (<code className="font-mono text-primary text-xs">nexusagent_token</code>) omit the{' '}
-                                <code className="font-mono text-xs">Domain</code> attribute, enforcing strict RFC 6265 Host-Only boundaries. Other subdomains
-                                under <code className="font-mono text-xs">avinaba.com</code> (such as portfolio, blog, or mail services) have no read or write
+                                All session tokens remain client-side and scoped strictly to <code className="font-mono text-primary text-xs">nexusagent.avinaba.com</code>.
+                                Other subdomains under <code className="font-mono text-xs">avinaba.com</code> (such as portfolio, blog, or mail services) have no read or write
                                 access to your NexusAgent authentication tokens.
-                            </p>
-                            <p className="text-xs">
-                                Cookies are further secured with <code className="font-mono text-xs text-foreground">SameSite=Lax</code> and{' '}
-                                <code className="font-mono text-xs text-foreground">Secure</code> flags under TLS encryption.
                             </p>
                         </div>
                     </section>
@@ -207,9 +201,8 @@ export default function PrivacyPolicyPage() {
                         <p>We adhere to strict data minimization principles:</p>
                         <ul className="space-y-1.5 list-disc pl-5">
                             <li>
-                                <strong className="text-foreground">Ephemeral Guest Records:</strong> An automated cleanup job (
-                                <code className="font-mono text-xs">prune_expired_guests</code>) runs continuously to permanently delete guest sessions, their
-                                quota ledgers, and any associated temporary document vectors older than 24 hours.
+                                <strong className="text-foreground">Ephemeral Guest Records:</strong> Inactive guest sessions are deleted after 24 hours by a scheduled job (
+                                <code className="font-mono text-xs">prune_guests.py</code>), purging their quota ledgers and associated temporary document vectors.
                             </li>
                             <li>
                                 <strong className="text-foreground">Authenticated User Workspaces:</strong> Retained until the user requests account deletion or
@@ -234,16 +227,20 @@ export default function PrivacyPolicyPage() {
                             <li>Access all personal data and conversation blueprints associated with your verified account.</li>
                             <li>Request immediate and permanent deletion of your profile, stored documents, and chat histories.</li>
                             <li>Revoke Google OAuth token authorization at any time via your Google Account Security settings.</li>
-                            <li>Clear local storage and host-only cookies directly within your web browser.</li>
+                            <li>Clear local storage directly within your web browser.</li>
                         </ul>
                         <p className="pt-2">
                             To initiate an account deletion or data subject inquiry, contact the maintainer at{' '}
-                            <a
-                                href="mailto:architect@nexusagent.internal?subject=Privacy%20Data%20Request%20-%20nexusagent.avinaba.com"
-                                className="text-primary hover:underline font-medium"
-                            >
-                                architect@nexusagent.internal
-                            </a>
+                            {process.env.NEXT_PUBLIC_CONTACT_EMAIL ? (
+                                <a
+                                    href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL}?subject=Privacy%20Data%20Request%20-%20nexusagent.avinaba.com`}
+                                    className="text-primary hover:underline font-medium"
+                                >
+                                    {process.env.NEXT_PUBLIC_CONTACT_EMAIL}
+                                </a>
+                            ) : (
+                                <span>the contact address listed in the repository README</span>
+                            )}
                             .
                         </p>
                     </section>

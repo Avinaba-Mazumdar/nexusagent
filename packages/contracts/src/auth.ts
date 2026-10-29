@@ -8,10 +8,6 @@ export interface UserSession {
     lastSeenAt: string;
 }
 
-export interface GuestPassRequest {
-    deviceId?: string | null;
-}
-
 export interface AuthTokens {
     accessToken: string;
     tokenType: string;
@@ -32,25 +28,4 @@ export interface TokenResponse {
     user: UserSession;
     quotaRemaining?: number;
     bucketCapacity?: number;
-}
-
-export interface QuotaStatus {
-    tokensRemaining: number;
-    bucketCapacity: number;
-    resetMinutes: number;
-}
-
-export interface LoginRequest {
-    email: string;
-    password: string;
-}
-
-export interface RegisterRequest {
-    email: string;
-    password: string;
-    name: string;
-}
-
-export interface GoogleAuthRequest {
-    credential: string;
 }

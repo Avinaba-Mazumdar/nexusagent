@@ -9,10 +9,10 @@ from uuid import UUID, uuid4
 
 from app.db.neon import NeonDatabase, neon_db
 
-logger = logging.getLogger("nexusagent.core.hitl")
+logger = logging.getLogger("nexusagent.core.audit")
 
 
-class HitlCoordinator:
+class ToolAuditLogger:
     """Manages immutable tool audit logs."""
 
     def __init__(self, db: NeonDatabase | None = None):
@@ -151,4 +151,8 @@ class HitlCoordinator:
         return self.get_recent_audit_logs(user_id=user_id, limit=limit)
 
 
-default_hitl_coordinator = HitlCoordinator()
+default_audit_logger = ToolAuditLogger()
+# Backwards compatibility aliases
+HitlCoordinator = ToolAuditLogger
+default_hitl_coordinator = default_audit_logger
+

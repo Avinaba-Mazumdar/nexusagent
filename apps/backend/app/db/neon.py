@@ -106,14 +106,6 @@ class NeonDatabase:
             row = await conn.fetchrow(query, user_id)
             return User(**dict(row)) if row else None
 
-    async def get_user_by_email(self, email: str) -> User | None:
-        """Fetch user by unique email."""
-        pool = self.get_pool()
-        query = "SELECT * FROM users WHERE email = $1;"
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(query, email)
-            return User(**dict(row)) if row else None
-
     async def upsert_google_user(
         self,
         email: str,
@@ -264,24 +256,6 @@ class NeonDatabase:
                 user_id,
                 client_ip,
             )
-
-    async def search_seeded_chunks(
-        self, query_embedding: list[float], limit: int = 3
-    ) -> list[dict]:
-        """Perform cosine similarity search on seeded knowledge base chunks."""
-        pool = self.get_pool()
-        query = """
-            SELECT c.id, c.content, c.metadata, d.filename,
-                   1 - (c.embedding <=> $1::vector) AS similarity
-            FROM document_chunks c
-            JOIN documents d ON c.document_id = d.id
-            WHERE d.is_seeded = TRUE
-            ORDER BY c.embedding <=> $1::vector ASC
-            LIMIT $2;
-        """
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(query, query_embedding, limit)
-            return [dict(r) for r in rows]
 
     async def get_seeded_documents(self) -> list[dict]:
         """Fetch list of active seeded benchmark documents."""
@@ -578,64 +552,37 @@ class NeonDatabase:
     ) -> list[dict]:
         """List conversations for a user with aggregated message counts and latest snippets."""
         pool = self.get_pool()
-        if search_term:
-            query = """
-                WITH user_convs AS (
-                    SELECT id, user_id, title, created_at, updated_at
-                    FROM agent_conversations c
-                    WHERE c.user_id = $1 AND (
-                        c.title ILIKE $2 OR
-                        EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.content ILIKE $2)
-                    )
-                    ORDER BY c.updated_at DESC
-                    LIMIT $3
-                ),
-                msg_stats AS (
-                    SELECT conversation_id,
-                            COUNT(*) AS message_count,
-                            (ARRAY_AGG(content ORDER BY created_at DESC))[1] AS last_snippet
-                    FROM messages
-                    WHERE conversation_id IN (SELECT id FROM user_convs)
-                    GROUP BY conversation_id
+        query = """
+            WITH user_convs AS (
+                SELECT id, user_id, title, created_at, updated_at
+                FROM agent_conversations c
+                WHERE c.user_id = $1 AND (
+                    $2::text IS NULL OR
+                    c.title ILIKE $2 OR
+                    EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.content ILIKE $2)
                 )
-                SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at,
-                        COALESCE(s.message_count, 0) AS message_count,
-                        s.last_snippet
-                FROM user_convs c
-                LEFT JOIN msg_stats s ON c.id = s.conversation_id
-                ORDER BY c.updated_at DESC;
-            """
-            search_pattern = f"%{search_term}%"
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(query, user_id, search_pattern, limit)
-                return [dict(r) for r in rows]
-        else:
-            query = """
-                WITH user_convs AS (
-                    SELECT id, user_id, title, created_at, updated_at
-                    FROM agent_conversations
-                    WHERE user_id = $1
-                    ORDER BY updated_at DESC
-                    LIMIT $2
-                ),
-                msg_stats AS (
-                    SELECT conversation_id,
-                            COUNT(*) AS message_count,
-                            (ARRAY_AGG(content ORDER BY created_at DESC))[1] AS last_snippet
-                    FROM messages
-                    WHERE conversation_id IN (SELECT id FROM user_convs)
-                    GROUP BY conversation_id
-                )
-                SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at,
-                        COALESCE(s.message_count, 0) AS message_count,
-                        s.last_snippet
-                FROM user_convs c
-                LEFT JOIN msg_stats s ON c.id = s.conversation_id
-                ORDER BY c.updated_at DESC;
-            """
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(query, user_id, limit)
-                return [dict(r) for r in rows]
+                ORDER BY c.updated_at DESC
+                LIMIT $3
+            ),
+            msg_stats AS (
+                SELECT conversation_id,
+                        COUNT(*) AS message_count,
+                        (ARRAY_AGG(content ORDER BY created_at DESC))[1] AS last_snippet
+                FROM messages
+                WHERE conversation_id IN (SELECT id FROM user_convs)
+                GROUP BY conversation_id
+            )
+            SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at,
+                    COALESCE(s.message_count, 0) AS message_count,
+                    s.last_snippet
+            FROM user_convs c
+            LEFT JOIN msg_stats s ON c.id = s.conversation_id
+            ORDER BY c.updated_at DESC;
+        """
+        search_pattern = f"%{search_term}%" if search_term else None
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(query, user_id, search_pattern, limit)
+            return [dict(r) for r in rows]
 
     async def get_conversation_with_messages(
         self,

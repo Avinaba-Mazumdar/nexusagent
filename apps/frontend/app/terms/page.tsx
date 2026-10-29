@@ -205,7 +205,7 @@ export default function TermsAndConditionsPage() {
                             <Scale className="h-4 w-4 text-primary" />
                             5. Intellectual Property &amp; Open Source Licensing
                         </h2>
-                        <p>The NexusAgent software codebase is open-source and governed by the repository license (MIT License / Apache 2.0).</p>
+                        <p>The NexusAgent software codebase is open-source and governed by the repository license (MIT License).</p>
                         <p>
                             You retain full ownership of all original text prompts and proprietary documents uploaded to your session. By submitting queries,
                             you grant NexusAgent a temporary, non-exclusive license to process your input in-memory strictly to generate real-time analysis
@@ -246,12 +246,16 @@ export default function TermsAndConditionsPage() {
                         <h2 className="text-base font-heading font-bold text-foreground">8. Inquiries &amp; Author Contact</h2>
                         <p>
                             For inquiries concerning these Terms or commercial architectural consulting, please contact:{' '}
-                            <a
-                                href="mailto:architect@nexusagent.internal?subject=Terms%20Inquiry%20-%20nexusagent.avinaba.com"
-                                className="text-primary hover:underline font-medium"
-                            >
-                                architect@nexusagent.internal
-                            </a>{' '}
+                            {process.env.NEXT_PUBLIC_CONTACT_EMAIL ? (
+                                <a
+                                    href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL}?subject=Terms%20Inquiry%20-%20nexusagent.avinaba.com`}
+                                    className="text-primary hover:underline font-medium"
+                                >
+                                    {process.env.NEXT_PUBLIC_CONTACT_EMAIL}
+                                </a>
+                            ) : (
+                                <span>the contact address listed in the repository README</span>
+                            )}{' '}
                             or schedule a session via Cal.com.
                         </p>
                     </section>

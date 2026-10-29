@@ -50,11 +50,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
     const [currentNode, setCurrentNode] = React.useState<string | null>(null);
     const [citations, setCitations] = React.useState<Citation[]>([]);
     const [streamedResponse, setStreamedResponse] = React.useState('');
-    const [mermaidDiagrams, setMermaidDiagrams] = React.useState<string[]>([]);
     const [reflectionScore, setReflectionScore] = React.useState(0);
-    const [isGrounded, setIsGrounded] = React.useState(false);
-    const [isComplete, setIsComplete] = React.useState(false);
-    const [sessionId, setSessionId] = React.useState<string | null>(null);
 
     const abortControllerRef = React.useRef<AbortController | null>(null);
 
@@ -78,10 +74,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
             setCurrentNode(null);
             setCitations([]);
             setStreamedResponse('');
-            setMermaidDiagrams([]);
             setReflectionScore(0);
-            setIsGrounded(false);
-            setIsComplete(false);
 
             const controller = new AbortController();
             abortControllerRef.current = controller;
@@ -164,7 +157,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
 
                             switch (eventType) {
                                 case 'start':
-                                    setSessionId(data.sessionId);
                                     if (typeof data.quotaRemaining === 'number') {
                                         options?.onQuota?.(data.quotaRemaining);
                                     }
@@ -191,10 +183,8 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     break;
 
                                 case 'critic': {
-                                    const score =
-                                        data.reflectionScore !== undefined ? data.reflectionScore : data.soundnessScore !== undefined ? data.soundnessScore : 0;
+                                    const score = typeof data.reflectionScore === 'number' ? data.reflectionScore : 0;
                                     setReflectionScore(score);
-                                    setIsGrounded(!!data.isGrounded);
                                     emitLog('INFERENCE', `Critic Score: ${score} (${data.isGrounded ? 'GROUNDED' : 'REPLAN'}) - ${data.feedback || ''}`);
                                     break;
                                 }
@@ -213,13 +203,9 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                 case 'done':
                                     finalDonePayload = data as AgentInvokeResponse;
                                     if (data.response !== undefined) setStreamedResponse(data.response);
-                                    if (data.mermaidDiagrams !== undefined) setMermaidDiagrams(data.mermaidDiagrams);
                                     if (data.plan !== undefined) setPlan(data.plan);
                                     if (data.citations !== undefined) setCitations(data.citations);
-                                    const doneScore = data.reflectionScore !== undefined ? data.reflectionScore : data.soundnessScore;
-                                    if (doneScore !== undefined) setReflectionScore(doneScore);
-                                    if (data.isGrounded !== undefined) setIsGrounded(!!data.isGrounded);
-                                    setIsComplete(true);
+                                    if (typeof data.reflectionScore === 'number') setReflectionScore(data.reflectionScore);
                                     {
                                         const totalLatencyMs = Math.round(performance.now() - startTime);
                                         const iterationCount = typeof data.iterationCount === 'number' ? data.iterationCount : null;
@@ -268,11 +254,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
         currentNode,
         citations,
         streamedResponse,
-        mermaidDiagrams,
         reflectionScore,
-        isGrounded,
-        isComplete,
-        sessionId,
         startStream,
         cancelStream
     };

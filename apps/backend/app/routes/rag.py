@@ -6,8 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
-from app.core.hitl_coordinator import default_hitl_coordinator
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import User
 from app.db.neon import NeonDatabase, get_db
@@ -122,7 +122,7 @@ async def hybrid_search_documents(
         rrf_k=payload.rrfK,
     )
     duration_ms = max(int((time.perf_counter() - start_time) * 1000), 0)
-    await default_hitl_coordinator.log_tool_audit(
+    await default_audit_logger.log_tool_audit(
         tool_name="hybrid_rag_search",
         input_args={"query": payload.query, "limit": payload.limit},
         output_summary={"results": len(results)},

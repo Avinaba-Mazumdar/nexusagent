@@ -6,19 +6,10 @@ import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
-from app.core.auth import create_access_token, decode_access_token, hash_password, verify_password
+from app.core.auth import create_access_token, decode_access_token
 from app.db.models import User
 from app.db.neon import neon_db
 from app.main import app
-
-
-@pytest.mark.asyncio
-async def test_password_hashing():
-    raw_pass = "SuperSecretSecurePass123!"
-    hashed = hash_password(raw_pass)
-    assert hashed != raw_pass
-    assert verify_password(raw_pass, hashed) is True
-    assert verify_password("WrongPassword!", hashed) is False
 
 
 @pytest.mark.asyncio

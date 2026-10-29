@@ -1,9 +1,7 @@
-import hashlib
 import logging
 from collections.abc import Sequence
 
 import httpx
-import numpy as np
 
 from app.config import settings
 
@@ -12,42 +10,6 @@ logger = logging.getLogger("nexusagent.rag.embeddings")
 EMBEDDING_DIMENSION = 768
 GEMINI_EMBED_MODELS = ["gemini-embedding-001", "gemini-embedding-2", "text-embedding-004"]
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-
-
-def generate_deterministic_embedding(text: str, dim: int = EMBEDDING_DIMENSION) -> list[float]:
-    """
-    Generate a reproducible, pseudo-semantic 768-dimensional unit vector from input text.
-    Provides zero-latency fallback and offline testing when Gemini API key is not configured.
-    Uses multi-salt cryptographic hashing and token feature projection with L2 normalization.
-    """
-    if not text.strip():
-        vec = np.zeros(dim, dtype=np.float32)
-        vec[0] = 1.0
-        return vec.tolist()
-
-    # Seed random generator deterministically using SHA-256 of text
-    digest = hashlib.sha256(text.encode("utf-8")).digest()
-    seed = int.from_bytes(digest[:8], byteorder="big") % (2**32)
-    rng = np.random.RandomState(seed)
-
-    # Base noise vector
-    vector = rng.standard_normal(dim).astype(np.float32)
-
-    # Word-level n-gram feature boosting
-    words = [w.lower().strip(".,;:!?\"'()[]{}") for w in text.split() if len(w) > 2]
-    for i, word in enumerate(words):
-        word_digest = hashlib.sha256(word.encode("utf-8")).digest()
-        idx1 = int.from_bytes(word_digest[:4], "big") % dim
-        idx2 = int.from_bytes(word_digest[4:8], "big") % dim
-        vector[idx1] += 1.5 / (1.0 + 0.1 * i)
-        vector[idx2] -= 1.0 / (1.0 + 0.1 * i)
-
-    # L2 normalize
-    norm = np.linalg.norm(vector)
-    if norm > 0:
-        vector = vector / norm
-
-    return vector.tolist()
 
 
 class EmbeddingService:

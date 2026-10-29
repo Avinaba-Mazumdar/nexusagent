@@ -10,7 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from app.config import KNOWLEDGE_BASE_DIR
-from app.core.hitl_coordinator import default_hitl_coordinator
+from app.core.audit_log import default_audit_logger
 from app.core.security_guardrails import compute_mcp_tool_hash, scan_mcp_tool_metadata
 from app.mcp.protocol import (
     ResourceDefinition,
@@ -94,19 +94,6 @@ class McpRegistry:
         return True, None
 
     @classmethod
-    def register_tool(cls, tool: ToolDefinition) -> tuple[bool, str | None]:
-        """
-        Register a new tool with mandatory Invariant Labs tool poisoning inspection.
-        """
-        is_valid, reason = cls.validate_tool_integrity(tool)
-        if not is_valid:
-            logger.warning("Rejected untrusted MCP tool registration '%s': %s", tool.name, reason)
-            return False, reason
-        TOOLS.append(tool)
-        PINNED_TOOL_HASHES[tool.name] = compute_mcp_tool_hash(tool)
-        return True, None
-
-    @classmethod
     def get_tools(cls) -> list[dict[str, Any]]:
         safe_tools = []
         for tool in TOOLS:
@@ -187,7 +174,7 @@ class McpRegistry:
 
         duration_ms = max(int((time.perf_counter() - start_time) * 1000), 0)
         try:
-            await default_hitl_coordinator.log_tool_audit(
+            await default_audit_logger.log_tool_audit(
                 tool_name=name,
                 input_args=arguments,
                 output_summary={"isError": result.isError},

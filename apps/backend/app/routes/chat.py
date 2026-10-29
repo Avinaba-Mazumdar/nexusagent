@@ -25,6 +25,36 @@ def ensure_google_user(current_user: User) -> None:
         )
 
 
+def conversation_to_wire(c: dict) -> dict:
+    created_at = c["created_at"].isoformat() if hasattr(c["created_at"], "isoformat") else str(c["created_at"])
+    updated_at = (
+        c["updated_at"].isoformat()
+        if hasattr(c.get("updated_at"), "isoformat")
+        else (str(c["updated_at"]) if c.get("updated_at") else created_at)
+    )
+    return {
+        "id": str(c["id"]),
+        "userId": str(c["user_id"]),
+        "title": c["title"],
+        "createdAt": created_at,
+        "updatedAt": updated_at,
+        "messageCount": int(c.get("message_count") or 0),
+        "lastSnippet": c.get("last_snippet"),
+    }
+
+
+def message_to_wire(m: dict) -> dict:
+    return {
+        "id": str(m["id"]),
+        "conversationId": str(m["conversation_id"]),
+        "role": m["role"],
+        "content": m["content"],
+        "planTrace": m.get("plan_trace"),
+        "reflectionSummary": m.get("reflection_summary"),
+        "createdAt": m["created_at"].isoformat() if hasattr(m["created_at"], "isoformat") else str(m["created_at"]),
+    }
+
+
 @router.get("/documents")
 async def list_seeded_documents(db: NeonDatabase = Depends(get_db)):
     """Return pre-indexed benchmark documents available for RAG."""
@@ -42,24 +72,7 @@ async def list_chat_history(
     """List persistent conversations for authenticated Google user."""
     ensure_google_user(current_user)
     conversations = await db.list_conversations(current_user.id, search_term=q, limit=limit)
-    formatted = [
-        {
-            "id": str(c["id"]),
-            "userId": str(c["user_id"]),
-            "title": c["title"],
-            "createdAt": c["created_at"].isoformat() if hasattr(c["created_at"], "isoformat") else str(c["created_at"]),
-            "updatedAt": (
-                c["updated_at"].isoformat()
-                if hasattr(c.get("updated_at"), "isoformat")
-                else (str(c["updated_at"]) if c.get("updated_at") else (
-                    c["created_at"].isoformat() if hasattr(c["created_at"], "isoformat") else str(c["created_at"])
-                ))
-            ),
-            "messageCount": int(c.get("message_count") or 0),
-            "lastSnippet": c.get("last_snippet"),
-        }
-        for c in conversations
-    ]
+    formatted = [conversation_to_wire(c) for c in conversations]
     return {"conversations": formatted, "total": len(formatted)}
 
 
@@ -72,14 +85,7 @@ async def create_chat_conversation(
     """Explicitly create a new conversation thread."""
     ensure_google_user(current_user)
     conv = await db.create_conversation(current_user.id, title=payload.title, conversation_id=None)
-    return {
-        "id": str(conv["id"]),
-        "userId": str(conv["user_id"]),
-        "title": conv["title"],
-        "createdAt": conv["created_at"].isoformat() if hasattr(conv["created_at"], "isoformat") else str(conv["created_at"]),
-        "messageCount": 0,
-        "lastSnippet": None,
-    }
+    return conversation_to_wire(conv)
 
 
 @router.get("/history/{conversation_id}")
@@ -97,18 +103,6 @@ async def get_chat_conversation(
             detail="Conversation not found or unauthorized.",
         )
 
-    formatted_messages = [
-        {
-            "id": str(m["id"]),
-            "conversationId": str(m["conversation_id"]),
-            "role": m["role"],
-            "content": m["content"],
-            "planTrace": m.get("plan_trace"),
-            "reflectionSummary": m.get("reflection_summary"),
-            "createdAt": m["created_at"].isoformat() if hasattr(m["created_at"], "isoformat") else str(m["created_at"]),
-        }
-        for m in messages
-    ]
     return {
         "conversation": {
             "id": str(conv["id"]),
@@ -116,7 +110,7 @@ async def get_chat_conversation(
             "title": conv["title"],
             "createdAt": conv["created_at"].isoformat() if hasattr(conv["created_at"], "isoformat") else str(conv["created_at"]),
         },
-        "messages": formatted_messages,
+        "messages": [message_to_wire(m) for m in messages],
     }
 
 

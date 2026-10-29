@@ -27,7 +27,6 @@ interface AuthState {
     token: string | null;
     quotaRemaining: number;
     bucketCapacity: number;
-    isLoading: boolean;
     isGuestLoading: boolean;
     isGoogleLoading: boolean;
     error: string | null;
@@ -53,7 +52,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
         token: null,
         quotaRemaining: 5,
         bucketCapacity: 5,
-        isLoading: false,
         isGuestLoading: false,
         isGoogleLoading: false,
         error: null,
@@ -118,7 +116,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         },
 
         loginGuest: async () => {
-            set({ isGuestLoading: true, isLoading: true, error: null });
+            set({ isGuestLoading: true, error: null });
             try {
                 const deviceId = getOrCreateDeviceId();
                 const data = await apiClient<GuestPassResponse>('/api/auth/guest', {
@@ -143,19 +141,18 @@ export const useAuthStore = create<AuthState>((set, get) => {
                     quotaRemaining,
                     bucketCapacity,
                     isGuestLoading: false,
-                    isLoading: false,
                     error: null
                 });
                 return true;
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Unknown error during guest sign-in';
-                set({ isGuestLoading: false, isLoading: false, error: message });
+                set({ isGuestLoading: false, error: message });
                 return false;
             }
         },
 
         loginGoogle: async (credential: string) => {
-            set({ isGoogleLoading: true, isLoading: true, error: null });
+            set({ isGoogleLoading: true, error: null });
             try {
                 const data = await apiClient<TokenResponse>('/api/auth/google', {
                     method: 'POST',
@@ -179,13 +176,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
                     quotaRemaining,
                     bucketCapacity,
                     isGoogleLoading: false,
-                    isLoading: false,
                     error: null
                 });
                 return true;
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Unknown error during Google sign-in';
-                set({ isGoogleLoading: false, isLoading: false, error: message });
+                set({ isGoogleLoading: false, error: message });
                 return false;
             }
         },
@@ -208,7 +204,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
                 bucketCapacity: 5,
                 isGuestLoading: false,
                 isGoogleLoading: false,
-                isLoading: false,
                 error: null
             });
         }

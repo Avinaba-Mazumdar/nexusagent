@@ -66,7 +66,6 @@ export function SidebarChatHistory({
     onPrefetchConversation,
     onOpenSignIn
 }: SidebarChatHistoryProps) {
-    const searchInputRef = React.useRef<HTMLInputElement | null>(null);
     // Two-step delete: the first click arms a confirm button that disarms itself after a few seconds.
     const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(null);
 
@@ -120,7 +119,6 @@ export function SidebarChatHistory({
             <div className="relative flex items-center">
                 <Search className="absolute left-2.5 h-3 w-3 text-muted-foreground pointer-events-none" />
                 <input
-                    ref={searchInputRef}
                     type="search"
                     value={searchQuery}
                     onChange={(e) => onSearchChange(e.target.value)}

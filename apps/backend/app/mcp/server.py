@@ -11,16 +11,14 @@ import sys
 
 from pydantic import ValidationError
 
+from app.mcp.dispatch import dispatch_mcp_method
 from app.mcp.protocol import (
     INTERNAL_ERROR,
-    INVALID_PARAMS,
     INVALID_REQUEST,
-    METHOD_NOT_FOUND,
     JsonRpcError,
     JsonRpcRequest,
     JsonRpcResponse,
 )
-from app.mcp.registry import default_mcp_registry
 
 # Configure logging to stderr so stdio stdout remains pure JSON-RPC
 logging.basicConfig(level=logging.INFO, stream=sys.stderr)
@@ -37,81 +35,13 @@ async def handle_jsonrpc_request(req_dict: dict) -> dict:
             error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request"),
         ).model_dump(exclude_none=True)
 
-    method = req.method
-    params = req.params or {}
-
     try:
-        if method == "initialize":
-            return JsonRpcResponse(
-                id=req.id,
-                result={
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {
-                        "tools": {"listChanged": False},
-                        "resources": {"listChanged": False, "subscribe": False},
-                    },
-                    "serverInfo": {
-                        "name": "nexusagent-mcp",
-                        "version": "0.1.0",
-                    },
-                },
-            ).model_dump(exclude_none=True)
-
-        elif method == "notifications/initialized":
+        resp = await dispatch_mcp_method(req)
+        if req.id is None:
             return {}
-
-        elif method == "ping":
-            return JsonRpcResponse(id=req.id, result={}).model_dump(exclude_none=True)
-
-        elif method == "tools/list":
-            tools = default_mcp_registry.get_tools()
-            return JsonRpcResponse(id=req.id, result={"tools": tools}).model_dump(exclude_none=True)
-
-        elif method == "tools/call":
-            tool_name = params.get("name")
-            tool_args = params.get("arguments", {})
-            if not tool_name:
-                return JsonRpcResponse(
-                    id=req.id,
-                    error=JsonRpcError(code=INVALID_PARAMS, message="Missing parameter 'name'."),
-                ).model_dump(exclude_none=True)
-
-            call_res = await default_mcp_registry.call_tool(tool_name, tool_args)
-            return JsonRpcResponse(id=req.id, result=call_res.model_dump()).model_dump(
-                exclude_none=True
-            )
-
-        elif method == "resources/list":
-            resources = default_mcp_registry.get_resources()
-            return JsonRpcResponse(id=req.id, result={"resources": resources}).model_dump(
-                exclude_none=True
-            )
-
-        elif method == "resources/read":
-            uri = params.get("uri")
-            if not uri:
-                return JsonRpcResponse(
-                    id=req.id,
-                    error=JsonRpcError(code=INVALID_PARAMS, message="Missing parameter 'uri'."),
-                ).model_dump(exclude_none=True)
-
-            try:
-                read_res = await default_mcp_registry.read_resource(uri)
-                return JsonRpcResponse(id=req.id, result=read_res).model_dump(exclude_none=True)
-            except ValueError:
-                return JsonRpcResponse(
-                    id=req.id,
-                    error=JsonRpcError(code=INVALID_PARAMS, message="Unknown resource"),
-                ).model_dump(exclude_none=True)
-
-        else:
-            return JsonRpcResponse(
-                id=req.id,
-                error=JsonRpcError(code=METHOD_NOT_FOUND, message=f"Method '{method}' not found."),
-            ).model_dump(exclude_none=True)
-
+        return resp.model_dump(exclude_none=True)
     except Exception:
-        logger.exception("Error processing MCP method %s", method)
+        logger.exception("Error processing MCP method %s", req.method)
         return JsonRpcResponse(
             id=req.id,
             error=JsonRpcError(code=INTERNAL_ERROR, message="Internal error"),

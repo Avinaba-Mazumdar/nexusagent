@@ -5,11 +5,12 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
 from app.config import settings
+from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
-from app.core.hitl_coordinator import default_hitl_coordinator
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import (
     Document,
+    DocumentChunk,
     DocumentChunkWire,
     DocumentMetadataWire,
     DocumentUploadResponseWire,
@@ -32,6 +33,31 @@ ALLOWED_EXTENSIONS = {".md", ".markdown", ".txt"}
 MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MB per document
 
 
+def document_to_wire(d: Document) -> DocumentMetadataWire:
+    return DocumentMetadataWire(
+        id=str(d.id),
+        userId=str(d.user_id) if d.user_id else None,
+        filename=d.filename,
+        mimeType=d.mime_type,
+        sha256Hash=d.sha256_hash,
+        totalChunks=d.total_chunks,
+        storagePath=d.storage_path,
+        isSeeded=d.is_seeded,
+        uploadedAt=d.uploaded_at.isoformat() if hasattr(d.uploaded_at, "isoformat") else str(d.uploaded_at),
+    )
+
+
+def chunk_to_wire(c: DocumentChunk) -> DocumentChunkWire:
+    return DocumentChunkWire(
+        id=str(c.id),
+        documentId=str(c.document_id),
+        chunkIndex=c.chunk_index,
+        content=c.content,
+        metadata=c.metadata,
+        createdAt=c.created_at.isoformat() if hasattr(c.created_at, "isoformat") else str(c.created_at),
+    )
+
+
 @router.get("", response_model=dict[str, list[DocumentMetadataWire]])
 async def list_documents(
     current_user: User = Depends(get_current_user),
@@ -41,21 +67,7 @@ async def list_documents(
     List all documents accessible to the current user (seeded documents + user uploads).
     """
     docs = await db.list_all_documents(user_id=current_user.id)
-    wires = [
-        DocumentMetadataWire(
-            id=str(d.id),
-            userId=str(d.user_id) if d.user_id else None,
-            filename=d.filename,
-            mimeType=d.mime_type,
-            sha256Hash=d.sha256_hash,
-            totalChunks=d.total_chunks,
-            storagePath=d.storage_path,
-            isSeeded=d.is_seeded,
-            uploadedAt=d.uploaded_at.isoformat(),
-        )
-        for d in docs
-    ]
-    return {"documents": wires}
+    return {"documents": [document_to_wire(d) for d in docs]}
 
 
 async def require_document_access(db: NeonDatabase, document_id: UUID, user: User) -> Document:
@@ -86,18 +98,7 @@ async def get_document_chunks(
     await require_document_access(db, doc_uuid, current_user)
 
     chunks = await db.get_document_chunks(doc_uuid)
-    chunk_wires = [
-        DocumentChunkWire(
-            id=str(c.id),
-            documentId=str(c.document_id),
-            chunkIndex=c.chunk_index,
-            content=c.content,
-            metadata=c.metadata,
-            createdAt=c.created_at.isoformat(),
-        )
-        for c in chunks
-    ]
-    return {"chunks": chunk_wires}
+    return {"chunks": [chunk_to_wire(c) for c in chunks]}
 
 
 @router.post("/upload", response_model=DocumentUploadResponseWire)
@@ -165,31 +166,10 @@ async def upload_document(
     existing_doc = await db.get_document_by_hash(sha256_hash, user_id=current_user.id)
     if existing_doc:
         existing_chunks = await db.get_document_chunks(existing_doc.id)
-        preview = [
-            DocumentChunkWire(
-                id=str(c.id),
-                documentId=str(c.document_id),
-                chunkIndex=c.chunk_index,
-                content=c.content,
-                metadata=c.metadata,
-                createdAt=c.created_at.isoformat(),
-            )
-            for c in existing_chunks[:5]
-        ]
         return DocumentUploadResponseWire(
-            document=DocumentMetadataWire(
-                id=str(existing_doc.id),
-                userId=str(existing_doc.user_id) if existing_doc.user_id else None,
-                filename=existing_doc.filename,
-                mimeType=existing_doc.mime_type,
-                sha256Hash=existing_doc.sha256_hash,
-                totalChunks=existing_doc.total_chunks,
-                storagePath=existing_doc.storage_path,
-                isSeeded=existing_doc.is_seeded,
-                uploadedAt=existing_doc.uploaded_at.isoformat(),
-            ),
+            document=document_to_wire(existing_doc),
             chunksCount=existing_doc.total_chunks,
-            previewChunks=preview,
+            previewChunks=[chunk_to_wire(c) for c in existing_chunks[:5]],
         )
 
     if not default_embedding_service.api_key:
@@ -226,7 +206,7 @@ async def upload_document(
     )
     saved_doc = await db.create_document_with_chunks(doc_record, chunks)
 
-    await default_hitl_coordinator.log_tool_audit(
+    await default_audit_logger.log_tool_audit(
         tool_name="document_upload",
         input_args={"filename": filename, "bytes": len(raw_bytes)},
         output_summary={"document_id": str(new_doc_id), "chunks": len(chunks)},
@@ -235,30 +215,8 @@ async def upload_document(
         mcp_server="http-api",
     )
 
-    preview_wires = [
-        DocumentChunkWire(
-            id=str(c.id),
-            documentId=str(c.document_id),
-            chunkIndex=c.chunk_index,
-            content=c.content,
-            metadata=c.metadata,
-            createdAt=c.created_at.isoformat(),
-        )
-        for c in chunks[:5]
-    ]
-
     return DocumentUploadResponseWire(
-        document=DocumentMetadataWire(
-            id=str(saved_doc.id),
-            userId=str(saved_doc.user_id) if saved_doc.user_id else None,
-            filename=saved_doc.filename,
-            mimeType=saved_doc.mime_type,
-            sha256Hash=saved_doc.sha256_hash,
-            totalChunks=saved_doc.total_chunks,
-            storagePath=saved_doc.storage_path,
-            isSeeded=saved_doc.is_seeded,
-            uploadedAt=saved_doc.uploaded_at.isoformat(),
-        ),
+        document=document_to_wire(saved_doc),
         chunksCount=len(chunks),
-        previewChunks=preview_wires,
+        previewChunks=[chunk_to_wire(c) for c in chunks[:5]],
     )

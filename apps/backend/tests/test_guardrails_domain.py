@@ -3,8 +3,6 @@ import pytest
 from app.agent.graph import (
     AgentGraph,
     classify_query_intent,
-    is_architectural_query,
-    is_out_of_scope,
     planner_node,
 )
 from app.agent.state import AgentState
@@ -14,11 +12,7 @@ def test_classify_query_intent_boundaries():
     """Verify scope guardrail correctly differentiates domain, greetings, and off-topic queries."""
     # Out-of-scope queries
     assert classify_query_intent("weather at 713205") == "out_of_scope"
-    assert is_out_of_scope("weather at 713205") is True
-
     assert classify_query_intent("code me a python script to print hello world") == "out_of_scope"
-    assert is_out_of_scope("code me a python script to print hello world") is True
-
     assert classify_query_intent("what is the recipe for pancakes") == "out_of_scope"
     assert classify_query_intent("who won the football match yesterday") == "out_of_scope"
 
@@ -30,11 +24,7 @@ def test_classify_query_intent_boundaries():
 
     # Architectural queries
     assert classify_query_intent("Compare Claude Sonnet 3.7 vs GPT-4o on CursorBench") == "architectural"
-    assert is_architectural_query("Compare Claude Sonnet 3.7 vs GPT-4o on CursorBench") is True
-
     assert classify_query_intent("Explain Raft consensus commit latency under high write throughput") == "architectural"
-    assert is_architectural_query("Explain Raft consensus commit latency under high write throughput") is True
-
     assert classify_query_intent("Calculate quorum size and failover time for 5 replicas") == "architectural"
 
 
@@ -49,7 +39,6 @@ def test_classify_query_intent_boundaries():
 def test_scope_guardrail_out_of_scope_parametrized(query: str):
     """Verify out-of-scope queries with sub-word false-positive traps are rejected (L-05)."""
     assert classify_query_intent(query) == "out_of_scope"
-    assert is_out_of_scope(query) is True
 
 
 @pytest.mark.parametrize(
@@ -64,7 +53,6 @@ def test_scope_guardrail_out_of_scope_parametrized(query: str):
 def test_scope_guardrail_architectural_parametrized(query: str):
     """Verify architectural queries match word boundary regex (L-05)."""
     assert classify_query_intent(query) == "architectural"
-    assert is_architectural_query(query) is True
 
 
 @pytest.mark.asyncio

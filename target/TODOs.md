@@ -30,7 +30,7 @@
 
 ### Phase 3: User Authentication [Completed]
 
-- [x] Backend guest pass issuance & Argon2 password hashing (`core/auth.py`)
+- [ ] Backend guest pass issuance & Argon2 password hashing (`core/auth.py`) (Reality: Password auth removed in T-45 in favor of Google OAuth + Guest JWTs)
 - [x] Frontend guest sign-in button wiring & session state header
 - [x] Google OAuth client setup & backend token verification flow
 - [x] Auth token persistence (cookies/localStorage) & API client interceptor
@@ -85,21 +85,21 @@ The AST-denylist sandbox was escapable (`random._os.system(...)`, `[eval][0](...
 - [x] Implement FastAPI MCP SSE endpoint (`/api/mcp/sse`) and CLI stdio entrypoint
 - [x] Register tools (`hybrid_rag_search`) with Pydantic schemas (`python_sandbox` removed — audit S-01; `mcp_sql_audit` removed — audit S-02)
 - [x] Build frontend MCP Inspector panel to test tool calls and view JSON-RPC payloads
-- [x] Add client connection configuration for Claude Desktop and Cursor
+- [ ] Add client connection configuration for Claude Desktop and Cursor (Reality: Hand-rolled stdio and SSE endpoints exposed; external client config files pending)
       Verification: Connect Claude or run MCP Inspector UI, call `hybrid_rag_search`, verify valid JSON-RPC response.
 
 ### Phase 11: Human-in-the-Loop & Security Controls [Completed]
 
-- [x] Implement HITL approval modal in UI and backend pause/resume endpoint (`/api/agent/approval`)
+- [ ] Implement HITL approval modal in UI and backend pause/resume endpoint (`/api/agent/approval`) (Reality: Removed in T-01; agent tools are strictly read-only)
 - [x] Implement prompt injection delimiters (`<untrusted_document_context>`) and UUID canary tokens
 - [x] Implement token-bucket rate limiter for guest and registered users
-- [x] Add immutable audit logging to `tool_audit_logs` table
+- [ ] Add immutable audit logging to `tool_audit_logs` table (Reality: Append-only by convention in code; database role hardening is manual)
       Verification: Trigger tool requiring approval, verify agent suspends until approved; exceed rate limit and verify HTTP 429.
 
 ### Phase 12: Deterministic Showcase & 1-Click Guest Experience [Completed]
 
 - [x] Bundle pre-seeded knowledge benchmarks (BenchLM, CursorBench, OpenRouter, Artificial Analysis)
-- [x] Implement deterministic cached execution simulator for zero-cost demos
+- [ ] Implement deterministic cached execution simulator for zero-cost demos (Reality: No simulator exists; backend requires valid GEMINI_API_KEY)
 - [x] Polish 1-Click Guest experience with pre-loaded quota badge
 - [x] Run end-to-end demo flow validation
       Verification: Open app in guest mode with zero API keys, run demo scenario, verify instant cached DAG trace and rendered diagram.
@@ -107,26 +107,26 @@ The AST-denylist sandbox was escapable (`random._os.system(...)`, `[eval][0](...
 ### Post-Phase-12 Sturdiness Pass [Applied]
 
 - [x] Hermetic offline suite restored: DB-bound showcase/HITL-audit tests marked `@pytest.mark.db` (skip offline, pass against live Neon)
-- [x] HITL approval timeout configurable via `HITL_APPROVAL_TIMEOUT_SECONDS` (30s human-paced default; test conftest overrides to 1s)
+- [ ] HITL approval timeout configurable via `HITL_APPROVAL_TIMEOUT_SECONDS` (Reality: Removed with HITL in T-01)
 - [x] New guards: unresolved approvals fail closed on timeout; test asserts production default stays human-paced
 - [x] `tool_audit_logs` writes retry once and log at error level before degrading to the memory ring
 
 ### Security-Hardening Pass (Applied)
 
 - [x] MCP lockdown: `/api/mcp/{v1,sse,messages}` now require Bearer auth (`mcp_sql_audit` removed — audit S-02)
-- [x] Mermaid XSS fix: `securityLevel: 'strict'` + SVG sanitizer (scripts, foreignObject, event handlers, `javascript:` URLs stripped) in `MermaidViewer`
+- [x] Mermaid XSS fix: DOMPurify SVG sanitizer (scripts, event handlers, `javascript:` URLs stripped; foreignObject safely integrated) in `MermaidViewer`
 - [x] BYOK hardening: `X-User-API-Key` validated against a provider prefix/length allowlist (`validate_byok_key`); junk keys fall back to the rate-limited tier
 - [x] Quota keying: `get_client_ip` uses the socket IP unless `TRUST_PROXY_HEADERS=true` (X-Forwarded-For rotation no longer bypasses guest quota)
-- [x] HITL approval ownership: `resolve_approval` binds the approval to its owning session; cross-session resolution is rejected
+- [ ] HITL approval ownership (Reality: Removed with HITL in T-01)
 - [x] `/api/agent/audit-logs` reads persisted `tool_audit_logs` rows (memory ring only as fallback)
 - [x] Indirect injection defense: retriever scans retrieved chunks (`sanitize_retrieved_chunks`), drops injected content, prunes citations, surfaces an observability warning
 
 ### Phase 13: FastMCP Transition, Gemini 3.x Upgrade & Live Benchmark Vault [Completed]
 
-- [x] Migrate Model Context Protocol server from manual custom router to official `FastMCP` (`apps/backend/app/routes/mcp.py`)
+- [ ] Migrate Model Context Protocol server from manual custom router to official `FastMCP` (`apps/backend/app/routes/mcp.py`) (Reality: Custom JSON-RPC 2.0 SSE and stdio server maintained)
 - [x] Removed LangSmith `@traceable` decorators for data privacy compliance (S-19)
 - [x] Fix guest session quota retention across browser page refreshes
-- [x] Upgrade LLM synthesis to active Gemini frontier models (`gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.5-flash`) with automatic cascading fallbacks
-- [x] Implement robust offline deterministic synthesis fallback with sanitized citations, Mermaid diagrams, and conversational greeting handling
-- [x] Ingest live scraped benchmark datasets across Artificial Analysis, BenchLM (Bench-Align v5), CursorBench 4.0, and OpenRouter
+- [x] Upgrade LLM synthesis to active Gemini verified models (`gemini-2.5-flash`, `gemini-2.5-flash-lite`) with cached client factory (T-39)
+- [ ] Implement robust offline deterministic synthesis fallback with sanitized citations, Mermaid diagrams, and conversational greeting handling (Reality: Offline fallback deleted in T-37; errors propagate loudly)
+- [ ] Ingest live scraped benchmark datasets across Artificial Analysis, BenchLM (Bench-Align v5), CursorBench 4.0, and OpenRouter (Reality: Benchmark corpus is pre-seeded markdown in knowledge_base/benchmarks; live scraping removed)
 - [x] Modernize UI with light-mode enterprise palette (`#F4F5F8` canvas, `#004EA1` signature blue) and mobile responsive DAG pipeline

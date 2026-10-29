@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     KNOWLEDGE_BASE_DIR: Path = KNOWLEDGE_BASE_DIR
     GEMINI_MODELS: list[str] = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
 
-    HOST: str = "0.0.0.0"
     PORT: int = 8000
     CORS_ORIGINS: str | list[str] = [
         "http://localhost:3000",
@@ -55,8 +54,6 @@ class Settings(BaseSettings):
     # cannot rotate quota by header spoofing.
     TRUST_PROXY_HEADERS: bool = False
 
-    OPENAI_API_KEY: str = ""
-    ANTHROPIC_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
     GOOGLE_CLIENT_ID: str = ""
 

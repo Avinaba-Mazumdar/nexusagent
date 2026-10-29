@@ -1,6 +1,8 @@
+import hashlib
 import math
 from uuid import uuid4
 
+import numpy as np
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -11,9 +13,30 @@ from app.main import app
 from app.rag.embeddings import (
     EMBEDDING_DIMENSION,
     EmbeddingService,
-    generate_deterministic_embedding,
 )
 from app.rag.hybrid_search import compute_rrf
+
+
+def generate_deterministic_embedding(text: str, dim: int = EMBEDDING_DIMENSION) -> list[float]:
+    if not text.strip():
+        vec = np.zeros(dim, dtype=np.float32)
+        vec[0] = 1.0
+        return vec.tolist()
+    digest = hashlib.sha256(text.encode("utf-8")).digest()
+    seed = int.from_bytes(digest[:8], byteorder="big") % (2**32)
+    rng = np.random.RandomState(seed)
+    vector = rng.standard_normal(dim).astype(np.float32)
+    words = [w.lower().strip(".,;:!?\"'()[]{}") for w in text.split() if len(w) > 2]
+    for i, word in enumerate(words):
+        word_digest = hashlib.sha256(word.encode("utf-8")).digest()
+        idx1 = int.from_bytes(word_digest[:4], "big") % dim
+        idx2 = int.from_bytes(word_digest[4:8], "big") % dim
+        vector[idx1] += 1.5 / (1.0 + 0.1 * i)
+        vector[idx2] -= 1.0 / (1.0 + 0.1 * i)
+    norm = np.linalg.norm(vector)
+    if norm > 0:
+        vector = vector / norm
+    return vector.tolist()
 
 
 def test_embedding_generation_dimension_and_norm():
