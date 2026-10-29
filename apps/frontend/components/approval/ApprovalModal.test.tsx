@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ApprovalModal } from './ApprovalModal';
 import type { PendingApproval } from '@/hooks/useAgentStream';
@@ -29,7 +29,7 @@ describe('ApprovalModal Component', () => {
         expect(screen.getByText(/medium risk/i)).toBeInTheDocument();
         expect(screen.getByText(/information_schema\.tables/)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Authorize & Run/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /Deny & Abort/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Deny & Skip/i })).toBeInTheDocument();
     });
 
     it('triggers approve resolution on Authorize button click', () => {
@@ -46,9 +46,22 @@ describe('ApprovalModal Component', () => {
         const handleResolve = vi.fn();
         render(<ApprovalModal open={true} approval={mockApproval} onResolve={handleResolve} />);
 
-        const denyBtn = screen.getByRole('button', { name: /Deny & Abort/i });
+        const denyBtn = screen.getByRole('button', { name: /Deny & Skip/i });
         fireEvent.click(denyBtn);
 
         expect(handleResolve).toHaveBeenCalledWith('reject');
+    });
+
+    it('counts down and auto-denies when the server-side timeout lapses', () => {
+        vi.useFakeTimers();
+        const handleResolve = vi.fn();
+        render(<ApprovalModal open={true} approval={{ ...mockApproval, timeoutSeconds: 3 }} onResolve={handleResolve} />);
+
+        expect(screen.getByText('3s')).toBeInTheDocument();
+        act(() => {
+            vi.advanceTimersByTime(3000);
+        });
+        expect(handleResolve).toHaveBeenCalledWith('reject');
+        vi.useRealTimers();
     });
 });

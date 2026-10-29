@@ -13,7 +13,7 @@ NexusAgent is an enterprise-grade autonomous systems analyst that evaluates dist
 - **Hybrid RAG Pipeline**: Combines dense vector search with sparse keyword search (**Neon PostgreSQL 18 `pgvector`** + **`tsvector` BM25**) fused via Reciprocal Rank Fusion (RRF), powered by **LlamaIndex** hierarchical parsing.
 - **Model Context Protocol (MCP v2)**: Compliant MCP v2 server (`/api/mcp/sse` + `/api/mcp/messages` + CLI stdio) and client for seamless interoperability with Claude Desktop, Cursor, and Antigravity.
 - **OWASP Top 10 for Agentic AI**: Hardened perimeter with prompt injection delimiters, no untrusted code execution, canary token tracking, Human-in-the-Loop (HITL) gates, and immutable audit logs.
-- **100% Free-Tier & Zero-Cost Mode**: 1-Click Guest Pass with token-bucket rate limiting, unified Neon PostgreSQL 18 Data Tier, and a pre-cached Deterministic Simulator ($0 API cost).
+- **Free-Tier Guest Access**: 1-Click Guest Pass with token-bucket rate limiting on a unified Neon PostgreSQL 18 data tier.
 
 ---
 
@@ -58,11 +58,14 @@ pnpm install
 cd apps/backend && uv sync && cd ../..
 ```
 
-### 2. Configure Environment (Optional)
+### 2. Configure Environment
 
-Set `NEON_DATABASE_URL` in `.env` (the startup migration creates the schema automatically).
+The API reads `apps/backend/.env.local`. Set:
 
-Optional: set `GEMINI_API_KEY` in `apps/backend/.env` for live `text-embedding-004` dense vectors. Without it — or when `USE_SIMULATION_FALLBACK` is left at its default — NexusAgent runs in **Deterministic Simulation Mode**: reproducible hash-derived embeddings and a zero-cost agent DAG, no third-party calls.
+- `NEON_DATABASE_URL`: the startup migration creates the schema automatically.
+- `GEMINI_API_KEY`: required. The agent synthesizes answers with Gemini and embeds queries and uploaded documents with `gemini-embedding-001`. Without it, chat answers and document uploads return an error.
+
+`scripts/seed_kb.py` reads the same two variables from `apps/backend/.env` (or the process environment).
 
 ### 3. Run Development Servers
 

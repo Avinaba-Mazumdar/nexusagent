@@ -231,6 +231,80 @@ describe('Home Page - Layout and Header Controls', () => {
         global.fetch = originalFetch;
     });
 
+    it('renders stream errors in the assistant bubble with a retry action instead of an endless spinner', async () => {
+        const guest = {
+            user: { id: '55555555-5555-5555-5555-555555555555', email: null, name: 'Guest Five', avatarUrl: null, isGuest: true },
+            tokens: { accessToken: 'mock.jwt.token', tokenType: 'bearer', expiresIn: 86400 },
+            quotaRemaining: 5,
+            bucketCapacity: 5
+        };
+        const originalFetch = global.fetch;
+        global.fetch = vi.fn().mockImplementation(async (url: string) => {
+            if (String(url).includes('/api/agent/stream')) {
+                return { ok: false, status: 500, text: async () => '{"detail": "Synthesis backend unavailable"}' } as unknown as Response;
+            }
+            return { ok: true, json: async () => guest } as unknown as Response;
+        });
+
+        const user = userEvent.setup();
+        render(<Home />);
+        await user.click(screen.getByRole('button', { name: /^sign in$/i }));
+        await user.click(screen.getByRole('button', { name: /start as guest/i }));
+        await screen.findByRole('button', { name: /user profile menu/i });
+
+        await user.type(screen.getByRole('textbox', { name: /architecture question/i }), 'Explain Raft quorum{Enter}');
+
+        const errorBubble = await screen.findByTestId('assistant-error');
+        expect(errorBubble).toHaveTextContent('Synthesis backend unavailable');
+        expect(screen.queryByText(/synthesizing response/i)).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /retry/i })).toBeEnabled();
+
+        global.fetch = originalFetch;
+    });
+
+    it('shows the quota alert when the stream is rejected with 429', async () => {
+        const guest = {
+            user: { id: '66666666-6666-6666-6666-666666666666', email: null, name: 'Guest Six', avatarUrl: null, isGuest: true },
+            tokens: { accessToken: 'mock.jwt.token', tokenType: 'bearer', expiresIn: 86400 },
+            quotaRemaining: 5,
+            bucketCapacity: 5
+        };
+        const originalFetch = global.fetch;
+        global.fetch = vi.fn().mockImplementation(async (url: string) => {
+            if (String(url).includes('/api/agent/stream')) {
+                return { ok: false, status: 429, text: async () => '{"detail": "bucket empty"}' } as unknown as Response;
+            }
+            return { ok: true, json: async () => guest } as unknown as Response;
+        });
+
+        const user = userEvent.setup();
+        render(<Home />);
+        await user.click(screen.getByRole('button', { name: /^sign in$/i }));
+        await user.click(screen.getByRole('button', { name: /start as guest/i }));
+        await screen.findByRole('button', { name: /user profile menu/i });
+
+        await user.type(screen.getByRole('textbox', { name: /architecture question/i }), 'Hello{Enter}');
+
+        expect(await screen.findByTestId('assistant-error')).toHaveTextContent(/quota exhausted/i);
+        expect(screen.getByText('Demo Query Limit Reached')).toBeInTheDocument();
+        // The live region announces the failure to screen-reader users as well
+        expect(screen.getByRole('status', { name: '' })).toHaveTextContent(/quota exhausted/i);
+
+        global.fetch = originalFetch;
+    });
+
+    it('clears cached chat history from localStorage on sign out', () => {
+        localStorage.setItem('nexusagent_chat_history_user-1', '[]');
+        localStorage.setItem('nexusagent_msgs_conv-1', '[]');
+        localStorage.setItem('nexusagent_theme', 'dark');
+
+        useAuthStore.getState().logout();
+
+        expect(localStorage.getItem('nexusagent_chat_history_user-1')).toBeNull();
+        expect(localStorage.getItem('nexusagent_msgs_conv-1')).toBeNull();
+        expect(localStorage.getItem('nexusagent_theme')).toBe('dark');
+    });
+
     it('invalidates stale session when server returns 401 on init', async () => {
         localStorage.setItem('nexusagent_token', 'stale.jwt.token');
         localStorage.setItem(

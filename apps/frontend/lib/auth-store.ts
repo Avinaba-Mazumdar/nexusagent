@@ -8,6 +8,7 @@ const STORAGE_KEY_QUOTA = 'nexusagent_quota';
 const STORAGE_KEY_DEVICE_ID = 'nexusagent_device_id';
 const STORAGE_KEY_BYOK_KEY = 'nexusagent_byok_key';
 const STORAGE_KEY_BYOK_PROVIDER = 'nexusagent_byok_provider';
+const CHAT_CACHE_PREFIXES = ['nexusagent_chat_history_', 'nexusagent_msgs_'];
 
 export type ByokProvider = 'google' | 'openrouter';
 
@@ -231,6 +232,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
                 localStorage.removeItem(STORAGE_KEY_USER);
                 localStorage.removeItem(STORAGE_KEY_QUOTA);
                 removeCookie(STORAGE_KEY_TOKEN);
+                // Cached chat lists and transcripts must not outlive the session on a shared device.
+                Object.keys(localStorage)
+                    .filter((key) => CHAT_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)))
+                    .forEach((key) => localStorage.removeItem(key));
             }
             set({
                 user: null,

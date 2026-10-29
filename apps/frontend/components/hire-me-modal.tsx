@@ -14,7 +14,8 @@ interface HireMeModalProps {
 
 export function HireMeModal({ trigger, open, onOpenChange }: HireMeModalProps) {
     const calUrl = process.env.NEXT_PUBLIC_CAL_URL || 'https://cal.com/avinaba';
-    const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'architect@nexusagent.internal';
+    // No fallback address: an unconfigured email would be a dead mailto link.
+    const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -32,8 +33,8 @@ export function HireMeModal({ trigger, open, onOpenChange }: HireMeModalProps) {
                         Looking for Custom Ingestion &amp; Private Agents?
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                        In this public open-source showcase, document ingestion is locked to curated AI benchmark knowledge bases. Hire me to build and deploy
-                        your proprietary agentic systems.
+                        This public open-source showcase runs on a small shared demo quota. Hire me to build and deploy agentic systems on your own data and
+                        infrastructure.
                     </DialogDescription>
                 </div>
 
@@ -62,7 +63,7 @@ export function HireMeModal({ trigger, open, onOpenChange }: HireMeModalProps) {
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                                 <span>
-                                    <strong>Autonomous LangGraph Workflows:</strong> Multi-agent verification, tool sandboxing, human-in-the-loop, and OWASP ASI
+                                    <strong>Autonomous LangGraph Workflows:</strong> Multi-agent verification, human-in-the-loop tool approvals, and OWASP ASI
                                     security compliance.
                                 </span>
                             </li>
@@ -75,7 +76,7 @@ export function HireMeModal({ trigger, open, onOpenChange }: HireMeModalProps) {
                             <p className="text-[11px] text-muted-foreground">Typical turnaround for POC to staging: 2 to 4 weeks</p>
                         </div>
                         <Badge variant="outline" className="text-[11px] font-mono border-primary/30 text-primary">
-                            Q1/Q2 Active
+                            Open to projects
                         </Badge>
                     </div>
 
@@ -88,17 +89,19 @@ export function HireMeModal({ trigger, open, onOpenChange }: HireMeModalProps) {
                                 <ChevronRight className="h-3.5 w-3.5 opacity-70" />
                             </a>
                         </Button>
-                        <Button
-                            asChild
-                            variant="outline"
-                            className="flex-1 justify-center gap-2 text-xs font-semibold rounded-xl h-10 border-border hover:bg-secondary"
-                        >
-                            <a href={`mailto:${contactEmail}?subject=Custom%20Agentic%20RAG%20Inquiry`}>
-                                <Mail className="h-4 w-4" />
-                                <span>Inquire via Email</span>
-                                <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-                            </a>
-                        </Button>
+                        {contactEmail && (
+                            <Button
+                                asChild
+                                variant="outline"
+                                className="flex-1 justify-center gap-2 text-xs font-semibold rounded-xl h-10 border-border hover:bg-secondary"
+                            >
+                                <a href={`mailto:${contactEmail}?subject=Custom%20Agentic%20RAG%20Inquiry`}>
+                                    <Mail className="h-4 w-4" />
+                                    <span>Inquire via Email</span>
+                                    <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                                </a>
+                            </Button>
+                        )}
                     </div>
                 </div>
             </DialogContent>

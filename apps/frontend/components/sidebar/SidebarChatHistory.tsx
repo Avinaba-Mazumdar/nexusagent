@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Clock, Loader2, LogIn, MessageSquare, Search, Trash2, X } from 'lucide-react';
+import { Check, Clock, Loader2, LogIn, MessageSquare, Search, Trash2, X } from 'lucide-react';
 import type { ChatConversation } from '@nexusagent/contracts';
 import { Button } from '@/components/ui/button';
 
@@ -13,7 +13,7 @@ export interface SidebarChatHistoryProps {
     searchQuery: string;
     onSearchChange: (query: string) => void;
     onSelectConversation: (conv: ChatConversation) => void;
-    onDeleteConversation: (e: React.MouseEvent, convId: string) => void;
+    onDeleteConversation: (convId: string) => void;
     onPrefetchConversation?: (convId: string) => void;
     onOpenSignIn: () => void;
 }
@@ -67,13 +67,19 @@ export function SidebarChatHistory({
     onOpenSignIn
 }: SidebarChatHistoryProps) {
     const searchInputRef = React.useRef<HTMLInputElement | null>(null);
+    // Two-step delete: the first click arms a confirm button that disarms itself after a few seconds.
+    const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        if (!pendingDeleteId) return;
+        const timeout = setTimeout(() => setPendingDeleteId(null), 4000);
+        return () => clearTimeout(timeout);
+    }, [pendingDeleteId]);
 
     const filteredConversations = React.useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         if (!query) return conversations;
-        return conversations.filter(
-            (c) => c.title.toLowerCase().includes(query) || (c.lastSnippet && c.lastSnippet.toLowerCase().includes(query))
-        );
+        return conversations.filter((c) => c.title.toLowerCase().includes(query) || (c.lastSnippet && c.lastSnippet.toLowerCase().includes(query)));
     }, [conversations, searchQuery]);
 
     const groupedConversations = React.useMemo(() => {
@@ -85,7 +91,7 @@ export function SidebarChatHistory({
         };
 
         for (const conv of filteredConversations) {
-            const group = getGroupLabel(conv.createdAt);
+            const group = getGroupLabel(conv.updatedAt || conv.createdAt);
             groups[group].push(conv);
         }
 
@@ -98,16 +104,9 @@ export function SidebarChatHistory({
                 <MessageSquare className="h-5 w-5 text-muted-foreground/60 mx-auto" />
                 <div className="space-y-0.5">
                     <p className="text-[11px] font-medium text-foreground">Sign in to save chat history</p>
-                    <p className="text-[10px] text-muted-foreground leading-snug">
-                        Conversations are synced securely with your Google account.
-                    </p>
+                    <p className="text-[10px] text-muted-foreground leading-snug">Conversations are synced securely with your Google account.</p>
                 </div>
-                <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={onOpenSignIn}
-                    className="w-full text-xs font-semibold h-7 rounded-lg gap-1.5 cursor-pointer mt-1"
-                >
+                <Button size="sm" variant="outline" onClick={onOpenSignIn} className="w-full text-xs font-semibold h-7 rounded-lg gap-1.5 cursor-pointer mt-1">
                     <LogIn className="h-3 w-3" />
                     <span>Sign In with Google</span>
                 </Button>
@@ -163,61 +162,83 @@ export function SidebarChatHistory({
 
                         return (
                             <div key={groupKey} className="space-y-0.5">
-                                <span className="block px-1 text-[9px] font-bold text-muted-foreground tracking-wider uppercase">
-                                    {groupKey}
-                                </span>
+                                <span className="block px-1 text-[10px] font-bold text-muted-foreground tracking-wider uppercase">{groupKey}</span>
                                 <div className="space-y-0.5">
                                     {items.map((conv) => {
                                         const isActive = activeSessionId === conv.id;
+                                        const isConfirming = pendingDeleteId === conv.id;
                                         return (
                                             <div
                                                 key={conv.id}
-                                                role="button"
-                                                tabIndex={0}
-                                                onMouseEnter={() => onPrefetchConversation?.(conv.id)}
-                                                onFocus={() => onPrefetchConversation?.(conv.id)}
-                                                onClick={() => onSelectConversation(conv)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault();
-                                                        onSelectConversation(conv);
-                                                    }
-                                                }}
-                                                className={`group w-full text-left px-2 py-1.5 rounded-lg text-xs flex items-center justify-between gap-1.5 transition-colors cursor-pointer ${
+                                                className={`group w-full px-2 py-1.5 rounded-lg text-xs flex items-center justify-between gap-1.5 transition-colors ${
                                                     isActive
                                                         ? 'bg-primary/15 border border-primary/40 text-foreground font-medium'
                                                         : 'hover:bg-secondary/60 text-foreground/90 border border-transparent'
                                                 }`}
                                             >
-                                                <div className="min-w-0 flex-1">
+                                                <button
+                                                    type="button"
+                                                    onMouseEnter={() => onPrefetchConversation?.(conv.id)}
+                                                    onFocus={() => onPrefetchConversation?.(conv.id)}
+                                                    onClick={() => onSelectConversation(conv)}
+                                                    aria-current={isActive ? 'true' : undefined}
+                                                    className="min-w-0 flex-1 text-left cursor-pointer rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                                                >
                                                     <p
                                                         className={`truncate text-[11px] ${
-                                                            isActive ? 'font-semibold text-primary' : 'text-foreground group-hover:text-primary transition-colors'
+                                                            isActive
+                                                                ? 'font-semibold text-primary'
+                                                                : 'text-foreground group-hover:text-primary transition-colors'
                                                         }`}
                                                     >
                                                         {conv.title}
                                                     </p>
-                                                    <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground">
-                                                        <Clock className="h-2.5 w-2.5 shrink-0" />
-                                                        <span>{formatRelativeTime(conv.createdAt)}</span>
+                                                    <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                                        <Clock className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+                                                        <span>{formatRelativeTime(conv.updatedAt || conv.createdAt)}</span>
                                                         {conv.messageCount && conv.messageCount > 0 ? (
                                                             <>
-                                                                <span>•</span>
+                                                                <span aria-hidden="true">•</span>
                                                                 <span>{conv.messageCount} msgs</span>
                                                             </>
                                                         ) : null}
-                                                    </div>
-                                                </div>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => onDeleteConversation(e, conv.id)}
-                                                    aria-label={`Delete conversation ${conv.title}`}
-                                                    title="Delete conversation"
-                                                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-all shrink-0 cursor-pointer"
-                                                >
-                                                    <Trash2 className="h-3 w-3" />
+                                                    </span>
                                                 </button>
+
+                                                {isConfirming ? (
+                                                    <div className="flex items-center gap-0.5 shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setPendingDeleteId(null);
+                                                                onDeleteConversation(conv.id);
+                                                            }}
+                                                            aria-label={`Confirm delete ${conv.title}`}
+                                                            className="flex items-center gap-0.5 px-1.5 py-1 rounded bg-destructive text-destructive-foreground text-[10px] font-semibold cursor-pointer"
+                                                        >
+                                                            <Check className="h-3 w-3" aria-hidden="true" />
+                                                            Delete
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setPendingDeleteId(null)}
+                                                            aria-label="Cancel delete"
+                                                            className="p-1 rounded text-muted-foreground hover:bg-secondary cursor-pointer"
+                                                        >
+                                                            <X className="h-3 w-3" aria-hidden="true" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPendingDeleteId(conv.id)}
+                                                        aria-label={`Delete conversation ${conv.title}`}
+                                                        title="Delete conversation"
+                                                        className="p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-all shrink-0 cursor-pointer opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100"
+                                                    >
+                                                        <Trash2 className="h-3 w-3" aria-hidden="true" />
+                                                    </button>
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -230,4 +251,3 @@ export function SidebarChatHistory({
         </div>
     );
 }
-

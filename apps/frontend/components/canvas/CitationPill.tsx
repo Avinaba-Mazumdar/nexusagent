@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Bookmark, ExternalLink, FileText } from 'lucide-react';
+import { Bookmark, FileText } from 'lucide-react';
 import type { Citation } from '@nexusagent/contracts';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -51,12 +51,11 @@ export function CitationPill({
                         onClick={handleClick}
                         data-testid="citation-pill"
                         aria-label={`Citation reference: ${filename}${lineLabel ? ` lines ${lineLabel}` : ''}`}
-                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 my-0.5 rounded-md text-[11px] font-mono font-medium border transition-all cursor-pointer select-none bg-[var(--citation-bg)] text-[var(--citation-text)] border-[var(--citation-border)] hover:brightness-95 active:scale-95 ${className}`}
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 my-0.5 rounded-md text-[11px] font-mono font-medium border transition-all cursor-pointer select-none bg-citation-bg text-citation-text border-citation-border hover:brightness-95 active:scale-95 ${className}`}
                     >
                         <FileText className="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
                         <span className="truncate max-w-[160px] font-sans font-semibold tracking-tight">{filename}</span>
                         {lineLabel && <span className="text-[10px] px-1 py-0 rounded bg-primary/10 border border-primary/20 opacity-90">{lineLabel}</span>}
-                        <ExternalLink className="h-2.5 w-2.5 opacity-50 shrink-0 ml-0.5" aria-hidden="true" />
                     </button>
                 </TooltipTrigger>
                 <TooltipContent
@@ -83,13 +82,10 @@ export function CitationPill({
                             &ldquo;{preview}&rdquo;
                         </p>
                     ) : (
-                        <p className="text-[10px] text-muted-foreground italic">Verified grounding context from knowledge base chunk.</p>
+                        <p className="text-[11px] text-muted-foreground italic">Retrieved from a knowledge base chunk.</p>
                     )}
 
-                    <div className="pt-0.5 text-[9px] text-muted-foreground flex items-center justify-between">
-                        <span>Click to view document in knowledge vault</span>
-                        <kbd className="px-1 py-0.2 bg-muted rounded border border-border text-[8px] font-mono">Jump</kbd>
-                    </div>
+                    <p className="pt-0.5 text-[10px] text-muted-foreground">Click to highlight this source in the Documents list.</p>
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>

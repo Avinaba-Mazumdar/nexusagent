@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Terminal, Play, CheckCircle2, AlertCircle, Loader2, Database, Search, ArrowRight } from 'lucide-react';
+import { Terminal, Play, CheckCircle2, AlertCircle, Loader2, Database, Search, Copy, Check } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +43,18 @@ export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: M
     const [latencyMs, setLatencyMs] = React.useState<number | null>(null);
     const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
     const [modalOpen, setModalOpen] = React.useState(false);
+    const [copied, setCopied] = React.useState(false);
+    const sseEndpoint = `${apiBase.replace(/\/$/, '')}/api/mcp/sse`;
+
+    const handleCopyEndpoint = async () => {
+        try {
+            await navigator.clipboard.writeText(sseEndpoint);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // Clipboard access blocked
+        }
+    };
 
     const handleSelectTool = (tool: McpToolOption) => {
         setSelectedTool(tool);
@@ -118,17 +130,11 @@ export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: M
                         <Terminal className="h-3.5 w-3.5 text-primary" />
                         <span>MCP v2 Protocol Inspector</span>
                     </CardTitle>
-                    <Badge variant="soft" className="text-[9px] font-mono">
+                    <Badge variant="soft" className="text-[10px] font-mono">
                         v2024-11-05
                     </Badge>
                 </div>
-                <CardDescription className="text-xs text-muted-foreground flex items-center justify-between">
-                    <span>Direct JSON-RPC 2.0 Gateway</span>
-                    <span className="text-[10px] text-success font-medium flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-                        SSE Ready
-                    </span>
-                </CardDescription>
+                <CardDescription className="text-xs text-muted-foreground">Direct JSON-RPC 2.0 gateway (HTTP POST)</CardDescription>
             </CardHeader>
             <CardContent className="p-3 pt-0 space-y-2.5">
                 {/* Tool Selector Tabs */}
@@ -157,7 +163,7 @@ export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: M
                 <div className="space-y-1">
                     <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                         <span className="font-mono">arguments (JSON)</span>
-                        <span className="text-[9px] truncate max-w-[170px]">{selectedTool.description}</span>
+                        <span className="text-[10px] truncate max-w-[170px]">{selectedTool.description}</span>
                     </div>
                     <textarea
                         aria-label="MCP Tool Arguments JSON"
@@ -208,7 +214,7 @@ export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: M
                                     <div className="flex items-center justify-between pb-1">
                                         <span className="font-mono text-[10px] font-semibold text-muted-foreground">Inbound Response</span>
                                         {latencyMs !== null && (
-                                            <Badge variant="outline" className="text-[9px] font-mono">
+                                            <Badge variant="outline" className="text-[10px] font-mono">
                                                 {latencyMs}ms
                                             </Badge>
                                         )}
@@ -243,7 +249,7 @@ export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: M
                                     </>
                                 )}
                             </span>
-                            {latencyMs !== null && <span className="font-mono text-muted-foreground text-[9px]">{latencyMs}ms</span>}
+                            {latencyMs !== null && <span className="font-mono text-muted-foreground text-[10px]">{latencyMs}ms</span>}
                         </div>
                         <div className="font-mono text-[10px] max-h-20 overflow-y-auto whitespace-pre-wrap text-foreground/90">
                             {errorMsg ||
@@ -258,11 +264,23 @@ export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: M
                 )}
 
                 {/* Client Integration Tip */}
-                <div className="pt-1 border-t border-border/60 flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>Client config:</span>
-                    <a href="/api/mcp/sse" target="_blank" rel="noreferrer" className="text-primary hover:underline font-mono inline-flex items-center gap-0.5">
-                        GET /api/mcp/sse <ArrowRight className="h-2.5 w-2.5" />
-                    </a>
+                <div className="pt-1.5 border-t border-border/60 space-y-1 text-[11px] text-muted-foreground">
+                    <div className="flex items-center justify-between gap-2">
+                        <span>SSE endpoint for MCP clients:</span>
+                        <button
+                            type="button"
+                            onClick={handleCopyEndpoint}
+                            aria-label="Copy MCP SSE endpoint URL"
+                            className="inline-flex items-center gap-1 text-primary hover:underline cursor-pointer"
+                        >
+                            {copied ? <Check className="h-3 w-3" aria-hidden="true" /> : <Copy className="h-3 w-3" aria-hidden="true" />}
+                            <span>{copied ? 'Copied' : 'Copy'}</span>
+                        </button>
+                    </div>
+                    <code className="block font-mono text-[10px] text-foreground break-all">{sseEndpoint}</code>
+                    <p className="text-[10px]">
+                        Requires an <code>Authorization: Bearer</code> token.
+                    </p>
                 </div>
             </CardContent>
         </Card>

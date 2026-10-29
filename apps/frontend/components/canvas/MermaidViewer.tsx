@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import mermaid from 'mermaid';
 import { Check, Code, Copy, Eye, Maximize2, Minimize2, RefreshCw, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +19,29 @@ const sanitizeSvg = (svg: string): string =>
         .replace(/<embed[\s\S]*?<\/embed>/gi, '')
         .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
         .replace(/javascript:/gi, '');
+
+// Mermaid (~1 MB) is loaded on first diagram only, keeping it out of the main bundle.
+// Its config is global, so initialize + render run one at a time to stop themes racing.
+let renderQueue: Promise<unknown> = Promise.resolve();
+
+function renderMermaidSerialized(id: string, chart: string, isDark: boolean): Promise<string> {
+    const job = renderQueue.then(async () => {
+        const { default: mermaid } = await import('mermaid');
+        mermaid.initialize({
+            startOnLoad: false,
+            suppressErrorRendering: true,
+            theme: isDark ? 'dark' : 'neutral',
+            securityLevel: 'strict',
+            fontFamily: 'JetBrains Mono, monospace, sans-serif'
+        });
+        const { svg } = await mermaid.render(id, chart);
+        return svg;
+    });
+    renderQueue = job.catch(() => undefined);
+    return job;
+}
+
+const PAN_STEP_PX = 40;
 
 export interface MermaidViewerProps {
     chart: string;
@@ -61,18 +83,6 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
         setIsLoading(true);
         setRenderError(null);
 
-        try {
-            mermaid.initialize({
-                startOnLoad: false,
-                suppressErrorRendering: true,
-                theme: isDark ? 'dark' : 'neutral',
-                securityLevel: 'strict',
-                fontFamily: 'JetBrains Mono, monospace, sans-serif'
-            });
-        } catch {
-            // Already initialized or SSR fallback
-        }
-
         const renderDiagram = async () => {
             if (!cleanChart) {
                 if (isMounted) setIsLoading(false);
@@ -81,7 +91,7 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
 
             const uniqueId = `${renderIdRef.current}-${Date.now()}`;
             try {
-                const { svg } = await mermaid.render(uniqueId, cleanChart);
+                const svg = await renderMermaidSerialized(uniqueId, cleanChart, isDark);
                 if (isMounted) {
                     setSvgContent(sanitizeSvg(svg));
                     setRenderError(null);
@@ -121,13 +131,15 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
         setPanOffset({ x: 0, y: 0 });
     };
 
-    const handleMouseDown = (e: React.MouseEvent) => {
-        if (e.button !== 0) return; // Primary click only
+    // Pointer events cover mouse, pen and touch with one code path.
+    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return; // Primary click only
+        e.currentTarget.setPointerCapture?.(e.pointerId);
         setIsPanActive(true);
         setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
     };
 
-    const handleMouseMove = (e: React.MouseEvent) => {
+    const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!isPanActive || !dragStart) return;
         setPanOffset({
             x: e.clientX - dragStart.x,
@@ -135,10 +147,60 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
         });
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
         setIsPanActive(false);
         setDragStart(null);
     };
+
+    const handleViewportKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        const pan = (dx: number, dy: number) => setPanOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+        const actions: Record<string, () => void> = {
+            ArrowLeft: () => pan(PAN_STEP_PX, 0),
+            ArrowRight: () => pan(-PAN_STEP_PX, 0),
+            ArrowUp: () => pan(0, PAN_STEP_PX),
+            ArrowDown: () => pan(0, -PAN_STEP_PX),
+            '+': handleZoomIn,
+            '=': handleZoomIn,
+            '-': handleZoomOut,
+            '0': handleReset
+        };
+        const action = actions[e.key];
+        if (action) {
+            e.preventDefault();
+            action();
+        }
+    };
+
+    // Maximized view behaves as a modal: Escape closes it and Tab stays inside.
+    const rootRef = React.useRef<HTMLDivElement>(null);
+    React.useEffect(() => {
+        if (!isExpanded) return;
+        const previouslyFocused = document.activeElement as HTMLElement | null;
+        rootRef.current?.focus();
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setIsExpanded(false);
+                return;
+            }
+            if (e.key !== 'Tab' || !rootRef.current) return;
+            const focusable = rootRef.current.querySelectorAll<HTMLElement>('button, [tabindex="0"]');
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => {
+            document.removeEventListener('keydown', onKeyDown);
+            previouslyFocused?.focus?.();
+        };
+    }, [isExpanded]);
 
     const handleCopy = async () => {
         try {
@@ -150,148 +212,164 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
         }
     };
 
+    const isZoomedOrExpanded = isExpanded || zoom !== 1;
+
     return (
-        <div
-            className={`my-3 rounded-2xl border border-border bg-card shadow-xs overflow-hidden transition-all duration-200 ${
-                isExpanded ? 'fixed inset-4 z-50 shadow-2xl flex flex-col' : ''
-            } ${className}`}
-        >
-            {/* Diagram Toolbar */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-secondary/30 gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                    <Badge variant="soft" className="text-[10px] font-mono font-bold tracking-tight">
-                        Mermaid.js SVG
-                    </Badge>
-                    <span className="text-xs font-heading font-semibold text-foreground truncate">{title}</span>
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-[10px] font-mono text-muted-foreground mr-1 hidden sm:inline">{(zoom * 100).toFixed(0)}%</span>
-
-                    {/* Pan/Zoom Controls */}
-                    <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={handleZoomIn}
-                        aria-label="Zoom diagram in"
-                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-                    >
-                        <ZoomIn className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={handleZoomOut}
-                        aria-label="Zoom diagram out"
-                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-                    >
-                        <ZoomOut className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={handleReset}
-                        aria-label="Reset zoom and position"
-                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-                    >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
-
-                    <div className="h-4 w-[1px] bg-border mx-0.5" />
-
-                    {/* Toggle Code / Diagram View */}
-                    <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setShowSource((prev) => !prev)}
-                        aria-label={showSource ? 'View rendered diagram' : 'View diagram source'}
-                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-                    >
-                        {showSource ? <Eye className="h-3.5 w-3.5" /> : <Code className="h-3.5 w-3.5" />}
-                    </Button>
-
-                    {/* Copy Source */}
-                    <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={handleCopy}
-                        aria-label="Copy diagram source"
-                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-                    >
-                        {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-                    </Button>
-
-                    {/* Maximize / Minimize View */}
-                    <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setIsExpanded((prev) => !prev)}
-                        aria-label={isExpanded ? 'Minimize diagram view' : 'Maximize diagram view'}
-                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-                    >
-                        {isExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                    </Button>
-                </div>
-            </div>
-
-            {/* Diagram Viewport */}
+        <>
+            {isExpanded && (
+                <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setIsExpanded(false)} aria-hidden="true" data-testid="mermaid-backdrop" />
+            )}
             <div
-                ref={containerRef}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-                className={`relative overflow-hidden flex items-center justify-center p-4 bg-card cursor-grab active:cursor-grabbing select-none ${
-                    isExpanded ? 'flex-1 min-h-[500px]' : 'min-h-[220px] max-h-[480px]'
-                }`}
+                ref={rootRef}
+                tabIndex={-1}
+                role={isExpanded ? 'dialog' : undefined}
+                aria-modal={isExpanded ? true : undefined}
+                aria-label={isExpanded ? title : undefined}
+                className={`my-3 rounded-2xl border border-border bg-card shadow-xs overflow-hidden transition-all duration-200 focus:outline-none ${
+                    isExpanded ? 'fixed inset-4 z-50 shadow-2xl flex flex-col' : ''
+                } ${className}`}
             >
-                {isLoading && (
-                    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground py-8">
-                        <RefreshCw className="h-5 w-5 animate-spin text-primary" />
-                        <span className="text-xs font-medium font-mono">Rendering dynamic architecture SVG...</span>
+                {/* Diagram Toolbar */}
+                <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-secondary/30 gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Badge variant="soft" className="text-[10px] font-mono font-bold tracking-tight">
+                            Mermaid.js SVG
+                        </Badge>
+                        <span className="text-xs font-heading font-semibold text-foreground truncate">{title}</span>
                     </div>
-                )}
 
-                {!isLoading && renderError && !showSource && (
-                    <div className="p-4 text-center space-y-2 max-w-md">
-                        <p className="text-xs text-amber-500 font-semibold font-mono">Diagram parsing in progress or syntax error:</p>
-                        <p className="text-[11px] text-muted-foreground truncate">{renderError}</p>
-                        <Button size="sm" variant="outline" onClick={() => setShowSource(true)} className="text-xs rounded-xl h-7">
-                            View Raw Syntax
+                    <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] font-mono text-muted-foreground mr-1 hidden sm:inline">{(zoom * 100).toFixed(0)}%</span>
+
+                        {/* Pan/Zoom Controls */}
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={handleZoomIn}
+                            aria-label="Zoom diagram in"
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                        >
+                            <ZoomIn className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={handleZoomOut}
+                            aria-label="Zoom diagram out"
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                        >
+                            <ZoomOut className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={handleReset}
+                            aria-label="Reset zoom and position"
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                        >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+
+                        <div className="h-4 w-[1px] bg-border mx-0.5" />
+
+                        {/* Toggle Code / Diagram View */}
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setShowSource((prev) => !prev)}
+                            aria-label={showSource ? 'View rendered diagram' : 'View diagram source'}
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                        >
+                            {showSource ? <Eye className="h-3.5 w-3.5" /> : <Code className="h-3.5 w-3.5" />}
+                        </Button>
+
+                        {/* Copy Source */}
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={handleCopy}
+                            aria-label="Copy diagram source"
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                        >
+                            {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                        </Button>
+
+                        {/* Maximize / Minimize View */}
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setIsExpanded((prev) => !prev)}
+                            aria-label={isExpanded ? 'Minimize diagram view' : 'Maximize diagram view'}
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                        >
+                            {isExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                         </Button>
                     </div>
-                )}
+                </div>
 
-                {!isLoading && showSource && (
-                    <pre className="w-full h-full p-4 overflow-auto font-mono text-xs bg-secondary/30 text-foreground rounded-xl border border-border">
-                        <code>{cleanChart}</code>
-                    </pre>
-                )}
+                {/* Diagram Viewport */}
+                <div
+                    ref={containerRef}
+                    tabIndex={0}
+                    role="group"
+                    aria-label="Diagram viewport. Drag or use arrow keys to pan, plus and minus to zoom, 0 to reset."
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
+                    onKeyDown={handleViewportKeyDown}
+                    className={`relative overflow-hidden flex items-center justify-center p-4 bg-card cursor-grab active:cursor-grabbing select-none ${
+                        isZoomedOrExpanded ? 'touch-none' : 'touch-pan-y'
+                    } ${isExpanded ? 'flex-1 min-h-[300px]' : 'min-h-[220px] max-h-[480px]'}`}
+                >
+                    {isLoading && (
+                        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground py-8">
+                            <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+                            <span className="text-xs font-medium font-mono">Rendering dynamic architecture SVG...</span>
+                        </div>
+                    )}
 
-                {!isLoading && !renderError && !showSource && svgContent && (
-                    <div
-                        style={{
-                            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-                            transformOrigin: 'center center',
-                            transition: isPanActive ? 'none' : 'transform 0.15s ease-out'
-                        }}
-                        className="w-full flex justify-center [&_svg]:max-w-full [&_svg]:h-auto [&_svg_foreignObject]:overflow-visible transition-transform"
-                        dangerouslySetInnerHTML={{ __html: svgContent }}
-                    />
-                )}
+                    {!isLoading && renderError && !showSource && (
+                        <div className="p-4 text-center space-y-2 max-w-md">
+                            <p className="text-xs text-warning font-semibold font-mono">Diagram parsing in progress or syntax error:</p>
+                            <p className="text-[11px] text-muted-foreground truncate">{renderError}</p>
+                            <Button size="sm" variant="outline" onClick={() => setShowSource(true)} className="text-xs rounded-xl h-7">
+                                View Raw Syntax
+                            </Button>
+                        </div>
+                    )}
+
+                    {!isLoading && showSource && (
+                        <pre className="w-full h-full p-4 overflow-auto font-mono text-xs bg-secondary/30 text-foreground rounded-xl border border-border">
+                            <code>{cleanChart}</code>
+                        </pre>
+                    )}
+
+                    {!isLoading && !renderError && !showSource && svgContent && (
+                        <div
+                            style={{
+                                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+                                transformOrigin: 'center center',
+                                transition: isPanActive ? 'none' : 'transform 0.15s ease-out'
+                            }}
+                            className="w-full flex justify-center [&_svg]:max-w-full [&_svg]:h-auto [&_svg_foreignObject]:overflow-visible transition-transform"
+                            dangerouslySetInnerHTML={{ __html: svgContent }}
+                        />
+                    )}
+                </div>
+
+                {/* Footer status pill */}
+                <div className="px-3 py-1.5 border-t border-border bg-secondary/15 flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                    <span>Drag or arrow keys to pan • +/- to zoom</span>
+                    {isExpanded && <span>Esc to close</span>}
+                </div>
             </div>
-
-            {/* Footer status pill */}
-            <div className="px-3 py-1.5 border-t border-border bg-secondary/15 flex items-center justify-between text-[10px] text-muted-foreground font-mono">
-                <span>Hold &amp; drag to pan • Click +/- to zoom</span>
-                <span>Hardware Accelerated SVG</span>
-            </div>
-        </div>
+        </>
     );
 }

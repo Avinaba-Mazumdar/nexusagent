@@ -109,6 +109,14 @@ function CodeBlock({ language, code }: CodeBlockProps) {
     );
 }
 
+const CITABLE_EXTENSION = /\.(md|markdown|txt|rfc)$/i;
+const SAFE_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+const BULLET_ITEM = /^[-*]\s+(.*)/;
+const NUMBERED_ITEM = /^(\d+)\.\s+(.*)/;
+
+/** All-caps numbered lines ("1. STRUCTURAL COMPARISON") are section headers, not list items. */
+const isCategoryHeader = (text: string) => text.length > 3 && text === text.toUpperCase() && !text.includes(':') && !text.endsWith('.');
+
 export function MarkdownRenderer({ content, isStreaming = false, citations = [], isDark = false, onCitationClick, className = '' }: MarkdownRendererProps) {
     // Build citation lookup by filename for easy inline resolution
     const citationMap = React.useMemo(() => {
@@ -119,49 +127,8 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
         return map;
     }, [citations]);
 
-    // Parse inline citation tags like [filename (Lines X-Y)] or [filename]
-    const renderInlineWithCitations = (text: string): React.ReactNode => {
-        const citationRegex = /\[([a-zA-Z0-9_\-.]+(?:\.md|\.txt|\.rfc)?)(?:\s*\((?:Lines?\s*)?(\d+)(?:-(\d+))?\))?\]/gi;
-        const parts: React.ReactNode[] = [];
-        let lastIndex = 0;
-        let match: RegExpExecArray | null;
-
-        while ((match = citationRegex.exec(text)) !== null) {
-            const [fullMatch, filename, startLineStr, endLineStr] = match;
-            const matchIndex = match.index;
-
-            // Push preceding text formatted
-            if (matchIndex > lastIndex) {
-                parts.push(renderFormattedText(text.substring(lastIndex, matchIndex), `text-${lastIndex}`));
-            }
-
-            const startLine = startLineStr ? parseInt(startLineStr, 10) : undefined;
-            const endLine = endLineStr ? parseInt(endLineStr, 10) : startLine;
-            const matchedCitation = citationMap.get(filename.toLowerCase());
-
-            parts.push(
-                <CitationPill
-                    key={`cite-${matchIndex}-${filename}`}
-                    citation={matchedCitation}
-                    filename={filename}
-                    startLine={startLine}
-                    endLine={endLine}
-                    onClick={onCitationClick}
-                />
-            );
-
-            lastIndex = matchIndex + fullMatch.length;
-        }
-
-        if (lastIndex < text.length) {
-            parts.push(renderFormattedText(text.substring(lastIndex), `text-${lastIndex}`));
-        }
-
-        return parts.length > 0 ? parts : text;
-    };
-
-    // Formats bold, italic, and inline code spans
-    const renderFormattedText = (raw: string, keyPrefix: string): React.ReactNode => {
+    // Formats bold and inline code spans
+    const renderFormattedText = React.useCallback((raw: string, keyPrefix: string): React.ReactNode => {
         // Tokenize code spans `code`
         const codeParts = raw.split(/(`[^`]+`)/g);
         return codeParts.map((part, i) => {
@@ -193,7 +160,81 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                 </React.Fragment>
             );
         });
-    };
+    }, []);
+
+    // Parse inline citation tags like [filename.md (Lines X-Y)]; other bracketed text stays prose.
+    const renderCitations = React.useCallback(
+        (text: string, keyPrefix: string): React.ReactNode[] => {
+            const citationRegex = /\[([a-zA-Z0-9_\-.]+)(?:\s*\((?:Lines?\s*)?(\d+)(?:-(\d+))?\))?\]/gi;
+            const parts: React.ReactNode[] = [];
+            let lastIndex = 0;
+            let match: RegExpExecArray | null;
+
+            while ((match = citationRegex.exec(text)) !== null) {
+                const [fullMatch, filename, startLineStr, endLineStr] = match;
+                const matchedCitation = citationMap.get(filename.toLowerCase());
+                if (!matchedCitation && !CITABLE_EXTENSION.test(filename)) continue;
+
+                if (match.index > lastIndex) {
+                    parts.push(renderFormattedText(text.substring(lastIndex, match.index), `${keyPrefix}-text-${lastIndex}`));
+                }
+
+                const startLine = startLineStr ? parseInt(startLineStr, 10) : undefined;
+                const endLine = endLineStr ? parseInt(endLineStr, 10) : startLine;
+                parts.push(
+                    <CitationPill
+                        key={`${keyPrefix}-cite-${match.index}-${filename}`}
+                        citation={matchedCitation}
+                        filename={filename}
+                        startLine={startLine}
+                        endLine={endLine}
+                        onClick={onCitationClick}
+                    />
+                );
+                lastIndex = match.index + fullMatch.length;
+            }
+
+            if (lastIndex < text.length) {
+                parts.push(renderFormattedText(text.substring(lastIndex), `${keyPrefix}-text-${lastIndex}`));
+            }
+            return parts;
+        },
+        [citationMap, onCitationClick, renderFormattedText]
+    );
+
+    // Inline pipeline: http(s) links first (so [label](url) is never read as a citation), then citations.
+    const renderInline = React.useCallback(
+        (text: string): React.ReactNode => {
+            const linkRegex = new RegExp(SAFE_LINK.source, 'g');
+            const parts: React.ReactNode[] = [];
+            let lastIndex = 0;
+            let match: RegExpExecArray | null;
+
+            while ((match = linkRegex.exec(text)) !== null) {
+                if (match.index > lastIndex) {
+                    parts.push(...renderCitations(text.substring(lastIndex, match.index), `seg-${lastIndex}`));
+                }
+                parts.push(
+                    <a
+                        key={`link-${match.index}`}
+                        href={match[2]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary font-medium underline underline-offset-2 hover:no-underline"
+                    >
+                        {match[1]}
+                    </a>
+                );
+                lastIndex = match.index + match[0].length;
+            }
+
+            if (lastIndex < text.length) {
+                parts.push(...renderCitations(text.substring(lastIndex), `seg-${lastIndex}`));
+            }
+            return parts.length > 0 ? parts : text;
+        },
+        [renderCitations]
+    );
 
     // Parse blocks: code fences, headings, lists, paragraphs
     const blocks = React.useMemo(() => {
@@ -242,7 +283,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
             if (line.startsWith('# ')) {
                 result.push(
                     <h1 key={`h1-${i}`} className="text-base font-heading font-extrabold text-foreground mt-4 mb-2 tracking-tight">
-                        {renderInlineWithCitations(line.slice(2))}
+                        {renderInline(line.slice(2))}
                     </h1>
                 );
                 continue;
@@ -253,7 +294,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                         key={`h2-${i}`}
                         className="text-sm font-heading font-bold text-foreground mt-4 mb-2 border-b border-border/80 pb-1.5 tracking-tight flex items-center gap-2"
                     >
-                        {renderInlineWithCitations(line.slice(3))}
+                        {renderInline(line.slice(3))}
                     </h2>
                 );
                 continue;
@@ -267,16 +308,24 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                             <span className="px-2 py-0.5 rounded-md bg-primary/15 text-primary text-[10px] font-mono font-bold uppercase tracking-wider border border-primary/25">
                                 {catMatch[1]}
                             </span>
-                            <h3 className="text-xs font-heading font-bold text-foreground tracking-wide uppercase">{renderInlineWithCitations(catMatch[2])}</h3>
+                            <h3 className="text-xs font-heading font-bold text-foreground tracking-wide uppercase">{renderInline(catMatch[2])}</h3>
                         </div>
                     );
                 } else {
                     result.push(
                         <h3 key={`h3-${i}`} className="text-xs font-heading font-bold text-primary mt-3.5 mb-1.5 uppercase tracking-wider">
-                            {renderInlineWithCitations(headingText)}
+                            {renderInline(headingText)}
                         </h3>
                     );
                 }
+                continue;
+            }
+            if (/^#{4,6} /.test(line)) {
+                result.push(
+                    <h4 key={`h4-${i}`} className="text-xs font-heading font-semibold text-foreground mt-3 mb-1">
+                        {renderInline(line.replace(/^#{4,6} /, ''))}
+                    </h4>
+                );
                 continue;
             }
 
@@ -322,13 +371,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                 i--; // Adjust for loop increment
 
                 result.push(
-                    <TableBlock
-                        key={`table-${i}`}
-                        headers={headerCells}
-                        alignments={alignments}
-                        rows={bodyRows}
-                        renderCell={(cell) => renderInlineWithCitations(cell)}
-                    />
+                    <TableBlock key={`table-${i}`} headers={headerCells} alignments={alignments} rows={bodyRows} renderCell={(cell) => renderInline(cell)} />
                 );
                 continue;
             }
@@ -354,9 +397,9 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                         key={`quote-${i}`}
                         className={`my-3 p-3.5 rounded-xl border-l-4 text-xs leading-relaxed ${
                             alertType === 'WARNING' || alertType === 'CAUTION'
-                                ? 'border-amber-500/80 bg-amber-500/10 text-foreground'
+                                ? 'border-warning bg-warning-bg text-foreground'
                                 : alertType === 'TIP'
-                                  ? 'border-emerald-500/80 bg-emerald-500/10 text-foreground'
+                                  ? 'border-success bg-success-bg text-foreground'
                                   : 'border-primary/80 bg-primary/10 text-foreground'
                         }`}
                     >
@@ -368,7 +411,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                         )}
                         {displayLines.map((ql, qIdx) => (
                             <p key={`qp-${qIdx}`} className="my-1 leading-relaxed text-foreground/90">
-                                {renderInlineWithCitations(ql)}
+                                {renderInline(ql)}
                             </p>
                         ))}
                     </div>
@@ -376,36 +419,55 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                 continue;
             }
 
-            // Unordered list item
-            if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-                const itemText = line.trim().slice(2);
+            // Unordered list: group consecutive items into one <ul>
+            if (BULLET_ITEM.test(line.trim())) {
+                const items: string[] = [];
+                let itemMatch: RegExpMatchArray | null;
+                while (i < lines.length && (itemMatch = lines[i].trim().match(BULLET_ITEM))) {
+                    items.push(itemMatch[1]);
+                    i++;
+                }
+                i--; // Adjust for loop increment
                 result.push(
-                    <li key={`li-${i}`} className="ml-4 list-disc text-xs leading-relaxed text-foreground/90 my-1">
-                        {renderInlineWithCitations(itemText)}
-                    </li>
+                    <ul key={`ul-${i}`} className="ml-4 list-disc space-y-1 my-1 text-xs leading-relaxed text-foreground/90">
+                        {items.map((item, idx) => (
+                            <li key={`li-${i}-${idx}`}>{renderInline(item)}</li>
+                        ))}
+                    </ul>
                 );
                 continue;
             }
 
-            // Numbered list item & Category header fallback
-            const numMatch = line.trim().match(/^(\d+)\.\s+(.*)/);
+            // Numbered list (grouped into one <ol>) & category header fallback
+            const numMatch = line.trim().match(NUMBERED_ITEM);
             if (numMatch) {
                 const text = numMatch[2].trim();
-                if (text.length > 3 && text === text.toUpperCase() && !text.includes(':') && !text.endsWith('.')) {
+                if (isCategoryHeader(text)) {
                     result.push(
                         <div key={`cat-h-${i}`} className="mt-4.5 mb-2 flex items-center gap-2">
                             <span className="px-2 py-0.5 rounded-md bg-primary/15 text-primary text-[10px] font-mono font-bold uppercase tracking-wider border border-primary/25">
                                 {numMatch[1]}
                             </span>
-                            <h3 className="text-xs font-heading font-bold text-foreground tracking-wide uppercase">{renderInlineWithCitations(text)}</h3>
+                            <h3 className="text-xs font-heading font-bold text-foreground tracking-wide uppercase">{renderInline(text)}</h3>
                         </div>
                     );
                     continue;
                 }
+
+                const start = parseInt(numMatch[1], 10);
+                const items: string[] = [];
+                let itemMatch: RegExpMatchArray | null;
+                while (i < lines.length && (itemMatch = lines[i].trim().match(NUMBERED_ITEM)) && !isCategoryHeader(itemMatch[2].trim())) {
+                    items.push(itemMatch[2]);
+                    i++;
+                }
+                i--; // Adjust for loop increment
                 result.push(
-                    <li key={`ol-${i}`} className="ml-4 list-decimal text-xs leading-relaxed text-foreground/90 my-1">
-                        {renderInlineWithCitations(numMatch[2])}
-                    </li>
+                    <ol key={`ol-${i}`} start={start} className="ml-4 list-decimal space-y-1 my-1 text-xs leading-relaxed text-foreground/90">
+                        {items.map((item, idx) => (
+                            <li key={`oli-${i}-${idx}`}>{renderInline(item)}</li>
+                        ))}
+                    </ol>
                 );
                 continue;
             }
@@ -419,7 +481,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
             // Standard paragraph
             result.push(
                 <p key={`p-${i}`} className="text-xs leading-relaxed text-foreground/90 my-1.5">
-                    {renderInlineWithCitations(line)}
+                    {renderInline(line)}
                 </p>
             );
         }
@@ -434,7 +496,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                             <span className="h-2 w-2 rounded-full bg-primary animate-ping" />
                             Streaming architecture diagram syntax...
                         </div>
-                        <pre className="text-[10px] font-mono text-muted-foreground overflow-x-auto">
+                        <pre className="text-[11px] font-mono text-muted-foreground overflow-x-auto">
                             <code>{unclosedCode}</code>
                         </pre>
                     </div>
@@ -445,7 +507,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
         }
 
         return result;
-    }, [content, isDark, renderInlineWithCitations]);
+    }, [content, isDark, renderInline]);
 
     return (
         <div className={`markdown-content space-y-2.5 text-xs leading-relaxed ${className}`}>

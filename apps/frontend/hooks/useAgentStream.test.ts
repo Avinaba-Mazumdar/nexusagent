@@ -77,11 +77,45 @@ describe('useAgentStream Hook', () => {
         const { result } = renderHook(() => useAgentStream());
 
         await act(async () => {
-            await result.current.startStream({ query: 'Hello' });
+            await expect(result.current.startStream({ query: 'Hello' })).rejects.toThrow(/Rate limit exceeded/);
         });
 
         expect(result.current.isStreaming).toBe(false);
         expect(result.current.streamError).toContain('Rate limit exceeded');
+    });
+
+    it('rejects with a quota message on 429 so the UI can surface it', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 429,
+            text: async () => '{"detail": "Token bucket empty"}'
+        } as unknown as Response);
+
+        const { result } = renderHook(() => useAgentStream());
+
+        await act(async () => {
+            await expect(result.current.startStream({ query: 'Hello' })).rejects.toMatchObject({ status: 429 });
+        });
+
+        expect(result.current.streamError).toMatch(/quota exhausted/i);
+    });
+
+    it('rejects when the server emits an error event and no done payload', async () => {
+        const encoder = new TextEncoder();
+        const mockStream = new ReadableStream({
+            pull(controller) {
+                controller.enqueue(encoder.encode('event: error\ndata: {"error": "Synthesis failed"}\n\n'));
+                controller.close();
+            }
+        });
+        global.fetch = vi.fn().mockResolvedValue({ ok: true, body: mockStream, status: 200 } as unknown as Response);
+
+        const { result } = renderHook(() => useAgentStream());
+
+        await act(async () => {
+            await expect(result.current.startStream({ query: 'Hello' })).rejects.toThrow('Synthesis failed');
+        });
+        expect(result.current.isStreaming).toBe(false);
     });
 
     it('sends the BYOK credential header when a key is supplied', async () => {

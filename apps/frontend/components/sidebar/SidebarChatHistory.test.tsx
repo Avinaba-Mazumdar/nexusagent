@@ -172,9 +172,17 @@ describe('SidebarChatHistory Component', () => {
             />
         );
 
-        const deleteBtn = screen.getByRole('button', { name: /delete conversation/i });
-        await user.click(deleteBtn);
+        // First click only arms the confirmation
+        await user.click(screen.getByRole('button', { name: /delete conversation/i }));
+        expect(handleDelete).not.toHaveBeenCalled();
+
+        // Cancel disarms it
+        await user.click(screen.getByRole('button', { name: /cancel delete/i }));
+        expect(screen.queryByRole('button', { name: /confirm delete/i })).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /delete conversation/i }));
+        await user.click(screen.getByRole('button', { name: /confirm delete/i }));
         expect(handleDelete).toHaveBeenCalledTimes(1);
+        expect(handleDelete).toHaveBeenCalledWith('c1');
     });
 });
-

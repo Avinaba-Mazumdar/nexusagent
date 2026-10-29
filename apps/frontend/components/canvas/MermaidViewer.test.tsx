@@ -61,6 +61,30 @@ flowchart TD
         expect(screen.getByText(/flowchart TD/)).toBeInTheDocument();
     });
 
+    it('maximizes as a dialog that closes on Escape or backdrop click', async () => {
+        render(<MermaidViewer chart={validChart} title="Topology" />);
+
+        fireEvent.click(screen.getByLabelText('Maximize diagram view'));
+        expect(screen.getByRole('dialog', { name: 'Topology' })).toBeInTheDocument();
+
+        fireEvent.keyDown(document, { key: 'Escape' });
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByLabelText('Maximize diagram view'));
+        fireEvent.click(screen.getByTestId('mermaid-backdrop'));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('supports keyboard zoom on the focusable viewport', () => {
+        render(<MermaidViewer chart={validChart} />);
+
+        const viewport = screen.getByRole('group', { name: /diagram viewport/i });
+        fireEvent.keyDown(viewport, { key: '+' });
+        expect(screen.getByText('115%')).toBeInTheDocument();
+        fireEvent.keyDown(viewport, { key: '0' });
+        expect(screen.getByText('100%')).toBeInTheDocument();
+    });
+
     it('handles diagram render error gracefully without crashing', async () => {
         render(<MermaidViewer chart="invalid_syntax" />);
 

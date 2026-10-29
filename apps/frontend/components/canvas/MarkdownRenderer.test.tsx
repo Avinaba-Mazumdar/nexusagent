@@ -99,4 +99,31 @@ Detailed analysis here.
         expect(screen.getByText('1')).toBeInTheDocument();
         expect(screen.getByText('STRUCTURAL METRIC & WORKLOAD COMPARISON')).toBeInTheDocument();
     });
+
+    it('groups consecutive list items under a single ul/ol parent', () => {
+        const { container } = render(<MarkdownRenderer content={'- alpha\n- beta\n\n1. one\n2. two'} />);
+
+        const lists = screen.getAllByRole('list');
+        expect(lists).toHaveLength(2);
+        expect(container.querySelector('ul')?.querySelectorAll('li')).toHaveLength(2);
+        expect(container.querySelector('ol')?.querySelectorAll('li')).toHaveLength(2);
+    });
+
+    it('renders #### headings and safe http(s) links only', () => {
+        render(<MarkdownRenderer content={'#### Deep dive\nSee [the RFC](https://example.com/rfc) or [bad](javascript:alert(1)).'} />);
+
+        expect(screen.getByRole('heading', { level: 4 })).toHaveTextContent('Deep dive');
+        const link = screen.getByRole('link', { name: 'the RFC' });
+        expect(link).toHaveAttribute('href', 'https://example.com/rfc');
+        expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+        expect(screen.queryByRole('link', { name: 'bad' })).not.toBeInTheDocument();
+    });
+
+    it('does not turn plain bracketed words into citation pills', () => {
+        render(<MarkdownRenderer content="Reference [1] and [Dimension] are not files, but [notes.md] is." />);
+
+        const pills = screen.getAllByTestId('citation-pill');
+        expect(pills).toHaveLength(1);
+        expect(pills[0]).toHaveTextContent('notes.md');
+    });
 });

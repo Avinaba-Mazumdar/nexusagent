@@ -20,6 +20,30 @@ export interface StreamParams {
     byokKey?: string | null;
 }
 
+/** Raised for HTTP failures and server-side stream errors so callers can render them. */
+export class AgentStreamError extends Error {
+    constructor(
+        message: string,
+        readonly status?: number
+    ) {
+        super(message);
+        this.name = 'AgentStreamError';
+    }
+}
+
+function describeHttpError(status: number, body: string): string {
+    let detail = body;
+    try {
+        const parsed = JSON.parse(body);
+        if (typeof parsed?.detail === 'string') detail = parsed.detail;
+    } catch {
+        // Plain-text body
+    }
+    if (status === 429) return 'Query quota exhausted. It replenishes hourly.';
+    if (status === 401) return 'Your session has expired. Please sign in again.';
+    return `Server returned status ${status}: ${detail}`;
+}
+
 export interface PendingApproval {
     approvalId: string;
     sessionId: string;
@@ -59,6 +83,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
             const { query, documentId, sessionId: existingSessionId, token, byokKey } = params;
 
             cancelStream();
+            tokenRef.current = token ?? null;
 
             setIsStreaming(true);
             setStreamError(null);
@@ -74,6 +99,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
             const controller = new AbortController();
             abortControllerRef.current = controller;
             const startTime = performance.now();
+            options?.onMetricUpdate?.(() => ({ firstTokenMs: null, totalLatencyMs: null, iterationCount: null }));
 
             const emitLog = (stage: LogEntry['stage'], message: string, meta?: Record<string, unknown>) => {
                 options?.onLog?.({
@@ -111,17 +137,18 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
 
                 if (!response.ok) {
                     const errText = await response.text();
-                    throw new Error(`Server returned status ${response.status}: ${errText}`);
+                    throw new AgentStreamError(describeHttpError(response.status, errText), response.status);
                 }
 
                 if (!response.body) {
-                    throw new Error('Response body is null');
+                    throw new AgentStreamError('Response body is null');
                 }
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder('utf-8');
                 let buffer = '';
-                let accumulatedTokens = 0;
+                let receivedFirstToken = false;
+                let serverError: string | null = null;
                 let finalDonePayload: AgentInvokeResponse | null = null;
 
                 while (true) {
@@ -193,13 +220,11 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                 case 'token':
                                     if (data.token) {
                                         setStreamedResponse((prev) => prev + data.token);
-                                        accumulatedTokens += 1;
-                                        options?.onMetricUpdate?.((prev) => ({
-                                            ...prev,
-                                            completionTokens: prev.completionTokens + 1,
-                                            totalTokens: prev.totalTokens + 1,
-                                            latencyMs: Math.round(performance.now() - startTime)
-                                        }));
+                                        if (!receivedFirstToken) {
+                                            receivedFirstToken = true;
+                                            const firstTokenMs = Math.round(performance.now() - startTime);
+                                            options?.onMetricUpdate?.((prev) => ({ ...prev, firstTokenMs }));
+                                        }
                                     }
                                     break;
 
@@ -213,11 +238,17 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     if (doneScore !== undefined) setReflectionScore(doneScore);
                                     if (data.isGrounded !== undefined) setIsGrounded(!!data.isGrounded);
                                     setIsComplete(true);
-                                    emitLog('STREAM', `DAG completed successfully. Total latency: ${Math.round(performance.now() - startTime)}ms`);
+                                    {
+                                        const totalLatencyMs = Math.round(performance.now() - startTime);
+                                        const iterationCount = typeof data.iterationCount === 'number' ? data.iterationCount : null;
+                                        options?.onMetricUpdate?.((prev) => ({ ...prev, totalLatencyMs, iterationCount }));
+                                        emitLog('STREAM', `DAG completed successfully. Total latency: ${totalLatencyMs}ms`);
+                                    }
                                     break;
 
                                 case 'error':
-                                    setStreamError(data.error || 'Unknown SSE stream error');
+                                    serverError = data.error || 'Unknown SSE stream error';
+                                    setStreamError(serverError);
                                     emitLog('ROUTER', `Stream Error: ${data.error}`);
                                     break;
                             }
@@ -225,6 +256,10 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                             console.error('Failed to parse SSE data packet:', parseErr, dataStr);
                         }
                     }
+                }
+
+                if (!finalDonePayload) {
+                    throw new AgentStreamError(serverError || 'The stream ended before a response was produced.');
                 }
 
                 setIsStreaming(false);
@@ -238,7 +273,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                 setStreamError(msg);
                 emitLog('ROUTER', `Fatal stream error: ${msg}`);
                 setIsStreaming(false);
-                return null;
+                throw err instanceof AgentStreamError ? err : new AgentStreamError(msg);
             }
         },
         [options, cancelStream]

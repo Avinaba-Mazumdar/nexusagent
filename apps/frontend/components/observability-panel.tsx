@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { cn } from '@/lib/utils';
-import { Activity, CheckCircle2, ChevronRight, GitFork, Loader2, RefreshCw, Terminal } from 'lucide-react';
+import { Activity, CheckCircle2, ChevronRight, GitFork, Loader2, RefreshCw, Terminal, XCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,14 +16,11 @@ export interface LogEntry {
     meta?: Record<string, unknown>;
 }
 
+/** Client-measured timings for the most recent run; null until observed. */
 export interface TelemetryMetrics {
-    activeModel: string;
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    latencyMs: number;
-    rpmRemaining?: number;
-    isByok: boolean;
+    firstTokenMs: number | null;
+    totalLatencyMs: number | null;
+    iterationCount: number | null;
 }
 
 export interface ObservabilityPanelProps {
@@ -45,7 +42,13 @@ const DAG_NODES = [
     { id: 'synthesizer', label: 'Synthesizer', step: 4 }
 ];
 
+function formatMs(ms: number | null): string {
+    if (ms === null) return '—';
+    return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+}
+
 export function ObservabilityPanel({
+    metrics,
     logs,
     currentNode,
     plan = [],
@@ -61,6 +64,12 @@ export function ObservabilityPanel({
             logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [logs]);
+
+    const metricTiles = [
+        { label: 'First token', value: formatMs(metrics?.firstTokenMs ?? null) },
+        { label: 'Total', value: formatMs(metrics?.totalLatencyMs ?? null) },
+        { label: 'Critic loops', value: metrics?.iterationCount != null ? String(metrics.iterationCount) : '—' }
+    ];
 
     return (
         <aside
@@ -96,8 +105,8 @@ export function ObservabilityPanel({
                         <span>LangGraph DAG Pipeline</span>
                     </div>
                     {isStreaming && (
-                        <Badge variant="soft" className="text-[9px] gap-1 px-1.5 py-0 animate-pulse bg-primary/20 text-primary">
-                            <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        <Badge variant="soft" className="text-[10px] gap-1 px-1.5 py-0 bg-primary/20 text-primary">
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden="true" />
                             Live
                         </Badge>
                     )}
@@ -112,33 +121,44 @@ export function ObservabilityPanel({
                         return (
                             <React.Fragment key={node.id}>
                                 <div
-                                    className={`flex flex-col items-center px-1 py-0.5 rounded text-center min-w-[48px] shrink-0 transition-all ${
+                                    className={`flex flex-col items-center px-1 py-0.5 rounded text-center min-w-[52px] shrink-0 transition-all ${
                                         isCurrent
-                                            ? 'bg-primary text-primary-foreground font-bold shadow-xs scale-105'
+                                            ? 'bg-primary text-primary-foreground font-bold shadow-xs'
                                             : isPast
                                               ? 'bg-primary/20 text-foreground font-medium'
                                               : 'bg-muted/40 text-muted-foreground'
                                     }`}
+                                    aria-current={isCurrent ? 'step' : undefined}
                                 >
-                                    <span className="text-[7.5px] uppercase tracking-tighter opacity-80">{isCurrent ? 'ACTIVE' : `S${node.step}`}</span>
-                                    <span className="text-[9.5px] leading-tight truncate">{node.label}</span>
+                                    <span className="text-[10px] uppercase tracking-tight opacity-90">{isCurrent ? 'Active' : `S${node.step}`}</span>
+                                    <span className="text-[11px] leading-tight truncate">{node.label}</span>
                                 </div>
-                                {index < DAG_NODES.length - 1 && <ChevronRight className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0" />}
+                                {index < DAG_NODES.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground/60 shrink-0" aria-hidden="true" />}
                             </React.Fragment>
                         );
                     })}
                 </div>
 
+                {/* Run Metrics (client-measured) */}
+                <dl className="mt-2 pt-1.5 border-t border-border grid grid-cols-3 gap-1.5" data-testid="run-metrics">
+                    {metricTiles.map((tile) => (
+                        <div key={tile.label} className="rounded-md bg-card border border-border/70 px-1.5 py-1 text-center">
+                            <dt className="text-[10px] text-muted-foreground">{tile.label}</dt>
+                            <dd className="text-xs font-mono font-semibold text-foreground tabular-nums">{tile.value}</dd>
+                        </div>
+                    ))}
+                </dl>
+
                 {/* Reflection Critic Score Gauge */}
                 {reflectionScore > 0 && (
-                    <div className="mt-2 pt-1.5 border-t border-border flex items-center justify-between text-[10px]">
+                    <div className="mt-2 pt-1.5 border-t border-border flex items-center justify-between text-[11px]">
                         <span className="text-muted-foreground flex items-center gap-1">
-                            <RefreshCw className="h-2.5 w-2.5 text-primary" />
+                            <RefreshCw className="h-3 w-3 text-primary" aria-hidden="true" />
                             Critic Soundness:
                         </span>
                         <Badge
                             variant="outline"
-                            className={`font-mono text-[9px] font-bold ${
+                            className={`font-mono text-[10px] font-bold ${
                                 reflectionScore >= 0.7 ? 'border-success-border text-success bg-success-bg' : 'border-warning-border text-warning bg-warning-bg'
                             }`}
                         >
@@ -150,21 +170,28 @@ export function ObservabilityPanel({
                 {/* Live Plan Execution Steps */}
                 {plan.length > 0 && (
                     <div className="mt-1.5 pt-1.5 border-t border-border space-y-1">
-                        <div className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                             Active Plan Steps ({plan.filter((s) => s.status === 'completed').length}/{plan.length})
                         </div>
                         {plan.map((step) => (
-                            <div key={step.stepNumber} className="flex items-start gap-1.5 text-[10px] text-foreground/90 leading-tight">
+                            <div key={step.stepNumber} className="flex items-start gap-1.5 text-[11px] text-foreground/90 leading-snug">
                                 {step.status === 'completed' ? (
-                                    <CheckCircle2 className="h-3 w-3 text-success shrink-0 mt-0.5" />
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-px" aria-label="Completed" />
+                                ) : step.status === 'failed' ? (
+                                    <XCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-px" aria-label="Failed" />
                                 ) : step.status === 'in_progress' ? (
-                                    <Loader2 className="h-3 w-3 text-primary animate-spin shrink-0 mt-0.5" />
+                                    <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0 mt-px" aria-label="In progress" />
                                 ) : (
-                                    <span className="h-3 w-3 rounded-full border border-muted-foreground/40 flex items-center justify-center text-[7.5px] text-muted-foreground shrink-0 mt-0.5">
+                                    <span
+                                        className="h-3.5 w-3.5 rounded-full border border-muted-foreground/50 flex items-center justify-center text-[10px] text-muted-foreground shrink-0 mt-px"
+                                        aria-label="Pending"
+                                    >
                                         {step.stepNumber}
                                     </span>
                                 )}
-                                <span className={step.status === 'completed' ? 'line-through text-muted-foreground' : ''}>{step.description}</span>
+                                <span className={step.status === 'completed' ? 'text-muted-foreground' : step.status === 'failed' ? 'text-destructive' : ''}>
+                                    {step.description}
+                                </span>
                             </div>
                         ))}
                     </div>
@@ -179,22 +206,22 @@ export function ObservabilityPanel({
                             <Terminal className="h-3 w-3 text-primary shrink-0" />
                             <span className="truncate">Execution Wire Logs</span>
                         </CardTitle>
-                        <CardDescription className="text-[10px] text-muted-foreground truncate">Telemetry trace &amp; model routing</CardDescription>
+                        <CardDescription className="text-[11px] text-muted-foreground truncate">Telemetry trace &amp; model routing</CardDescription>
                     </div>
-                    <Badge variant="soft" className="text-[9px] px-1.5 py-0.2 shrink-0 whitespace-nowrap">
-                        Live SSE
+                    <Badge variant={isStreaming ? 'soft' : 'outline'} className="text-[10px] px-1.5 py-0 shrink-0 whitespace-nowrap">
+                        {isStreaming ? 'Streaming' : 'Idle'}
                     </Badge>
                 </CardHeader>
-                <CardContent className="p-2 flex-1 overflow-y-auto max-h-[340px] font-mono text-[10px] space-y-1.5 bg-secondary/40 text-foreground">
+                <CardContent className="p-2 flex-1 overflow-y-auto max-h-[340px] font-mono text-[11px] space-y-1.5 bg-secondary/40 text-foreground">
                     {logs.length === 0 ? (
-                        <div className="text-muted-foreground py-4 text-center text-[10px]">Awaiting agent trigger. Stream logs will appear here.</div>
+                        <div className="text-muted-foreground py-4 text-center text-[11px]">Awaiting agent trigger. Stream logs will appear here.</div>
                     ) : (
                         logs.map((log) => (
                             <div key={log.id} className="leading-snug border-b border-border pb-1 last:border-0">
-                                <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                     <span suppressHydrationWarning>{log.timestamp}</span>
                                     <span
-                                        className={`px-1 py-0.2 rounded text-[8.5px] font-bold ${
+                                        className={`px-1 rounded text-[10px] font-bold ${
                                             log.stage === 'ROUTER'
                                                 ? 'bg-primary/10 text-primary border border-primary/20'
                                                 : log.stage === 'RAG'
@@ -207,7 +234,7 @@ export function ObservabilityPanel({
                                         [{log.stage}]
                                     </span>
                                 </div>
-                                <p className="text-foreground/90 mt-0.5 break-words text-[9.5px]">{log.message}</p>
+                                <p className="text-foreground/90 mt-0.5 break-words text-[11px]">{log.message}</p>
                             </div>
                         ))
                     )}
