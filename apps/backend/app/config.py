@@ -9,7 +9,7 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 class Settings(BaseSettings):
     APP_NAME: str = "NexusAgent"
     VERSION: str = "0.1.0-alpha"
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"
     DEBUG: bool = False
 
     HOST: str = "0.0.0.0"
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     NEON_DATABASE_URL: str = ""
     DATABASE_URL: str = ""
 
-    JWT_SECRET_KEY: str = "nexusagent-dev-insecure-secret-key-change-in-production-12345"
+    JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     GUEST_TOKEN_EXPIRE_MINUTES: int = 60 * 24
@@ -47,9 +47,6 @@ class Settings(BaseSettings):
     # cannot rotate quota by header spoofing.
     TRUST_PROXY_HEADERS: bool = False
 
-    # Accepted BYOK key prefixes (provider-recognizable formats only).
-    BYOK_PREFIXES: list[str] = ["sk-", "AIza"]
-
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
@@ -57,16 +54,16 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
-        insecure_default = "nexusagent-dev-insecure-secret-key-change-in-production-12345"
-        if self.ENVIRONMENT in ("production", "prod", "staging"):
-            if not self.JWT_SECRET_KEY or self.JWT_SECRET_KEY == insecure_default:
-                raise ValueError(
-                    "JWT_SECRET_KEY must be set to a secure, unique secret in production/staging environments."
-                )
-            if len(self.JWT_SECRET_KEY) < 32:
-                raise ValueError("JWT_SECRET_KEY must be at least 32 characters in production.")
-            if self.DEBUG:
-                raise ValueError("DEBUG mode cannot be enabled in production/staging environments.")
+        if self.ENVIRONMENT in ("development", "test"):
+            if not self.JWT_SECRET_KEY:
+                self.JWT_SECRET_KEY = "nexusagent-local-dev-only-secret-not-for-production"
+            return self
+        if len(self.JWT_SECRET_KEY) < 32:
+            raise ValueError("JWT_SECRET_KEY must be set (>= 32 chars) outside development/test.")
+        if not self.GOOGLE_CLIENT_ID:
+            raise ValueError("GOOGLE_CLIENT_ID must be set outside development/test.")
+        if self.DEBUG:
+            raise ValueError("DEBUG cannot be enabled outside development/test.")
         return self
 
     model_config = SettingsConfigDict(

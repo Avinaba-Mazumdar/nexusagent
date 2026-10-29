@@ -7,31 +7,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from starlette.requests import Request
 
-from app.core.auth import get_client_ip, validate_byok_key
+from app.core.auth import get_client_ip
 from app.core.hitl_coordinator import default_hitl_coordinator
 from app.core.security_guardrails import sanitize_retrieved_chunks
 from app.main import app
 from app.rag.hybrid_search import HybridSearchResult
-
-# ---------------------------------------------------------------------------
-# BYOK validation
-# ---------------------------------------------------------------------------
-
-
-def test_byok_validation_accepts_only_provider_prefixed_keys():
-    assert validate_byok_key("sk-proj-" + "a" * 30) is not None
-    assert validate_byok_key("AIza" + "a" * 30) is not None
-    assert validate_byok_key(None) is None
-    assert validate_byok_key("") is None
-    assert validate_byok_key("   ") is None
-    assert validate_byok_key("junk") is None
-    assert validate_byok_key("not-a-real-key-123456") is None
-    assert validate_byok_key("sk-short") is None
-
-
-# ---------------------------------------------------------------------------
-# Client-IP keying (X-Forwarded-For spoofing)
-# ---------------------------------------------------------------------------
 
 
 def _make_request(headers: dict[str, str], host: str = "10.0.0.5"):
@@ -109,23 +89,6 @@ async def test_mcp_gateway_authenticated_roundtrip():
         assert res.status_code == 200
         assert "hybrid_rag_search" in [t["name"] for t in res.json()["result"]["tools"]]
 
-        # Mutating helper functions must be rejected by the SQL audit gates.
-        bad = await client.post(
-            "/api/mcp/v1",
-            headers=headers,
-            json={
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/call",
-                "params": {
-                    "name": "mcp_sql_audit",
-                    "arguments": {"query": "SELECT setval('users_id_seq', 999999);"},
-                },
-            },
-        )
-        assert bad.status_code == 200
-        assert bad.json()["result"]["isError"] is True
-
 
 # ---------------------------------------------------------------------------
 # Audit-logs endpoint reads persisted DB rows
@@ -141,8 +104,8 @@ async def test_audit_logs_endpoint_reads_db_rows():
         token = guest.json()["tokens"]["accessToken"]
 
         await default_hitl_coordinator.log_tool_audit(
-            tool_name="mcp_sql_audit",
-            input_args={"query": "SELECT 1;"},
+            tool_name="hybrid_rag_search",
+            input_args={"query": "Raft consensus"},
             output_summary={"rows": 1},
             duration_ms=3,
             hitl_approved=True,
@@ -153,4 +116,4 @@ async def test_audit_logs_endpoint_reads_db_rows():
         assert res.status_code == 200
         data = res.json()
         assert data["count"] >= 1
-        assert any(entry["tool_name"] == "mcp_sql_audit" for entry in data["logs"])
+        assert any(entry["tool_name"] == "hybrid_rag_search" for entry in data["logs"])

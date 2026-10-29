@@ -1,7 +1,9 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import httpx
 import pytest
+from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
 from app.core.auth import create_access_token, decode_access_token, hash_password, verify_password
@@ -72,22 +74,13 @@ async def test_guest_pass_endpoint():
         assert user2["deviceId"] == dev_id
 
 
-@pytest.mark.db
 @pytest.mark.asyncio
-async def test_guest_prune_maintenance():
+async def test_prune_endpoint_is_not_exposed():
+    """Regression (audit S-03): guest pruning is a scheduled script, not an HTTP route."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # 1. Create a guest pass first
-        guest_resp = await client.post("/api/auth/guest")
-        assert guest_resp.status_code == 200
-
-        # 2. Invoke maintenance prune endpoint with ttl_hours=0
-        prune_resp = await client.post("/api/auth/maintenance/prune-guests?ttl_hours=0")
-        assert prune_resp.status_code == 200
-        prune_data = prune_resp.json()
-        assert prune_data["status"] == "ok"
-        assert "pruned_guests" in prune_data
-        assert prune_data["ttl_hours"] == 0
+        res = await client.post("/api/auth/maintenance/prune-guests?ttl_hours=0")
+        assert res.status_code in (404, 405)
 
 
 @pytest.mark.asyncio
@@ -105,12 +98,25 @@ async def test_unauthorized_access():
 
 @pytest.mark.db
 @pytest.mark.asyncio
-async def test_google_oauth_endpoint():
+async def test_google_oauth_endpoint(monkeypatch):
+    profile = {
+        "email": "google.lead@distributed.io",
+        "name": "Senior Google Architect",
+        "picture": None,
+        "sub": "sub-lead-1",
+    }
+
+    async def fake_verify(credential: str) -> dict:
+        if credential == "invalid_raw_token_xyz":
+            raise HTTPException(status_code=401, detail="Invalid or expired Google credential")
+        return profile
+
+    monkeypatch.setattr("app.routes.auth.verify_google_token", fake_verify)
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # 1. Valid Google OAuth authentication
-        mock_cred = "mock-google-token:google.lead@distributed.io:Senior Google Architect"
-        resp = await client.post("/api/auth/google", json={"credential": mock_cred})
+        resp = await client.post("/api/auth/google", json={"credential": "valid_token_1"})
         assert resp.status_code == 200
         data = resp.json()
 
@@ -129,8 +135,8 @@ async def test_google_oauth_endpoint():
         assert me_data["quota"]["bucketCapacity"] == 25
 
         # 3. Repeat authentication with updated name (upsert verification)
-        updated_cred = "mock-google-token:google.lead@distributed.io:Principal Google Architect"
-        upsert_resp = await client.post("/api/auth/google", json={"credential": updated_cred})
+        profile["name"] = "Principal Google Architect"
+        upsert_resp = await client.post("/api/auth/google", json={"credential": "valid_token_2"})
         assert upsert_resp.status_code == 200
         upsert_data = upsert_resp.json()
         assert upsert_data["user"]["email"] == "google.lead@distributed.io"
@@ -144,16 +150,102 @@ async def test_google_oauth_endpoint():
 
 
 @pytest.mark.asyncio
-async def test_google_oauth_mock_disabled_in_production(monkeypatch):
-    from app.config import settings
+async def test_mock_google_token_is_rejected(monkeypatch):
+    """Regression (audit S-04): mock google token is rejected unconditionally."""
+    class FakeResponse:
+        status_code = 400
 
-    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+        def json(self):
+            return {"error": "invalid_token"}
+
+    original_post = httpx.AsyncClient.post
+
+    async def fake_post(self, url, *args, **kwargs):
+        if "oauth2.googleapis.com" in str(url):
+            return FakeResponse()
+        return await original_post(self, url, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        mock_cred = "mock-google-token:attacker@nexusagent.internal:Attacker"
-        resp = await client.post("/api/auth/google", json={"credential": mock_cred})
+        resp = await client.post(
+            "/api/auth/google",
+            json={"credential": "mock-google-token:attacker@nexusagent.internal:Attacker"},
+        )
         assert resp.status_code == 401
-        assert "disabled in production mode" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_verify_google_token_audience_and_issuer(monkeypatch):
+    """Verify audience and issuer checks on Google ID tokens (audit S-05)."""
+    from app.config import settings
+    from app.core.auth import verify_google_token
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "test-client-id-123.apps.googleusercontent.com")
+
+    # 1. Wrong aud -> 401
+    class FakeAudResp:
+        status_code = 200
+
+        def json(self):
+            return {
+                "aud": "wrong-client-id",
+                "iss": "https://accounts.google.com",
+                "email": "a@b.com",
+                "email_verified": "true",
+            }
+
+    async def fake_post_aud(*args, **kwargs):
+        return FakeAudResp()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post_aud)
+    with pytest.raises(HTTPException) as exc:
+        await verify_google_token("token_wrong_aud")
+    assert exc.value.status_code == 401
+    assert "audience mismatch" in exc.value.detail
+
+    # 2. Wrong iss -> 401
+    class FakeIssResp:
+        status_code = 200
+
+        def json(self):
+            return {
+                "aud": "test-client-id-123.apps.googleusercontent.com",
+                "iss": "https://evil.issuer.com",
+                "email": "a@b.com",
+                "email_verified": "true",
+            }
+
+    async def fake_post_iss(*args, **kwargs):
+        return FakeIssResp()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post_iss)
+    with pytest.raises(HTTPException) as exc:
+        await verify_google_token("token_wrong_iss")
+    assert exc.value.status_code == 401
+    assert "issuer mismatch" in exc.value.detail
+
+    # 3. Valid aud, iss, email_verified -> profile
+    class FakeValidResp:
+        status_code = 200
+
+        def json(self):
+            return {
+                "aud": "test-client-id-123.apps.googleusercontent.com",
+                "iss": "https://accounts.google.com",
+                "email": "user@example.com",
+                "email_verified": "true",
+                "name": "Valid User",
+                "sub": "sub-123",
+            }
+
+    async def fake_post_valid(*args, **kwargs):
+        return FakeValidResp()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post_valid)
+    res = await verify_google_token("valid_token")
+    assert res["email"] == "user@example.com"
+    assert res["name"] == "Valid User"
 
 
 @pytest.mark.asyncio

@@ -91,10 +91,9 @@ export default function PrivacyPolicyPage() {
                             <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2">
                                 <KeyRound className="h-4 w-4" />
                             </div>
-                            <h3 className="font-heading font-bold text-xs text-foreground">Client-Side BYOK</h3>
+                            <h3 className="font-heading font-bold text-xs text-foreground">Zero Third-Party Trackers</h3>
                             <p className="text-[11px] text-muted-foreground leading-snug">
-                                Custom API keys (Gemini, OpenRouter) are held in volatile memory or local storage. They are never written to disk or logged on
-                                our servers.
+                                We run no third-party analytics, behavioral tracking, or fingerprinting scripts on our platform.
                             </p>
                         </CardContent>
                     </Card>
@@ -135,15 +134,6 @@ export default function PrivacyPolicyPage() {
                                     <strong className="text-foreground">System Queries &amp; Document Ingestion:</strong> Prompts submitted to the Synthesis
                                     Canvas and Markdown documents uploaded to the Document Vault are parsed and embedded via pgvector into an isolated user
                                     partition in Neon PostgreSQL.
-                                </div>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                                <div>
-                                    <strong className="text-foreground">Bring Your Own Key (BYOK) Data:</strong> If you supply your personal Gemini or
-                                    OpenRouter API key, the key is passed directly via request headers (
-                                    <code className="font-mono text-xs text-foreground">X-User-API-Key</code>) to the edge gateway and external model provider.
-                                    The backend database never records or persists your personal API key.
                                 </div>
                             </li>
                         </ul>

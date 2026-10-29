@@ -172,17 +172,19 @@ class NeonDatabase:
             await conn.execute(query, datetime.now(UTC), user_id, client_ip, device_id)
 
     async def prune_expired_guests(self, ttl_hours: int = 24) -> int:
-        """Prune ephemeral guest sessions older than ttl_hours (Section 11 Architecture).
+        """Prune ephemeral guest sessions inactive for longer than ttl_hours (Section 11 Architecture).
 
         Cascades via foreign keys to rate_limit_buckets, guest documents, and chunks.
         Returns the number of pruned guest user accounts.
         """
+        if ttl_hours < 1:
+            raise ValueError("ttl_hours must be >= 1")
         if not self.pool:
             return 0
         query = """
             DELETE FROM users
             WHERE is_guest = TRUE
-              AND created_at < NOW() - ($1 * INTERVAL '1 hour');
+              AND last_seen_at < NOW() - ($1 * INTERVAL '1 hour');
         """
         async with self.pool.acquire() as conn:
             result = await conn.execute(query, ttl_hours)
@@ -236,41 +238,21 @@ class NeonDatabase:
             )
             return RateLimitBucket(**dict(row))
 
-    async def decrement_rate_limit(self, user_id: UUID, client_ip: str) -> bool:
-        """Decrement token bucket by 1 if tokens remaining > 0, replenishing first if hourly window elapsed."""
+    async def decrement_rate_limit(self, user_id: UUID, client_ip: str) -> int | None:
+        """Atomically replenish (if the hour elapsed) and consume one token. Returns tokens left, or None if empty."""
         pool = self.get_pool()
-        now = datetime.now(UTC)
+        query = """
+            UPDATE rate_limit_buckets
+            SET tokens_remaining = CASE WHEN last_replenished_at <= NOW() - INTERVAL '1 hour'
+                                        THEN bucket_capacity - 1 ELSE tokens_remaining - 1 END,
+                last_replenished_at = CASE WHEN last_replenished_at <= NOW() - INTERVAL '1 hour'
+                                           THEN NOW() ELSE last_replenished_at END
+            WHERE user_id = $1 AND client_ip = $2
+              AND (tokens_remaining > 0 OR last_replenished_at <= NOW() - INTERVAL '1 hour')
+            RETURNING tokens_remaining;
+        """
         async with pool.acquire() as conn:
-            bucket_row = await conn.fetchrow(
-                "SELECT tokens_remaining, bucket_capacity, last_replenished_at FROM rate_limit_buckets WHERE user_id = $1 AND client_ip = $2;",
-                user_id,
-                client_ip,
-            )
-            if bucket_row:
-                last_rep = bucket_row["last_replenished_at"]
-                if last_rep.tzinfo is None:
-                    last_rep = last_rep.replace(tzinfo=UTC)
-                if (now - last_rep) >= timedelta(hours=1):
-                    await conn.execute(
-                        """
-                        UPDATE rate_limit_buckets
-                        SET tokens_remaining = bucket_capacity,
-                            last_replenished_at = $3
-                        WHERE user_id = $1 AND client_ip = $2;
-                        """,
-                        user_id,
-                        client_ip,
-                        now,
-                    )
-
-            query = """
-                UPDATE rate_limit_buckets
-                SET tokens_remaining = tokens_remaining - 1
-                WHERE user_id = $1 AND client_ip = $2 AND tokens_remaining > 0
-                RETURNING tokens_remaining;
-            """
-            val = await conn.fetchval(query, user_id, client_ip)
-            return val is not None
+            return await conn.fetchval(query, user_id, client_ip)
 
     async def search_seeded_chunks(
         self, query_embedding: list[float], limit: int = 3
@@ -683,4 +665,3 @@ neon_db = NeonDatabase()
 async def get_db() -> NeonDatabase:
     """FastAPI dependency for accessing database singleton."""
     return neon_db
-

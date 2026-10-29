@@ -1,18 +1,22 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import httpx
 import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import Argon2Error
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from passlib.context import CryptContext
 
 from app.config import settings
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import AuthTokens, GuestPassResponse, User, UserSession
 from app.db.neon import NeonDatabase, get_db
 
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+logger = logging.getLogger("nexusagent.core.auth")
+
+password_hasher = PasswordHasher()
 security_bearer = HTTPBearer(auto_error=False)
 
 # Constant-time dummy hash to mitigate user enumeration timing attacks on failed logins
@@ -36,30 +40,17 @@ def get_client_ip(request: Request, trust_proxy: bool | None = None) -> str:
     return request.client.host if request.client else "127.0.0.1"
 
 
-def validate_byok_key(key: str | None) -> str | None:
-    """
-    Accept a BYOK key only when it matches an allowlisted provider prefix and a
-    plausible length. Returns the trimmed key, or None when the value is absent
-    or malformed (which routes the caller through the normal rate-limited tier).
-    """
-    if not key:
-        return None
-    stripped = key.strip()
-    if len(stripped) < 20 or len(stripped) > 200:
-        return None
-    if any(stripped.startswith(prefix) for prefix in settings.BYOK_PREFIXES):
-        return stripped
-    return None
-
-
 def hash_password(password: str) -> str:
     """Hash password using Argon2."""
-    return pwd_context.hash(password)
+    return password_hasher.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against Argon2 hash with timing attack resistance."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return password_hasher.verify(hashed_password, plain_password)
+    except Argon2Error:
+        return False
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> tuple[str, int]:
@@ -158,7 +149,7 @@ async def get_current_user_optional(
     credentials: HTTPAuthorizationCredentials | None = Security(security_bearer),
     db: NeonDatabase = Depends(get_db),
 ) -> User | None:
-    """Optional user extractor for endpoints supporting anonymous or BYOK sessions."""
+    """Optional user extractor for endpoints supporting anonymous sessions."""
     if not credentials:
         return None
     try:
@@ -230,33 +221,11 @@ async def issue_guest_pass(
 
 
 async def verify_google_token(credential: str) -> dict:
-    """Verify Google ID token (credential) via Google tokeninfo endpoint or mock bypass.
-
-    In production mode, mock Google tokens are strictly rejected with HTTP 401.
-    """
-    is_mock = credential.startswith(("mock-google-token:", "test-"))
-    if is_mock:
-        allowed_environments = ("development", "test", "testing")
-        if settings.ENVIRONMENT in allowed_environments:
-            parts = credential.split(":")
-            email = parts[1] if len(parts) > 1 else "architect@nexusagent.internal"
-            name = parts[2] if len(parts) > 2 else "Test Architect"
-            return {
-                "email": email,
-                "name": name,
-                "picture": None,
-                "sub": f"mock-google-sub-{email}",
-            }
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Mock Google authentication is disabled in production mode (ASI-01 Defense).",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    url = f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}"
+    """Verify Google ID token (credential) via Google tokeninfo endpoint."""
+    url = "https://oauth2.googleapis.com/tokeninfo"
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url)
+            resp = await client.post(url, data={"id_token": credential})
             if resp.status_code != 200:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -265,19 +234,24 @@ async def verify_google_token(credential: str) -> dict:
                 )
             info = resp.json()
     except httpx.RequestError as exc:
+        logger.warning("Google authentication service unreachable: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Google authentication service unreachable: {exc}",
+            detail="Google authentication service unreachable",
         )
 
-    if settings.GOOGLE_CLIENT_ID:
-        aud = info.get("aud")
-        if aud != settings.GOOGLE_CLIENT_ID:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Google token audience mismatch",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    if not settings.GOOGLE_CLIENT_ID or info.get("aud") != settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google token audience mismatch",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if info.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google token issuer mismatch",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     email = info.get("email")
     if not email:

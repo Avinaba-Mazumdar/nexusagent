@@ -2,9 +2,9 @@ import hashlib
 import logging
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
-from app.core.auth import get_client_ip, get_current_user, validate_byok_key
+from app.core.auth import get_client_ip, get_current_user
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import (
     Document,
@@ -107,7 +107,6 @@ async def upload_document(
     request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    byok_key: str | None = Header(None, alias="X-User-API-Key"),
     db: NeonDatabase = Depends(get_db),
 ):
     """
@@ -116,13 +115,11 @@ async def upload_document(
     and batch persists document record and chunk rows into Neon PostgreSQL.
     """
     client_ip = get_client_ip(request)
-    byok_key = validate_byok_key(byok_key)
 
     await default_rate_limiter.check_and_consume(
         user_id=current_user.id,
         client_ip=client_ip,
         is_guest=current_user.is_guest,
-        byok_key=byok_key,
     )
     filename = file.filename or "uploaded_document.md"
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""

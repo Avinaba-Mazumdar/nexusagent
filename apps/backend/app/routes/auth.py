@@ -37,16 +37,6 @@ async def create_guest_pass(
     return await issue_guest_pass(db, client_ip, device_id)
 
 
-@router.post("/maintenance/prune-guests")
-async def prune_guests_endpoint(
-    ttl_hours: int = 24,
-    db: NeonDatabase = Depends(get_db),
-):
-    """Maintenance endpoint to purge expired ephemeral guest sessions and cascaded docs (Section 11 Architecture)."""
-    deleted_count = await db.prune_expired_guests(ttl_hours=ttl_hours)
-    return {"status": "ok", "pruned_guests": deleted_count, "ttl_hours": ttl_hours}
-
-
 @router.post("/google", response_model=TokenResponse)
 async def google_auth(
     payload: GoogleAuthRequest,

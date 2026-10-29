@@ -11,7 +11,7 @@ import type { PlanStep } from '@nexusagent/contracts';
 export interface LogEntry {
     id: string;
     timestamp: string;
-    stage: 'ROUTER' | 'RAG' | 'INFERENCE' | 'BYOK' | 'STREAM';
+    stage: 'ROUTER' | 'RAG' | 'INFERENCE' | 'STREAM';
     message: string;
     meta?: Record<string, unknown>;
 }
@@ -226,9 +226,7 @@ export function ObservabilityPanel({
                                                 ? 'bg-primary/10 text-primary border border-primary/20'
                                                 : log.stage === 'RAG'
                                                   ? 'bg-accent text-accent-foreground border border-border'
-                                                  : log.stage === 'BYOK'
-                                                    ? 'bg-success-bg text-success border border-success-border'
-                                                    : 'bg-warning-bg text-warning border border-warning-border'
+                                                  : 'bg-warning-bg text-warning border border-warning-border'
                                         }`}
                                     >
                                         [{log.stage}]

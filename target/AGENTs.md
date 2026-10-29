@@ -67,7 +67,7 @@ When writing code or proposing changes for NexusAgent, you MUST strictly follow 
     - Every execution run must have a cycle safeguard (`iteration_count < MAX_STEPS`, default 10).
 4. **Model Context Protocol (FastMCP) Compliance**:
     - Must expose compliant FastMCP transport endpoints (`/api/mcp/sse`, `/api/mcp/messages`) and stdio launcher supporting `tools/list`, `tools/call`, and `resources/list`.
-    - Tools (`hybrid_rag_search`, `mcp_sql_audit`) must validate arguments against typed Pydantic schemas.
+    - Tools (`hybrid_rag_search`) must validate arguments against typed Pydantic schemas.
 5. **OWASP Top 10 for Agentic AI Invariants (ASI-01 through ASI-10)**:
     - **ASI-01**: Ingested RFC text must be encapsulated within `<untrusted_document_context>` XML boundaries. Synthesizer prompts must mandate instruction-data separation. Secret canary tokens must be injected and monitored.
     - **ASI-05**: NexusAgent executes no user- or model-supplied code. The former AST-denylist Python sandbox was removed because it was escapable (`random._os`, aliased builtins such as `[eval][0]`; see `report.md` S-01). Any future code-execution tool requires an OS-level isolation boundary (managed microVM, gVisor or nsjail: no network, read-only filesystem, non-root, memory/CPU/pid limits, no access to API secrets) and must pass through quota, HITL and audit before running. An AST check may only serve as a UX pre-filter, never as the security boundary.

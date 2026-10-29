@@ -1,14 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { Terminal, Play, CheckCircle2, AlertCircle, Loader2, Database, Search, Copy, Check } from 'lucide-react';
+import { Terminal, Play, CheckCircle2, AlertCircle, Loader2, Search, Copy, Check } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 export interface McpToolOption {
-    name: 'hybrid_rag_search' | 'mcp_sql_audit';
+    name: 'hybrid_rag_search';
     label: string;
     description: string;
     defaultArgs: Record<string, unknown>;
@@ -20,12 +20,6 @@ const MCP_TOOLS: McpToolOption[] = [
         label: 'RAG Search',
         description: 'Reciprocal Rank Fusion over benchmarks',
         defaultArgs: { query: 'Gemini 2.5 Flash CursorBench score', limit: 3 }
-    },
-    {
-        name: 'mcp_sql_audit',
-        label: 'SQL Audit',
-        description: 'Read-only pgvector schema inspect',
-        defaultArgs: { query: "SELECT tablename FROM pg_tables WHERE schemaname = 'public';" }
     }
 ];
 
@@ -35,7 +29,7 @@ interface McpInspectorProps {
 }
 
 export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: McpInspectorProps) {
-    const [selectedTool, setSelectedTool] = React.useState<McpToolOption>(MCP_TOOLS[0]);
+    const selectedTool = MCP_TOOLS[0];
     const [argsJson, setArgsJson] = React.useState<string>(JSON.stringify(MCP_TOOLS[0].defaultArgs, null, 2));
     const [isLoading, setIsLoading] = React.useState(false);
     const [lastRequest, setLastRequest] = React.useState<Record<string, unknown> | null>(null);
@@ -54,12 +48,6 @@ export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: M
         } catch {
             // Clipboard access blocked
         }
-    };
-
-    const handleSelectTool = (tool: McpToolOption) => {
-        setSelectedTool(tool);
-        setArgsJson(JSON.stringify(tool.defaultArgs, null, 2));
-        setErrorMsg(null);
     };
 
     const handleExecuteTool = async () => {
@@ -137,26 +125,11 @@ export function McpInspector({ apiBase = 'http://localhost:8000', authToken }: M
                 <CardDescription className="text-xs text-muted-foreground">Direct JSON-RPC 2.0 gateway (HTTP POST)</CardDescription>
             </CardHeader>
             <CardContent className="p-3 pt-0 space-y-2.5">
-                {/* Tool Selector Tabs */}
-                <div className="grid grid-cols-2 gap-1 bg-secondary/50 p-1 rounded-lg border border-border/60">
-                    {MCP_TOOLS.map((t) => {
-                        const active = t.name === selectedTool.name;
-                        return (
-                            <button
-                                key={t.name}
-                                type="button"
-                                onClick={() => handleSelectTool(t)}
-                                className={`text-[10px] py-1 px-1.5 rounded-md font-medium transition-all text-center truncate ${
-                                    active ? 'bg-background text-foreground shadow-2xs font-semibold' : 'text-muted-foreground hover:text-foreground'
-                                }`}
-                                title={t.description}
-                            >
-                                {t.name === 'hybrid_rag_search' && <Search className="inline h-2.5 w-2.5 mr-1" />}
-                                {t.name === 'mcp_sql_audit' && <Database className="inline h-2.5 w-2.5 mr-1" />}
-                                {t.label}
-                            </button>
-                        );
-                    })}
+                {/* Tool Label */}
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-secondary/50 border border-border/60 text-[11px] font-medium text-foreground">
+                    <Search className="h-3 w-3 text-primary shrink-0" aria-hidden="true" />
+                    <span className="font-semibold">{selectedTool.label}</span>
+                    <span className="text-muted-foreground text-[10px] truncate">— {selectedTool.description}</span>
                 </div>
 
                 {/* Input Arguments Field */}

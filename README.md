@@ -62,6 +62,9 @@ cd apps/backend && uv sync && cd ../..
 
 The API reads `apps/backend/.env.local`. Set:
 
+- `ENVIRONMENT`: default is `production`. Set `ENVIRONMENT=development` for local work.
+- `JWT_SECRET_KEY`: required outside development/test (≥ 32 characters).
+- `GOOGLE_CLIENT_ID`: required for Google OAuth. Production refuses to start without `JWT_SECRET_KEY` (≥ 32 chars) and `GOOGLE_CLIENT_ID`.
 - `NEON_DATABASE_URL`: the startup migration creates the schema automatically.
 - `GEMINI_API_KEY`: required. The agent synthesizes answers with Gemini and embeds queries and uploaded documents with `gemini-embedding-001`. Without it, chat answers and document uploads return an error.
 
@@ -85,6 +88,12 @@ pnpm dev
 - 🎨 **[UI/UX Design System](target/DESIGN.md)**: 4-zone command center specifications, theme tokens, and component guidelines.
 - 🤖 **[AI Agent Context & Rules](target/AGENTs.md)**: Architectural invariants, definition of done, and verification gates.
 - 📋 **[Active Task Board](target/TODOs.md)**: Phased implementation roadmap and progress tracking.
+
+---
+
+## 🛠️ Maintenance
+
+Prune inactive guests daily with `uv run python scripts/prune_guests.py --ttl 24` (cron, Render Cron Job, or a scheduled CI job).
 
 ---
 

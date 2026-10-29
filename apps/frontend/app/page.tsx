@@ -68,7 +68,6 @@ type UploadState = { status: 'idle' } | { status: 'uploading' | 'success' | 'err
 const MAX_LOG_ENTRIES = 200;
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const XL_BREAKPOINT_QUERY = '(min-width: 1280px)';
-const IS_DEV_BUILD = process.env.NODE_ENV !== 'production';
 
 /** `/api/documents` returns camelCase wire models; the anonymous `/api/chat/documents` returns raw rows. */
 function normalizeDoc(raw: Record<string, unknown>): WorkspaceDoc {
@@ -152,7 +151,6 @@ export default function Home() {
         isGoogleLoading,
         setIsGoogleLoading,
         error,
-        byokKey,
         loginGuest,
         loginGoogle,
         logout,
@@ -441,7 +439,6 @@ export default function Home() {
         body.append('file', file);
         try {
             const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-            if (byokKey) headers['X-User-API-Key'] = byokKey;
             const res = await fetch(`${API_BASE}/api/documents/upload`, { method: 'POST', headers, body });
             const data = await res.json().catch(() => null);
             if (!res.ok) {
@@ -452,7 +449,7 @@ export default function Home() {
                 status: 'success',
                 message: `Indexed ${data?.document?.filename ?? file.name} (${data?.chunksCount ?? 0} chunks).`
             });
-            if (!byokKey) setQuotaRemaining(Math.max(0, quotaRemaining - 1));
+            setQuotaRemaining(Math.max(0, quotaRemaining - 1));
             void fetchDocs();
         } catch (err) {
             setUploadState({ status: 'error', message: err instanceof Error ? err.message : 'Upload failed.' });
@@ -560,8 +557,8 @@ export default function Home() {
         setStreamingMsgId(assistantMsgId);
         setLiveStatus('Generating response…');
 
-        // Decrement remaining quota if not BYOK
-        if (!byokKey && quotaRemaining > 0) {
+        // Decrement remaining quota
+        if (quotaRemaining > 0) {
             setQuotaRemaining(quotaRemaining - 1);
         }
 
@@ -569,7 +566,6 @@ export default function Home() {
             const result = await agentStream.startStream({
                 query,
                 token,
-                byokKey,
                 sessionId: activeSessionId || undefined
             });
 
@@ -658,8 +654,8 @@ export default function Home() {
             return;
         }
 
-        // Check if demo quota is exhausted and not BYOK
-        if (!byokKey && quotaRemaining <= 0) {
+        // Check if demo quota is exhausted
+        if (quotaRemaining <= 0) {
             setHireMeModalOpen(true);
             return;
         }
@@ -674,7 +670,7 @@ export default function Home() {
 
     const handleRetry = (msg: ChatItem) => {
         if (!msg.query || agentStream.isStreaming) return;
-        if (!byokKey && quotaRemaining <= 0) {
+        if (quotaRemaining <= 0) {
             setHireMeModalOpen(true);
             return;
         }
@@ -905,22 +901,6 @@ export default function Home() {
                                                         <div ref={renderGoogleButton} className="w-full flex justify-center" />
                                                     </div>
                                                 )
-                                            ) : IS_DEV_BUILD ? (
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    disabled={isGoogleLoading || isGuestLoading}
-                                                    onClick={async () => {
-                                                        setIsGoogleLoading(true);
-                                                        const ok = await loginGoogle('mock-google-token:developer@nexusagent.internal:Lead Systems Architect');
-                                                        setIsGoogleLoading(false);
-                                                        if (ok) setDialogOpen(false);
-                                                    }}
-                                                    className="w-full justify-center gap-2.5 text-xs font-semibold border-border/80 hover:bg-secondary/70 rounded-xl h-11 shadow-xs bg-card text-foreground"
-                                                >
-                                                    {isGoogleLoading && <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />}
-                                                    <span>{isGoogleLoading ? 'Connecting...' : 'Continue with Google (dev mock)'}</span>
-                                                </Button>
                                             ) : (
                                                 <p className="text-xs text-muted-foreground">Google sign-in isn&apos;t configured on this deployment.</p>
                                             )}
@@ -1235,7 +1215,7 @@ export default function Home() {
 
                     <div ref={scrollContainerRef} onScroll={handleThreadScroll} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
                         {/* Quota Depleted Lead Magnet Alert */}
-                        {user && !byokKey && quotaRemaining <= 0 && (
+                        {user && quotaRemaining <= 0 && (
                             <div
                                 role="alert"
                                 className="p-4 rounded-xl border border-warning-border bg-warning-bg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"

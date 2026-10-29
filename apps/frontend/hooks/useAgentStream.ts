@@ -16,8 +16,6 @@ export interface StreamParams {
     documentId?: string | null;
     sessionId?: string | null;
     token?: string | null;
-    /** Optional BYOK provider credential; bypasses the server-side free-tier token bucket. */
-    byokKey?: string | null;
 }
 
 /** Raised for HTTP failures and server-side stream errors so callers can render them. */
@@ -69,7 +67,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
 
     const startStream = React.useCallback(
         async (params: StreamParams): Promise<AgentInvokeResponse | null> => {
-            const { query, documentId, sessionId: existingSessionId, token, byokKey } = params;
+            const { query, documentId, sessionId: existingSessionId, token } = params;
 
             cancelStream();
 
@@ -107,9 +105,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                 };
                 if (token) {
                     headers['Authorization'] = `Bearer ${token}`;
-                }
-                if (byokKey) {
-                    headers['X-User-API-Key'] = byokKey;
                 }
 
                 const response = await fetch(`${API_BASE}/api/agent/stream`, {

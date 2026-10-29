@@ -3,7 +3,6 @@ Token-Bucket Rate Limiter.
 Enforces hourly token limits per user/IP:
 - Guest users: 5 requests / hour
 - Authenticated registered users: 25 requests / hour
-- BYOK (X-User-API-Key) callers bypass the server bucket
 Operates on Neon PostgreSQL with resilient in-memory fallback when offline.
 """
 
@@ -14,7 +13,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 
-from app.db.neon import NeonDatabase
+from app.db.neon import NeonDatabase, neon_db
 
 logger = logging.getLogger("nexusagent.core.rate_limiter")
 
@@ -52,6 +51,11 @@ class TokenBucketLimiter:
                 last_replenished_at=now,
             )
             self._memory_buckets[key] = bucket
+            if len(self._memory_buckets) > 10_000:
+                cutoff = now - timedelta(hours=2)
+                self._memory_buckets = {
+                    k: v for k, v in self._memory_buckets.items() if v.last_replenished_at > cutoff
+                }
             return bucket
 
         # Check hourly replenishment
@@ -66,17 +70,12 @@ class TokenBucketLimiter:
         user_id: UUID,
         client_ip: str,
         is_guest: bool = True,
-        byok_key: str | None = None,
     ) -> int:
         """
         Check and consume 1 token.
         Returns tokens_remaining after decrement.
         Raises HTTPException(429) if quota is depleted.
-        BYOK keys bypass rate limiting completely.
         """
-        if byok_key:
-            return 999  # Unlimited for BYOK callers
-
         default_tokens = 5 if is_guest else 25
 
         # 1. Try PostgreSQL if pool is available
@@ -85,21 +84,14 @@ class TokenBucketLimiter:
                 await self.db.get_or_create_rate_limit(
                     user_id, client_ip, default_tokens=default_tokens
                 )
-                success = await self.db.decrement_rate_limit(user_id, client_ip)
-                if not success:
+                remaining = await self.db.decrement_rate_limit(user_id, client_ip)
+                if remaining is None:
                     raise HTTPException(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail=(
-                            "Free-tier quota limit reached. Bring your own key (BYOK) to continue "
-                            "unconstrained or hire me for a custom build."
-                        ),
+                        detail="Free-tier quota limit reached. It replenishes hourly.",
                         headers={"Retry-After": "3600"},
                     )
-                # Fetch remaining
-                row = await self.db.get_or_create_rate_limit(
-                    user_id, client_ip, default_tokens=default_tokens
-                )
-                return row.tokens_remaining
+                return remaining
             except HTTPException:
                 raise
             except Exception as e:  # noqa: BLE001
@@ -112,10 +104,7 @@ class TokenBucketLimiter:
         if bucket.tokens_remaining <= 0:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=(
-                    "Free-tier quota limit reached. Bring your own key (BYOK) to continue "
-                    "unconstrained or hire me for a custom build."
-                ),
+                detail="Free-tier quota limit reached. It replenishes hourly.",
                 headers={"Retry-After": "3600"},
             )
 
@@ -130,7 +119,7 @@ class TokenBucketLimiter:
     ) -> int:
         """Fetch current quota without consuming."""
         default_tokens = 5 if is_guest else 25
-        
+
         if self.db and self.db.pool:
             try:
                 row = await self.db.get_or_create_rate_limit(
@@ -141,7 +130,7 @@ class TokenBucketLimiter:
                 logger.warning(
                     f"Database rate limit query failed, falling back to memory bucket: {e}"
                 )
-                
+
         bucket = self._get_memory_bucket(user_id, client_ip, default_tokens)
         return bucket.tokens_remaining
 
@@ -150,4 +139,4 @@ class TokenBucketLimiter:
         self._memory_buckets.clear()
 
 
-default_rate_limiter = TokenBucketLimiter()
+default_rate_limiter = TokenBucketLimiter(db=neon_db)

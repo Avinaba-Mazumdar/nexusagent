@@ -11,26 +11,15 @@ describe('McpInspector Component', () => {
         vi.restoreAllMocks();
     });
 
-    it('renders inspector header, tool tabs, and default arguments', () => {
+    it('renders inspector header, tool name, and default arguments', () => {
         render(<McpInspector apiBase="http://localhost:8000" />);
 
         expect(screen.getByText('MCP v2 Protocol Inspector')).toBeInTheDocument();
         expect(screen.getByText('v2024-11-05')).toBeInTheDocument();
         expect(screen.getByText('RAG Search')).toBeInTheDocument();
         expect(screen.queryByText('Python Sandbox')).not.toBeInTheDocument();
-        expect(screen.getByText('SQL Audit')).toBeInTheDocument();
+        expect(screen.queryByText('SQL Audit')).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Invoke Tool/i })).toBeInTheDocument();
-    });
-
-    it('switches active tool and updates the default arguments textarea', () => {
-        render(<McpInspector apiBase="http://localhost:8000" />);
-
-        const textarea = screen.getByLabelText('MCP Tool Arguments JSON') as HTMLTextAreaElement;
-        expect(textarea.value).toContain('CursorBench');
-
-        const sqlTab = screen.getByText('SQL Audit');
-        fireEvent.click(sqlTab);
-        expect(textarea.value).toContain('SELECT tablename');
     });
 
     it('dispatches JSON-RPC 2.0 tool call to /api/mcp/v1 and renders response', async () => {

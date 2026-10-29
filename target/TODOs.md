@@ -83,7 +83,7 @@ The AST-denylist sandbox was escapable (`random._os.system(...)`, `[eval][0](...
 ### Phase 10: Model Context Protocol (MCP v2) Integration [Completed]
 
 - [x] Implement FastAPI MCP SSE endpoint (`/api/mcp/sse`) and CLI stdio entrypoint
-- [x] Register tools (`hybrid_rag_search`, `mcp_sql_audit`) with Pydantic schemas (`python_sandbox` removed — audit S-01)
+- [x] Register tools (`hybrid_rag_search`) with Pydantic schemas (`python_sandbox` removed — audit S-01; `mcp_sql_audit` removed — audit S-02)
 - [x] Build frontend MCP Inspector panel to test tool calls and view JSON-RPC payloads
 - [x] Add client connection configuration for Claude Desktop and Cursor
       Verification: Connect Claude or run MCP Inspector UI, call `hybrid_rag_search`, verify valid JSON-RPC response.
@@ -113,7 +113,7 @@ The AST-denylist sandbox was escapable (`random._os.system(...)`, `[eval][0](...
 
 ### Security-Hardening Pass (Applied)
 
-- [x] MCP lockdown: `/api/mcp/{v1,sse,messages}` now require Bearer auth; `mcp_sql_audit` runs single-statement allowlisted queries in a read-only transaction with a mutating/privileged-function denylist (`setval`, `pg_advisory_lock`, `pg_read_file`, `pg_sleep`, …) and bounded timeout
+- [x] MCP lockdown: `/api/mcp/{v1,sse,messages}` now require Bearer auth (`mcp_sql_audit` removed — audit S-02)
 - [x] Mermaid XSS fix: `securityLevel: 'strict'` + SVG sanitizer (scripts, foreignObject, event handlers, `javascript:` URLs stripped) in `MermaidViewer`
 - [x] BYOK hardening: `X-User-API-Key` validated against a provider prefix/length allowlist (`validate_byok_key`); junk keys fall back to the rate-limited tier
 - [x] Quota keying: `get_client_ip` uses the socket IP unless `TRUST_PROXY_HEADERS=true` (X-Forwarded-For rotation no longer bypasses guest quota)

@@ -30,7 +30,7 @@ Reviewers and hiring executives can explore NexusAgent instantly via **1-Click G
 │  - Plan-and-Execute Loop     │  - Neon tsvector (Sparse)       │  - Zero-Cost Simulator Fallback │
 │  - LlamaIndex Ingestion      │  - Reciprocal Rank Fusion (RRF) │  - Live Reactive DAG Inspector  │
 │  - Self-Reflection Critic    │  - Dual MCP Server & Client     │  - Next.js 16 + shadcn/ui       │
-│  - Real-Time SSE Token Stream│  - Read-Only SQL Audit Tool     │  - OWASP Top 10 Agentic Shield  │
+│  - Real-Time SSE Token Stream│  - Zero-Trust MCP Tool Registry │  - OWASP Top 10 Agentic Shield  │
 └──────────────────────────────┴─────────────────────────────────┴─────────────────────────────────┘
 ```
 
@@ -551,8 +551,7 @@ CREATE TABLE IF NOT EXISTS citations (
     - `POST /api/mcp/messages`: Inbound JSON-RPC 2.0 message handler for active SSE client sessions.
     - **Stdio Transport CLI**: Supported via `fastmcp run app/routes/mcp.py` for direct command-line process spawning.
 - **Registered Tools**:
-    - `hybrid_rag_search(query: str, limit: int = 5)`: Dense cosine + BM25 tsvector search over benchmark docs with RRF ranking.
-    - `mcp_sql_audit(query: str)`: Safe, read-only transaction execution on Neon PostgreSQL for systems inspection.
+    - `hybrid_rag_search(query: str, limit: int = 5)`: Dense cosine + BM25 tsvector search over benchmark docs with RRF ranking (`mcp_sql_audit` removed — audit S-02).
 - **Authentication**: Bearer token required on MCP entrypoints.
 
 ---
@@ -645,7 +644,7 @@ NexusAgent implements comprehensive, defense-in-depth mitigations against the **
 - **Risk**: Autonomous agent performing high-cost, destructive, or unauthorized actions without operator consent.
 - **Mitigation**:
     1. **Human-in-the-Loop (HITL) Approval Gate**: Any tool call tagged with mutating or sensitive capabilities (e.g. database schema migrations, external web hooks) halts the LangGraph execution and presents an interactive confirmation modal in the Next.js 16 UI.
-    2. **Principle of Least Privilege**: MCP tools must explicitly declare permission scopes (`read:documents`, `read:sql`), validated prior to execution.
+    2. **Principle of Least Privilege**: MCP tools must explicitly declare permission scopes (`read:documents`), validated prior to execution.
 
 ### 10.7 ASI-07: Denial of Wallet & Resource Exhaustion (Unbounded Consumption)
 
@@ -721,4 +720,4 @@ WHERE is_guest = TRUE
 | **Backend Unit & Logic Tests**      | pytest + pytest-asyncio        | `apps/backend/tests/`           | Code-execution regression guard, rate limiter, LlamaIndex parser, RRF fusion |
 | **Agent DAG & Reflection Tests**    | pytest                         | `apps/backend/tests/`           | LangGraph node transitions, reflection routing, HITL interrupt/resume       |
 | **MCP v2 Protocol Tests**           | pytest                         | `apps/backend/tests/` (planned) | JSON-RPC 2.0 conformance (`tools/list`, `tools/call`, `resources/list`)     |
-| **OWASP Security Audit Suites**     | pytest + bandit                | `apps/backend/tests/` (planned) | Prompt injection barriers, canary token leaks, SQL audit read-scope checks   |
+| **OWASP Security Audit Suites**     | pytest + bandit                | `apps/backend/tests/` (planned) | Prompt injection barriers, canary token leaks, RAG search integrity checks   |

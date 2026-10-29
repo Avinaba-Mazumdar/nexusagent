@@ -6,6 +6,10 @@ so ``uv run pytest`` stays green offline and in CI. When a database *is* configu
 connection pool is opened for the whole session instead of one per test.
 """
 
+import os
+
+os.environ.setdefault("ENVIRONMENT", "test")
+
 import pytest
 
 from app.db.neon import neon_db

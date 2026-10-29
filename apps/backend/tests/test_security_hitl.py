@@ -3,7 +3,7 @@ Tests for Phase 11: Security Guardrails, Prompt Injection Delimiters,
 Canary Tokens, Token-Bucket Rate Limiter, and HITL Approvals.
 """
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
@@ -17,6 +17,7 @@ from app.core.security_guardrails import (
     verify_canary_integrity,
     wrap_untrusted_context,
 )
+from app.db.neon import neon_db
 from app.main import app
 
 # ---------------------------------------------------------------------------
@@ -204,7 +205,7 @@ def test_detect_prompt_injection_patterns():
 
 
 @pytest.mark.asyncio
-async def test_token_bucket_rate_limiter_depletion_and_byok():
+async def test_token_bucket_rate_limiter_depletion():
     default_rate_limiter.reset_for_test()
     test_user_id = uuid4()
     test_ip = "192.168.1.100"
@@ -227,11 +228,34 @@ async def test_token_bucket_rate_limiter_depletion_and_byok():
     assert exc_info.value.headers is not None
     assert exc_info.value.headers.get("Retry-After") == "3600"
 
-    # BYOK bypasses bucket quota completely
-    byok_remaining = await default_rate_limiter.check_and_consume(
-        user_id=test_user_id, client_ip=test_ip, is_guest=True, byok_key="AIzaSy-custom-key"
-    )
-    assert byok_remaining == 999
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_token_bucket_rate_limiter_db_decrement_and_depletion():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        guest_resp = await client.post("/api/auth/guest", json={})
+        assert guest_resp.status_code == 200
+        user_id = UUID(guest_resp.json()["user"]["id"])
+        client_ip = guest_resp.json()["user"]["clientIp"]
+
+        # 5 consumes allowed for guest
+        for _ in range(5):
+            await default_rate_limiter.check_and_consume(user_id=user_id, client_ip=client_ip, is_guest=True)
+
+        # 6th request raises 429
+        with pytest.raises(HTTPException) as exc_info:
+            await default_rate_limiter.check_and_consume(user_id=user_id, client_ip=client_ip, is_guest=True)
+        assert exc_info.value.status_code == 429
+
+        # Verify database record
+        pool = neon_db.get_pool()
+        async with pool.acquire() as conn:
+            tokens = await conn.fetchval(
+                "SELECT tokens_remaining FROM rate_limit_buckets WHERE user_id = $1;",
+                user_id,
+            )
+            assert tokens == 0
 
 
 # ---------------------------------------------------------------------------
@@ -246,8 +270,8 @@ async def test_immutable_audit_logging_and_endpoint():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # 1. Log tool execution via coordinator
         await default_hitl_coordinator.log_tool_audit(
-            tool_name="mcp_sql_audit",
-            input_args={"query": "SELECT count(*) FROM documents;"},
+            tool_name="hybrid_rag_search",
+            input_args={"query": "Raft consensus"},
             output_summary={"count": 3},
             duration_ms=12,
             hitl_approved=True,
@@ -266,7 +290,7 @@ async def test_immutable_audit_logging_and_endpoint():
         assert "logs" in data
         assert data["count"] >= 1
         latest = data["logs"][0]
-        assert latest["tool_name"] == "mcp_sql_audit"
+        assert latest["tool_name"] == "hybrid_rag_search"
         assert latest["hitl_approved"] is True
 
 

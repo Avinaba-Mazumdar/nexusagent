@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { useAuthStore } from '@/lib/auth-store';
@@ -64,7 +64,7 @@ describe('Home Page - Layout and Header Controls', () => {
 
         expect(screen.getByRole('dialog')).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'Sign In to NexusAgent' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /continue with google/i })).toBeInTheDocument();
+        expect(screen.getByText(/sign-in isn.t configured/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /start as guest/i })).toBeInTheDocument();
         expect(screen.queryByRole('tab', { name: /email account/i })).not.toBeInTheDocument();
     });
@@ -156,11 +156,10 @@ describe('Home Page - Layout and Header Controls', () => {
         const user = userEvent.setup();
         render(<Home />);
 
-        // Open Dialog
-        await user.click(screen.getByRole('button', { name: /^sign in$/i }));
-
-        // Click Google Sign In
-        await user.click(screen.getByRole('button', { name: /continue with google/i }));
+        // Authenticate via store
+        await act(async () => {
+            await useAuthStore.getState().loginGoogle('google-id-token');
+        });
 
         // Header shows avatar button for authenticated user
         const profileBtn = await screen.findByRole('button', { name: /user profile menu/i });

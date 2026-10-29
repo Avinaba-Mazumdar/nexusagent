@@ -117,31 +117,4 @@ describe('useAgentStream Hook', () => {
         });
         expect(result.current.isStreaming).toBe(false);
     });
-
-    it('sends the BYOK credential header when a key is supplied', async () => {
-        const encoder = new TextEncoder();
-        const mockStream = new ReadableStream({
-            pull(controller) {
-                controller.enqueue(encoder.encode('event: done\ndata: {"sessionId": "s1", "response": "ok"}\n\n'));
-                controller.close();
-            }
-        });
-
-        const fetchMock = vi.fn().mockResolvedValue({
-            ok: true,
-            body: mockStream,
-            status: 200
-        } as unknown as Response);
-        global.fetch = fetchMock;
-
-        const { result } = renderHook(() => useAgentStream());
-
-        await act(async () => {
-            await result.current.startStream({ query: 'Quota check', byokKey: 'sk-or-v1-byok' });
-        });
-
-        const requestInit = fetchMock.mock.calls[0][1] as unknown as { headers: Record<string, string> };
-        expect(requestInit.headers['X-User-API-Key']).toBe('sk-or-v1-byok');
-        expect(requestInit.headers['Authorization']).toBeUndefined();
-    });
 });

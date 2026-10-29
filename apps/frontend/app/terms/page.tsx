@@ -77,9 +77,9 @@ export default function TermsAndConditionsPage() {
                             <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2">
                                 <KeyRound className="h-4 w-4" />
                             </div>
-                            <h3 className="font-heading font-bold text-xs text-foreground">BYOK User Liability</h3>
+                            <h3 className="font-heading font-bold text-xs text-foreground">Fair Usage &amp; Quotas</h3>
                             <p className="text-[11px] text-muted-foreground leading-snug">
-                                Custom API keys (OpenRouter / Gemini) route pass-through requests under your provider agreement and billing terms.
+                                Requests are subject to hourly token bucket quotas to ensure fair resource allocation across all users.
                             </p>
                         </CardContent>
                     </Card>
@@ -177,26 +177,24 @@ export default function TermsAndConditionsPage() {
                         </div>
                     </section>
 
-                    {/* 4. BYOK API Keys & Third-Party Charges */}
+                    {/* 4. Usage Quotas & Rate Limits */}
                     <section className="space-y-3">
                         <h2 className="text-lg font-heading font-bold text-foreground flex items-center gap-2">
                             <KeyRound className="h-4 w-4 text-primary" />
-                            4. Bring Your Own Key (BYOK) Agreement
+                            4. Usage Quotas &amp; Rate Limits
                         </h2>
                         <p>
-                            Users who utilize the Bring Your Own Key feature acknowledge that API keys for Google AI Studio (Gemini) or OpenRouter are passed
-                            directly to their respective external endpoints.
+                            To prevent abuse and ensure equitable availability, all requests are metered using an hourly token-bucket rate limiter.
                         </p>
                         <ul className="space-y-1.5 list-disc pl-5">
                             <li>
-                                You are solely responsible for all billing costs, usage fees, and token charges incurred on your third-party provider accounts.
+                                Guest sessions receive 5 requests per hour.
                             </li>
                             <li>
-                                NexusAgent does not guarantee that your personal API keys will be accepted if your account has exhausted its external quotas.
+                                Authenticated sessions receive 25 requests per hour.
                             </li>
                             <li>
-                                NexusAgent holds zero liability for provider credential leaks caused by compromised user client machines or malicious
-                                extensions.
+                                Exceeding the quota results in an HTTP 429 response until the bucket replenishes.
                             </li>
                         </ul>
                     </section>

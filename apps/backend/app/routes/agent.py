@@ -4,13 +4,13 @@ import logging
 from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.agent.graph import AgentGraph, default_agent_graph
 from app.agent.state import AgentState
-from app.core.auth import get_client_ip, get_current_user, validate_byok_key
+from app.core.auth import get_client_ip, get_current_user
 from app.core.hitl_coordinator import default_hitl_coordinator
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import User
@@ -272,7 +272,6 @@ async def stream_agent_execution(
     payload: AgentStreamRequestWire,
     request: Request,
     current_user: User = Depends(get_current_user),
-    byok_key: str | None = Header(None, alias="X-User-API-Key"),
     graph: AgentGraph = Depends(lambda: default_agent_graph),
 ):
     """
@@ -280,14 +279,12 @@ async def stream_agent_execution(
     Enforces token-bucket rate limiter with automatic 429 and retry headers.
     """
     client_ip = get_client_ip(request)
-    byok_key = validate_byok_key(byok_key)
 
     # Token bucket rate limiting (Neon DB with memory tier fallback)
     await default_rate_limiter.check_and_consume(
         user_id=current_user.id,
         client_ip=client_ip,
         is_guest=current_user.is_guest,
-        byok_key=byok_key,
     )
 
     doc_uuid: UUID | None = None

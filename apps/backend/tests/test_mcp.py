@@ -50,7 +50,7 @@ async def test_mcp_initialize_endpoint():
 @pytest.mark.db
 @pytest.mark.asyncio
 async def test_mcp_tools_list_endpoint():
-    """Verify MCP tools/list returns hybrid_rag_search and mcp_sql_audit."""
+    """Verify MCP tools/list returns hybrid_rag_search."""
     async with _auth_client() as client:
         res = await client.post(
             "/api/mcp/v1",
@@ -64,7 +64,6 @@ async def test_mcp_tools_list_endpoint():
         data = res.json()
         tool_names = [t["name"] for t in data["result"]["tools"]]
         assert "hybrid_rag_search" in tool_names
-        assert "mcp_sql_audit" in tool_names
 
 
 @pytest.mark.asyncio
@@ -90,27 +89,20 @@ async def test_code_execution_is_not_exposed():
         assert res.status_code == 404
 
 
-@pytest.mark.db
 @pytest.mark.asyncio
-async def test_mcp_sql_audit_mutation_blocked():
-    """Verify mcp_sql_audit blocks destructive mutating queries."""
-    async with _auth_client() as client:
-        res = await client.post(
-            "/api/mcp/v1",
-            json={
-                "jsonrpc": "2.0",
-                "id": "sql-1",
-                "method": "tools/call",
-                "params": {
-                    "name": "mcp_sql_audit",
-                    "arguments": {"query": "DROP TABLE users;"},
-                },
-            },
-        )
-        assert res.status_code == 200
-        data = res.json()
-        assert data["result"]["isError"] is True
-        assert "Security Violation" in data["result"]["content"][0]["text"]
+async def test_sql_audit_tool_is_not_exposed():
+    """Regression (audit S-02): no MCP tool runs arbitrary SQL."""
+    tools = await handle_jsonrpc_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert "mcp_sql_audit" not in [t["name"] for t in tools["result"]["tools"]]
+    call = await handle_jsonrpc_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "mcp_sql_audit", "arguments": {"query": "SELECT 1"}},
+        }
+    )
+    assert call["result"]["isError"] is True
 
 
 @pytest.mark.db
