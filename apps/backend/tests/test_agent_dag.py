@@ -89,3 +89,31 @@ async def test_agent_stream_steps_generator():
     assert "retriever" in node_sequence
     assert "critic" in node_sequence
     assert "synthesizer" in node_sequence
+
+
+@pytest.mark.asyncio
+async def test_synthesizer_synthesis_failure_sets_error_not_response():
+    """Verify that LLM failure sets state.error and clears state.response instead of returning exception as answer."""
+    from unittest.mock import patch
+
+    from app.agent.graph import synthesizer_node
+
+    state = AgentState(
+        query="Explain Raft consensus commit latency under high write throughput",
+        user_id=uuid4(),
+    )
+    with patch("app.agent.graph.settings.GEMINI_API_KEY", ""):
+        res = await synthesizer_node(state)
+        assert res.error == "Answer generation is not configured on this server."
+        assert res.response == ""
+
+    with patch("app.agent.graph.settings.GEMINI_API_KEY", "fake-key"), patch(
+        "app.agent.graph.ChatGoogleGenerativeAI", side_effect=RuntimeError("Google API quota exhausted")
+    ):
+        state2 = AgentState(
+            query="Explain Raft consensus commit latency under high write throughput",
+            user_id=uuid4(),
+        )
+        res2 = await synthesizer_node(state2)
+        assert res2.error == "The language model is unavailable right now. Please try again shortly."
+        assert res2.response == ""

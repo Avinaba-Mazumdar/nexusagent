@@ -164,3 +164,66 @@ async def test_upload_and_list_documents():
         }
         dup_response = await client.post("/api/documents/upload", files=files_dup, headers=headers)
         assert dup_response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_document_upload_size_limit_413():
+    from unittest.mock import AsyncMock
+
+    from app.core.auth import get_current_user
+    from app.db.neon import get_db
+
+    user = User(
+        id=uuid4(),
+        email="test@user.com",
+        name="Test",
+        is_guest=False,
+    )
+    mock_db = AsyncMock()
+    mock_db.count_user_documents.return_value = 0
+
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            large_content = b"A" * (5 * 1024 * 1024 + 10)
+            files = {"file": ("large.md", large_content, "text/markdown")}
+            headers = {"Authorization": "Bearer test-token"}
+            resp = await client.post("/api/documents/upload", files=files, headers=headers)
+            assert resp.status_code == 413
+            assert "exceeds maximum allowed size" in resp.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_document_upload_user_cap_409():
+    from unittest.mock import AsyncMock
+
+    from app.core.auth import get_current_user
+    from app.db.neon import get_db
+
+    user = User(
+        id=uuid4(),
+        email="test@user.com",
+        name="Test",
+        is_guest=False,
+    )
+    mock_db = AsyncMock()
+    mock_db.count_user_documents.return_value = 20
+
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            files = {"file": ("test.md", b"# Test", "text/markdown")}
+            headers = {"Authorization": "Bearer test-token"}
+            resp = await client.post("/api/documents/upload", files=files, headers=headers)
+            assert resp.status_code == 409
+            assert "Document limit reached" in resp.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()

@@ -1,6 +1,5 @@
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import asyncpg
 import uvicorn
@@ -8,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.db.migrations import apply_migrations
 from app.db.neon import neon_db
 from app.routes.agent import router as agent_router
 from app.routes.auth import router as auth_router
@@ -25,22 +25,13 @@ async def lifespan(app: FastAPI):
     """Lifecycle manager for Neon PostgreSQL 18 connection pool & migrations."""
     connected = await neon_db.connect()
     if connected:
-        migration_candidates = [
-            Path("migrations/20260901000000_core_schema.sql"),
-            Path(__file__).resolve().parent.parent.parent.parent
-            / "migrations"
-            / "20260901000000_core_schema.sql",
-        ]
-        mig_file = next((p for p in migration_candidates if p.is_file()), None)
-        if mig_file:
-            try:
-                sql = mig_file.read_text(encoding="utf-8")
-                await neon_db.execute_migration(sql)
-                logger.info(f"Applied core schema migration from {mig_file.name}")
-            except (asyncpg.PostgresError, OSError) as e:
-                logger.error(f"Failed to execute startup migration: {e}")
-        else:
-            logger.warning("Core schema migration file not found during startup.")
+        try:
+            applied = await apply_migrations(neon_db)
+            if applied:
+                logger.info(f"Applied migrations: {applied}")
+        except (asyncpg.PostgresError, OSError) as e:
+            logger.error(f"Failed to execute startup migrations: {e}")
+            raise
 
     yield
     await neon_db.disconnect()
@@ -72,7 +63,6 @@ app.add_middleware(
     ],
 )
 
-app.include_router(health_router)
 app.include_router(health_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
@@ -89,7 +79,6 @@ async def root():
         "version": settings.VERSION,
         "docs": "/docs",
         "health": "/api/health",
-        "health_check": "/health",
     }
 
 

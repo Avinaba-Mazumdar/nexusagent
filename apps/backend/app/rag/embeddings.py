@@ -69,6 +69,7 @@ class EmbeddingService:
     async def get_embeddings(self, texts: Sequence[str]) -> list[list[float]]:
         """
         Generate 768-d dense embeddings for a batch of text strings via Google Gemini API.
+        Processes in slices of 100.
         """
         if not texts:
             return []
@@ -76,37 +77,49 @@ class EmbeddingService:
         if not self.api_key:
             raise RuntimeError("GEMINI_API_KEY is not configured for EmbeddingService.")
 
-        last_error = None
-        # Try active_model first, then other fallback models
-        models_to_try = [self.active_model] + [m for m in GEMINI_EMBED_MODELS if m != self.active_model]
+        all_embeddings: list[list[float]] = []
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            for model_name in models_to_try:
-                try:
-                    url = f"{GEMINI_API_URL}/{model_name}:batchEmbedContents?key={self.api_key}"
-                    requests_payload = [
-                        {
-                            "model": f"models/{model_name}",
-                            "content": {"parts": [{"text": t[:2048]}]},
-                            "outputDimensionality": self.dimension,
-                        }
-                        for t in texts
-                    ]
-                    response = await client.post(url, json={"requests": requests_payload})
-                    if response.status_code == 200:
-                        data = response.json()
-                        embeddings = [item["values"] for item in data.get("embeddings", [])]
-                        if len(embeddings) == len(texts):
-                            self.active_model = model_name
-                            return embeddings
-                    last_error = f"Gemini embedding API ({model_name}) status {response.status_code}: {response.text}"
-                    if response.status_code != 404:
-                        break
-                except Exception as e:
-                    last_error = str(e)
+            for start in range(0, len(texts), 100):
+                slice_texts = texts[start : start + 100]
+                slice_embeddings = None
+                last_error = None
 
-        logger.error(f"Error calling Gemini Embedding API: {last_error}")
-        raise RuntimeError(f"Gemini embedding provider unavailable: {last_error}")
+                models_to_try = [self.active_model] + [m for m in GEMINI_EMBED_MODELS if m != self.active_model]
+
+                for model_name in models_to_try:
+                    try:
+                        url = f"{GEMINI_API_URL}/{model_name}:batchEmbedContents"
+                        headers = {"x-goog-api-key": self.api_key}
+                        requests_payload = [
+                            {
+                                "model": f"models/{model_name}",
+                                "content": {"parts": [{"text": t[:2048]}]},
+                                "outputDimensionality": self.dimension,
+                            }
+                            for t in slice_texts
+                        ]
+                        response = await client.post(url, headers=headers, json={"requests": requests_payload})
+                        if response.status_code == 200:
+                            data = response.json()
+                            embeddings = [item["values"] for item in data.get("embeddings", [])]
+                            if len(embeddings) == len(slice_texts):
+                                self.active_model = model_name
+                                slice_embeddings = embeddings
+                                break
+                        last_error = f"Gemini embedding API ({model_name}) status {response.status_code}"
+                        if response.status_code != 404:
+                            break
+                    except Exception:
+                        last_error = f"Connection error ({model_name})"
+
+                if slice_embeddings is None:
+                    logger.error(f"Error calling Gemini Embedding API: {last_error}")
+                    raise RuntimeError("Gemini embedding provider unavailable")
+
+                all_embeddings.extend(slice_embeddings)
+
+        return all_embeddings
 
 
 default_embedding_service = EmbeddingService()

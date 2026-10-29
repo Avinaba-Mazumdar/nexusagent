@@ -1,24 +1,19 @@
 'use client';
 
 import * as React from 'react';
+import DOMPurify from 'dompurify';
 import { Check, Code, Copy, Eye, Maximize2, Minimize2, RefreshCw, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-/**
- * Strip active executable content from rendered SVG output: script tags,
- * iframe/object/embed tags, inline event handlers, and javascript: URLs.
- * Keeps foreignObject intact so Mermaid node labels render properly.
- * Mermaid already runs in 'strict' mode; this is defense-in-depth against SVG XSS.
- */
+// Mermaid renders node labels as HTML inside <foreignObject>, so allow the SVG and HTML profiles.
+// Mermaid renders node labels as HTML inside <foreignObject>, so allow the SVG and HTML profiles.
 const sanitizeSvg = (svg: string): string =>
-    svg
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-        .replace(/<object[\s\S]*?<\/object>/gi, '')
-        .replace(/<embed[\s\S]*?<\/embed>/gi, '')
-        .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-        .replace(/javascript:/gi, '');
+    DOMPurify.sanitize(svg, {
+        USE_PROFILES: { svg: true, svgFilters: true, html: true },
+        ADD_TAGS: ['foreignObject'],
+        HTML_INTEGRATION_POINTS: { foreignobject: true },
+    });
 
 // Mermaid (~1 MB) is loaded on first diagram only, keeping it out of the main bundle.
 // Its config is global, so initialize + render run one at a time to stop themes racing.

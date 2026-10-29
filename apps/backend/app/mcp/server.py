@@ -31,10 +31,10 @@ async def handle_jsonrpc_request(req_dict: dict) -> dict:
     """Process incoming JSON-RPC 2.0 request dictionary and return response dictionary."""
     try:
         req = JsonRpcRequest.model_validate(req_dict)
-    except (ValidationError, ValueError, TypeError) as e:
+    except (ValidationError, ValueError, TypeError):
         return JsonRpcResponse(
             id=req_dict.get("id"),
-            error=JsonRpcError(code=INVALID_REQUEST, message=f"Invalid Request: {e!s}"),
+            error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request"),
         ).model_dump(exclude_none=True)
 
     method = req.method
@@ -104,11 +104,11 @@ async def handle_jsonrpc_request(req_dict: dict) -> dict:
                 error=JsonRpcError(code=METHOD_NOT_FOUND, message=f"Method '{method}' not found."),
             ).model_dump(exclude_none=True)
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error processing MCP method %s", method)
         return JsonRpcResponse(
             id=req.id,
-            error=JsonRpcError(code=INTERNAL_ERROR, message=f"Internal Error: {e!s}"),
+            error=JsonRpcError(code=INTERNAL_ERROR, message="Internal error"),
         ).model_dump(exclude_none=True)
 
 

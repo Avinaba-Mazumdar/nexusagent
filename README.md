@@ -96,6 +96,12 @@ pnpm dev
 
 Prune inactive guests daily with `uv run python scripts/prune_guests.py --ttl 24` (cron, Render Cron Job, or a scheduled CI job).
 
+### Database Permissions
+For immutable audit logging in production with a dedicated database role:
+```sql
+REVOKE UPDATE, DELETE ON tool_audit_logs FROM <app_role>;
+```
+
 ---
 
 ## 🧪 Testing

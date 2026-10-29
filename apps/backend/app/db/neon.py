@@ -291,6 +291,57 @@ class NeonDatabase:
             rows = await conn.fetch(query)
             return [dict(r) for r in rows]
 
+    async def count_user_documents(self, user_id: UUID) -> int:
+        """Count the number of documents owned by a user."""
+        pool = self.get_pool()
+        query = "SELECT COUNT(*) FROM documents WHERE user_id = $1;"
+        async with pool.acquire() as conn:
+            val = await conn.fetchval(query, user_id)
+            return int(val or 0)
+
+    async def create_document_with_chunks(
+        self, document: Document, chunks: list[DocumentChunk]
+    ) -> Document:
+        """Insert a document and its chunks transactionally."""
+        pool = self.get_pool()
+        doc_query = """
+            INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded, uploaded_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded, uploaded_at;
+        """
+        chunk_query = """
+            INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, metadata, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7);
+        """
+        records = [
+            (
+                c.id,
+                c.document_id,
+                c.chunk_index,
+                c.content,
+                c.embedding,
+                json.dumps(c.metadata),
+                c.created_at,
+            )
+            for c in chunks
+        ]
+        async with pool.acquire() as conn, conn.transaction():
+            row = await conn.fetchrow(
+                doc_query,
+                document.id,
+                document.user_id,
+                document.filename,
+                document.mime_type,
+                document.sha256_hash,
+                document.total_chunks,
+                document.storage_path,
+                document.is_seeded,
+                document.uploaded_at,
+            )
+            if records:
+                await conn.executemany(chunk_query, records)
+            return Document(**dict(row))
+
     async def create_document(self, document: Document) -> Document:
         """Insert a new document record into Neon documents table."""
         pool = self.get_pool()
@@ -530,29 +581,29 @@ class NeonDatabase:
         if search_term:
             query = """
                 WITH user_convs AS (
-                    SELECT id, user_id, title, created_at
+                    SELECT id, user_id, title, created_at, updated_at
                     FROM agent_conversations c
                     WHERE c.user_id = $1 AND (
                         c.title ILIKE $2 OR
                         EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.content ILIKE $2)
                     )
-                    ORDER BY c.created_at DESC
+                    ORDER BY c.updated_at DESC
                     LIMIT $3
                 ),
                 msg_stats AS (
                     SELECT conversation_id,
-                           COUNT(*) AS message_count,
-                           (ARRAY_AGG(content ORDER BY created_at DESC))[1] AS last_snippet
+                            COUNT(*) AS message_count,
+                            (ARRAY_AGG(content ORDER BY created_at DESC))[1] AS last_snippet
                     FROM messages
                     WHERE conversation_id IN (SELECT id FROM user_convs)
                     GROUP BY conversation_id
                 )
-                SELECT c.id, c.user_id, c.title, c.created_at,
-                       COALESCE(s.message_count, 0) AS message_count,
-                       s.last_snippet
+                SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at,
+                        COALESCE(s.message_count, 0) AS message_count,
+                        s.last_snippet
                 FROM user_convs c
                 LEFT JOIN msg_stats s ON c.id = s.conversation_id
-                ORDER BY c.created_at DESC;
+                ORDER BY c.updated_at DESC;
             """
             search_pattern = f"%{search_term}%"
             async with pool.acquire() as conn:
@@ -561,26 +612,26 @@ class NeonDatabase:
         else:
             query = """
                 WITH user_convs AS (
-                    SELECT id, user_id, title, created_at
+                    SELECT id, user_id, title, created_at, updated_at
                     FROM agent_conversations
                     WHERE user_id = $1
-                    ORDER BY created_at DESC
+                    ORDER BY updated_at DESC
                     LIMIT $2
                 ),
                 msg_stats AS (
                     SELECT conversation_id,
-                           COUNT(*) AS message_count,
-                           (ARRAY_AGG(content ORDER BY created_at DESC))[1] AS last_snippet
+                            COUNT(*) AS message_count,
+                            (ARRAY_AGG(content ORDER BY created_at DESC))[1] AS last_snippet
                     FROM messages
                     WHERE conversation_id IN (SELECT id FROM user_convs)
                     GROUP BY conversation_id
                 )
-                SELECT c.id, c.user_id, c.title, c.created_at,
-                       COALESCE(s.message_count, 0) AS message_count,
-                       s.last_snippet
+                SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at,
+                        COALESCE(s.message_count, 0) AS message_count,
+                        s.last_snippet
                 FROM user_convs c
                 LEFT JOIN msg_stats s ON c.id = s.conversation_id
-                ORDER BY c.created_at DESC;
+                ORDER BY c.updated_at DESC;
             """
             async with pool.acquire() as conn:
                 rows = await conn.fetch(query, user_id, limit)
@@ -655,6 +706,10 @@ class NeonDatabase:
                 content,
                 plan_trace_json,
                 reflection_json,
+            )
+            await conn.execute(
+                "UPDATE agent_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1;",
+                conversation_id,
             )
             return dict(row) if row else {}
 

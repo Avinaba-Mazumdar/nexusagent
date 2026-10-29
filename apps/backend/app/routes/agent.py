@@ -172,6 +172,19 @@ async def generate_agent_stream(
                         )
                         await asyncio.sleep(0.01)
 
+            if final_state.error:
+                if user_id:
+                    try:
+                        await default_rate_limiter.refund(
+                            user_id=user_id, client_ip=client_ip, is_guest=is_guest
+                        )
+                    except Exception as refund_err:  # noqa: BLE001
+                        logger.warning(f"Could not refund rate limit token: {refund_err}")
+                await event_queue.put(
+                    format_sse("error", {"error": final_state.error, "sessionId": session_id})
+                )
+                return
+
             # 3. Final completion event
             await event_queue.put(
                 format_sse(
@@ -252,7 +265,7 @@ async def generate_agent_stream(
                 except Exception as save_err:
                     logger.warning(f"Could not persist conversation history: {save_err}")
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error during agent SSE streaming")
             if user_id:
                 try:
@@ -261,7 +274,8 @@ async def generate_agent_stream(
                     )
                 except Exception as refund_err:  # noqa: BLE001
                     logger.warning(f"Could not refund rate limit token: {refund_err}")
-            await event_queue.put(format_sse("error", {"error": str(e), "sessionId": session_id}))
+            masked_error = "Internal error. Reference: " + session_id[:8]
+            await event_queue.put(format_sse("error", {"error": masked_error, "sessionId": session_id}))
         finally:
             await event_queue.put(None)
 

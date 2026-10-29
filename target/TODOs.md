@@ -124,7 +124,7 @@ The AST-denylist sandbox was escapable (`random._os.system(...)`, `[eval][0](...
 ### Phase 13: FastMCP Transition, Gemini 3.x Upgrade & Live Benchmark Vault [Completed]
 
 - [x] Migrate Model Context Protocol server from manual custom router to official `FastMCP` (`apps/backend/app/routes/mcp.py`)
-- [x] Integrate LangSmith `@traceable` decorators across agent execution nodes
+- [x] Removed LangSmith `@traceable` decorators for data privacy compliance (S-19)
 - [x] Fix guest session quota retention across browser page refreshes
 - [x] Upgrade LLM synthesis to active Gemini frontier models (`gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.5-flash`) with automatic cascading fallbacks
 - [x] Implement robust offline deterministic synthesis fallback with sanitized citations, Mermaid diagrams, and conversational greeting handling

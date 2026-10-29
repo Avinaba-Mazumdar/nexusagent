@@ -4,7 +4,9 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
+from app.config import settings
 from app.core.auth import get_client_ip, get_current_user
+from app.core.hitl_coordinator import default_hitl_coordinator
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import (
     Document,
@@ -126,7 +128,14 @@ async def upload_document(
             detail="Only Markdown and RFC text files (.md, .markdown, .txt) are supported",
         )
 
-    raw_bytes = await file.read()
+    user_doc_count = await db.count_user_documents(current_user.id)
+    if user_doc_count >= settings.MAX_DOCUMENTS_PER_USER:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Document limit reached ({settings.MAX_DOCUMENTS_PER_USER}). Delete a document first.",
+        )
+
+    raw_bytes = await file.read(MAX_FILE_BYTES + 1)
     if len(raw_bytes) > MAX_FILE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -183,6 +192,12 @@ async def upload_document(
             previewChunks=preview,
         )
 
+    if not default_embedding_service.api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document ingestion is unavailable: embeddings are not configured.",
+        )
+
     # 1. Parse document into hierarchical chunks
     new_doc_id = uuid4()
     chunks = default_markdown_parser.parse_markdown(
@@ -198,7 +213,7 @@ async def upload_document(
         for chunk, emb in zip(chunks, embeddings):
             chunk.embedding = emb
 
-    # 3. Persist Document record
+    # 3. Persist Document record and chunks transactionally
     doc_record = Document(
         id=new_doc_id,
         user_id=current_user.id,
@@ -209,11 +224,16 @@ async def upload_document(
         storage_path=None,
         is_seeded=False,
     )
-    saved_doc = await db.create_document(doc_record)
+    saved_doc = await db.create_document_with_chunks(doc_record, chunks)
 
-    # 4. Batch persist chunks with embeddings into Neon document_chunks
-    if chunks:
-        await db.insert_document_chunks(chunks)
+    await default_hitl_coordinator.log_tool_audit(
+        tool_name="document_upload",
+        input_args={"filename": filename, "bytes": len(raw_bytes)},
+        output_summary={"document_id": str(new_doc_id), "chunks": len(chunks)},
+        duration_ms=0,
+        user_id=current_user.id,
+        mcp_server="http-api",
+    )
 
     preview_wires = [
         DocumentChunkWire(

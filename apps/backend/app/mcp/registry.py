@@ -5,9 +5,12 @@ Provides tools:
 """
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
+from app.core.hitl_coordinator import default_hitl_coordinator
 from app.core.security_guardrails import compute_mcp_tool_hash, scan_mcp_tool_metadata
 from app.mcp.protocol import (
     ResourceDefinition,
@@ -168,11 +171,14 @@ class McpRegistry:
         }
 
     @classmethod
-    async def call_tool(cls, name: str, arguments: dict[str, Any]) -> ToolCallResult:
+    async def call_tool(
+        cls, name: str, arguments: dict[str, Any], user_id: UUID | None = None
+    ) -> ToolCallResult:
         """Route and execute tool invocation with pre-execution poisoning & integrity gates."""
+        start_time = time.perf_counter()
         target_tool = next((t for t in TOOLS if t.name == name), None)
         if not target_tool:
-            return ToolCallResult(
+            result = ToolCallResult(
                 content=[
                     ToolCallContent(
                         text=f"Unknown tool '{name}'. Available: {', '.join(t.name for t in TOOLS)}"
@@ -180,25 +186,40 @@ class McpRegistry:
                 ],
                 isError=True,
             )
-
-        is_valid, reason = cls.validate_tool_integrity(target_tool)
-        if not is_valid:
-            logger.critical("Execution blocked for poisoned/tampered MCP tool '%s': %s", name, reason)
-            return ToolCallResult(
-                content=[ToolCallContent(text=f"Security Violation: {reason}")],
-                isError=True,
-            )
-
-        if name == "hybrid_rag_search":
-            return await cls._exec_hybrid_search(arguments)
-        return ToolCallResult(
-            content=[
-                ToolCallContent(
-                    text=f"Unknown tool '{name}'."
+        else:
+            is_valid, reason = cls.validate_tool_integrity(target_tool)
+            if not is_valid:
+                logger.critical("Execution blocked for poisoned/tampered MCP tool '%s': %s", name, reason)
+                result = ToolCallResult(
+                    content=[ToolCallContent(text=f"Security Violation: {reason}")],
+                    isError=True,
                 )
-            ],
-            isError=True,
-        )
+            elif name == "hybrid_rag_search":
+                result = await cls._exec_hybrid_search(arguments)
+            else:
+                result = ToolCallResult(
+                    content=[
+                        ToolCallContent(
+                            text=f"Unknown tool '{name}'."
+                        )
+                    ],
+                    isError=True,
+                )
+
+        duration_ms = max(int((time.perf_counter() - start_time) * 1000), 0)
+        try:
+            await default_hitl_coordinator.log_tool_audit(
+                tool_name=name,
+                input_args=arguments,
+                output_summary={"isError": result.isError},
+                duration_ms=duration_ms,
+                user_id=user_id,
+                mcp_server="nexusagent-mcp",
+            )
+        except Exception as e:
+            logger.warning("Failed to log MCP tool audit: %s", e)
+
+        return result
 
     @classmethod
     async def _exec_hybrid_search(cls, arguments: dict[str, Any]) -> ToolCallResult:

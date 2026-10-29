@@ -9,6 +9,11 @@ vi.mock('mermaid', () => ({
             if (code.includes('invalid_syntax')) {
                 throw new Error('Parse error on line 1');
             }
+            if (code.includes('xss_test')) {
+                return {
+                    svg: `<svg data-testid="xss-svg" id="${id}"><script>alert(1)</script><a href="javascript:alert(1)"><text>x</text></a><foreignObject><div onclick="alert(1)">Sanitized Label</div></foreignObject></svg>`
+                };
+            }
             return {
                 svg: `<svg data-testid="mock-mermaid-svg" id="${id}"><g class="node"><foreignObject width="100" height="40"><div xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel">Client App</span></div></foreignObject></g><text>Architecture Diagram</text></svg>`
             };
@@ -45,6 +50,19 @@ flowchart TD
 
         await waitFor(() => {
             expect(screen.getByText('Client App')).toBeInTheDocument();
+        });
+    });
+
+    it('sanitizes malicious script tags, javascript urls, and event handlers while preserving foreignObject', async () => {
+        render(<MermaidViewer chart="xss_test" />);
+
+        await waitFor(() => {
+            const svg = screen.getByTestId('xss-svg');
+            expect(svg).toBeInTheDocument();
+            expect(svg.querySelector('script')).toBeNull();
+            expect(svg.querySelector('a')?.getAttribute('href')).not.toBe('javascript:alert(1)');
+            expect(svg.innerHTML).not.toContain('onclick');
+            expect(screen.getByText('Sanitized Label')).toBeInTheDocument();
         });
     });
 

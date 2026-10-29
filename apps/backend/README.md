@@ -31,7 +31,7 @@ The interactive API documentation is available at:
 
 - Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 - ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
-- Health Check: [http://localhost:8000/health](http://localhost:8000/health)
+- Health Check: [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
 ### 3. Run Tests and Linters
 

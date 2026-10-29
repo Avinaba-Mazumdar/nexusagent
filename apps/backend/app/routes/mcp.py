@@ -47,7 +47,7 @@ MAX_SESSIONS_TOTAL = 200
 MAX_QUEUED_MESSAGES = 100
 
 
-async def dispatch_mcp_method(req: JsonRpcRequest) -> JsonRpcResponse:
+async def dispatch_mcp_method(req: JsonRpcRequest, user_id: UUID | None = None) -> JsonRpcResponse:
     """Core dispatcher for JSON-RPC 2.0 MCP requests."""
     method = req.method
     params = req.params or {}
@@ -84,7 +84,7 @@ async def dispatch_mcp_method(req: JsonRpcRequest) -> JsonRpcResponse:
                 error=JsonRpcError(code=INVALID_PARAMS, message="Missing parameter 'name'."),
             )
 
-        call_res = await default_mcp_registry.call_tool(tool_name, tool_args)
+        call_res = await default_mcp_registry.call_tool(tool_name, tool_args, user_id=user_id)
         return JsonRpcResponse(id=req.id, result=call_res.model_dump())
 
     elif method == "resources/list":
@@ -120,27 +120,27 @@ async def direct_jsonrpc_gateway(
     """
     try:
         body = await request.json()
-    except (json.JSONDecodeError, ValueError) as e:
+    except (json.JSONDecodeError, ValueError):
         return JsonRpcResponse(
             id=None,
-            error=JsonRpcError(code=-32700, message=f"Parse error: {e!s}"),
+            error=JsonRpcError(code=-32700, message="Parse error"),
         )
 
     try:
         req = JsonRpcRequest.model_validate(body)
-    except (ValidationError, ValueError, TypeError) as e:
+    except (ValidationError, ValueError, TypeError):
         return JsonRpcResponse(
             id=body.get("id") if isinstance(body, dict) else None,
-            error=JsonRpcError(code=INVALID_REQUEST, message=f"Invalid Request: {e!s}"),
+            error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request"),
         )
 
     try:
-        return await dispatch_mcp_method(req)
-    except Exception as e:
+        return await dispatch_mcp_method(req, user_id=current_user.id)
+    except Exception:
         logger.exception("Unexpected error in direct MCP gateway")
         return JsonRpcResponse(
             id=req.id,
-            error=JsonRpcError(code=INTERNAL_ERROR, message=f"Internal Error: {e!s}"),
+            error=JsonRpcError(code=INTERNAL_ERROR, message="Internal error"),
         )
 
 
@@ -223,10 +223,10 @@ async def mcp_messages_endpoint(
     try:
         body = await request.json()
         req = JsonRpcRequest.model_validate(body)
-    except (json.JSONDecodeError, ValidationError, ValueError, TypeError) as e:
+    except (json.JSONDecodeError, ValidationError, ValueError, TypeError):
         err_res = JsonRpcResponse(
             id=None,
-            error=JsonRpcError(code=INVALID_REQUEST, message=f"Invalid Request: {e!s}"),
+            error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request"),
         )
         try:
             queue.put_nowait(err_res.model_dump_json(exclude_none=True))
@@ -238,7 +238,7 @@ async def mcp_messages_endpoint(
         return JSONResponse(status_code=202, content={"status": "accepted"})
 
     try:
-        res = await dispatch_mcp_method(req)
+        res = await dispatch_mcp_method(req, user_id=current_user.id)
         try:
             queue.put_nowait(res.model_dump_json(exclude_none=True))
         except asyncio.QueueFull:
@@ -247,11 +247,11 @@ async def mcp_messages_endpoint(
                 detail="MCP session queue full",
             )
         return JSONResponse(status_code=202, content={"status": "accepted"})
-    except Exception as e:
+    except Exception:
         logger.exception("Error processing SSE message")
         err_res = JsonRpcResponse(
             id=req.id,
-            error=JsonRpcError(code=INTERNAL_ERROR, message=str(e)),
+            error=JsonRpcError(code=INTERNAL_ERROR, message="Internal error"),
         )
         try:
             queue.put_nowait(err_res.model_dump_json(exclude_none=True))

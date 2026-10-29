@@ -17,7 +17,6 @@ from datetime import UTC, datetime
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
-from langsmith import traceable
 
 from langgraph.graph import END, StateGraph
 
@@ -389,7 +388,6 @@ async def critic_node(state: AgentState) -> AgentState:
     return state
 
 
-@traceable
 async def synthesizer_node(state: AgentState) -> AgentState:
     """
     Synthesizer Node: Produces verified architectural response using LLM with fallback routing.
@@ -508,13 +506,15 @@ Context:
             for m in re.finditer(r"```mermaid\s*([\s\S]*?)\s*```", state.response):
                 state.mermaid_diagrams.append(f"```mermaid\n{m.group(1).strip()}\n```")
             synthesized = True
-        except Exception as e:
-            logger.error(f"LLM Synthesis failed: {e}")
-            state.response = f"Synthesis failed due to API error: {e}"
+        except Exception:
+            logger.exception("LLM synthesis failed for session %s", state.session_id)
+            state.error = "The language model is unavailable right now. Please try again shortly."
+            state.response = ""
             synthesized = True
 
     if not synthesized:
-        state.response = "Synthesis failed: No Gemini API key provided. Please configure GEMINI_API_KEY."
+        state.error = "Answer generation is not configured on this server."
+        state.response = ""
 
     if state.canary_token and not verify_canary_integrity(state.response, state.canary_token):
         logger.critical(

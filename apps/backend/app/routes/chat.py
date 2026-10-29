@@ -48,6 +48,13 @@ async def list_chat_history(
             "userId": str(c["user_id"]),
             "title": c["title"],
             "createdAt": c["created_at"].isoformat() if hasattr(c["created_at"], "isoformat") else str(c["created_at"]),
+            "updatedAt": (
+                c["updated_at"].isoformat()
+                if hasattr(c.get("updated_at"), "isoformat")
+                else (str(c["updated_at"]) if c.get("updated_at") else (
+                    c["created_at"].isoformat() if hasattr(c["created_at"], "isoformat") else str(c["created_at"])
+                ))
+            ),
             "messageCount": int(c.get("message_count") or 0),
             "lastSnippet": c.get("last_snippet"),
         }

@@ -53,8 +53,8 @@ async def test_embedding_service_batch():
         "embeddings": [{"values": [0.1] * EMBEDDING_DIMENSION} for _ in range(3)]
     }
 
-    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp):
-        service = EmbeddingService()
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp) as mock_post:
+        service = EmbeddingService(api_key="test-key")
         texts = [
             "Distributed consensus protocol",
             "AST execution sandbox",
@@ -64,6 +64,10 @@ async def test_embedding_service_batch():
         assert len(results) == 3
         for r in results:
             assert len(r) == EMBEDDING_DIMENSION
+        assert mock_post.called
+        call_kwargs = mock_post.call_args[1]
+        assert call_kwargs["headers"]["x-goog-api-key"] == "test-key"
+        assert "?key=" not in mock_post.call_args[0][0]
 
 
 def test_rrf_scoring_algorithm():
