@@ -19,6 +19,16 @@ export function setOnUnauthorizedCallback(callback: () => void): void {
     onUnauthorizedCallback = callback;
 }
 
+/** Current bearer token, for callers that cannot go through `apiClient` (e.g. SSE streaming). */
+export function getAuthToken(): string | null {
+    return authTokenGetter();
+}
+
+/** Signal that the server rejected the session (HTTP 401) so the app can sign the user out. */
+export function notifyUnauthorized(): void {
+    onUnauthorizedCallback?.();
+}
+
 export interface ApiClientOptions extends RequestInit {
     params?: Record<string, string | number | boolean | undefined>;
     timeoutMs?: number;
@@ -64,7 +74,7 @@ export async function apiClient<T>(endpoint: string, options: ApiClientOptions =
 
         if (!response.ok) {
             if (response.status === 401) {
-                onUnauthorizedCallback?.();
+                notifyUnauthorized();
             }
             const errorData = await response.json().catch(() => null);
 

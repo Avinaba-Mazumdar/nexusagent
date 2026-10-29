@@ -106,7 +106,7 @@ class GuestPassResponse(BaseModel):
 class QuotaStatus(BaseModel):
     tokensRemaining: int
     bucketCapacity: int
-    resetMinutes: int
+    resetsAt: str
 
 
 class GoogleAuthRequest(BaseModel):

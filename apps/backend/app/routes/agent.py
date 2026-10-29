@@ -8,8 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.agent.graph import AgentGraph, classify_query_intent, default_agent_graph
-from app.agent.state import AgentState, Citation, PlanStep
+from app.agent.graph import (
+    AgentGraph,
+    classify_query_intent,
+    default_agent_graph,
+    route_after_planner,
+)
+from app.agent.state import AgentState, Citation, InjectionWarning, PlanStep
 from app.config import settings
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
@@ -21,6 +26,8 @@ from app.routes.documents import require_document_access
 logger = logging.getLogger("nexusagent.routes.agent")
 
 router = APIRouter(prefix="/agent", tags=["Agent Autonomous Orchestration & SSE Streaming"])
+
+TITLE_MAX_CHARS = 60
 
 
 class AgentStreamRequestWire(BaseModel):
@@ -58,6 +65,7 @@ def plan_step_to_wire(s: PlanStep) -> dict:
 def citation_to_wire(c: Citation) -> dict:
     return {
         "id": c.id,
+        "label": c.label,
         "chunkId": c.chunk_id,
         "documentId": c.document_id,
         "filename": c.filename,
@@ -68,6 +76,44 @@ def citation_to_wire(c: Citation) -> dict:
     }
 
 
+def warning_to_wire(w: InjectionWarning) -> dict:
+    return {"filename": w.filename, "reason": w.reason}
+
+
+def next_node(finished: str, state: AgentState) -> str | None:
+    """The node LangGraph runs after ``finished`` (the graph is a fixed pipeline)."""
+    if finished == "planner":
+        return route_after_planner(state)
+    return {"retriever": "grounding", "grounding": "synthesizer"}.get(finished)
+
+
+async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentState) -> str | None:
+    """Save the turn for a signed-in user. Returns the conversation id, or None on failure."""
+    try:
+        title = query[:TITLE_MAX_CHARS] + "..." if len(query) > TITLE_MAX_CHARS else query
+        conv = await neon_db.create_conversation(
+            user_id, title=title, conversation_id=UUID(session_id)
+        )
+        if not conv or "id" not in conv:
+            logger.warning(f"Could not persist conversation {session_id} for user {user_id}")
+            return None
+        await neon_db.save_turn(
+            conv["id"],
+            query,
+            state.response,
+            plan_trace=[plan_step_to_wire(s) for s in state.plan],
+            reflection_summary={
+                "grounding": state.grounding,
+                "citations": [citation_to_wire(c) for c in state.citations],
+                "mermaidDiagrams": state.mermaid_diagrams,
+            },
+        )
+        return str(conv["id"])
+    except Exception as save_err:  # noqa: BLE001
+        logger.warning(f"Could not persist conversation history: {save_err}")
+        return None
+
+
 async def generate_agent_stream(
     query: str,
     user_id: UUID | None,
@@ -75,25 +121,27 @@ async def generate_agent_stream(
     session_id: str,
     graph: AgentGraph,
     is_guest: bool = True,
-    client_ip: str = "127.0.0.1",
     quota_remaining: int | None = None,
+    quota_charged: bool = True,
     chat_history: list[dict[str, str]] | None = None,
+    conversation_id: UUID | None = None,
 ) -> AsyncIterator[str]:
     """
-    Asynchronously run AgentGraph pipeline and yield SSE event chunks:
-    plan -> node_start -> tool_call -> tool_result -> critic -> token -> done.
+    Run the agent pipeline and yield SSE frames:
+    start -> node_start / plan / tool_result / grounding -> token* -> done | error.
     """
     initial_state = AgentState(
         session_id=session_id,
         user_id=user_id,
+        conversation_id=conversation_id,
         query=query,
         document_id=document_id,
         chat_history=chat_history or [],
+        intent=classify_query_intent(query),
     )
 
     event_queue: asyncio.Queue[str | None] = asyncio.Queue()
 
-    # Pre-seed initial start event
     start_payload = {
         "sessionId": session_id,
         "query": query,
@@ -101,29 +149,31 @@ async def generate_agent_stream(
     }
     if quota_remaining is not None:
         start_payload["quotaRemaining"] = quota_remaining
-
     await event_queue.put(format_sse("start", start_payload))
 
+    async def refund_if_charged() -> None:
+        if user_id and quota_charged:
+            try:
+                await default_rate_limiter.refund(user_id=user_id, is_guest=is_guest)
+            except Exception as refund_err:  # noqa: BLE001
+                logger.warning(f"Could not refund rate limit token: {refund_err}")
+
     async def run_pipeline():
-        llm_started = False
+        tokens_sent = False
+
+        async def on_token(text: str) -> None:
+            nonlocal tokens_sent
+            tokens_sent = True
+            await event_queue.put(format_sse("token", {"sessionId": session_id, "token": text}))
+
         try:
             final_state = initial_state
-            async for node_name, step_state in graph.stream_steps(initial_state):
+            await event_queue.put(
+                format_sse("node_start", {"node": "planner", "sessionId": session_id})
+            )
+            async for node_name, step_state in graph.stream_steps(initial_state, on_token=on_token):
                 final_state = step_state
 
-                # 1. Yield node_start event
-                await event_queue.put(
-                    format_sse(
-                        "node_start",
-                        {
-                            "node": node_name,
-                            "sessionId": session_id,
-                            "iteration": step_state.iteration_count,
-                        },
-                    )
-                )
-
-                # 2. Yield node-specific events
                 if node_name == "planner":
                     await event_queue.put(
                         format_sse(
@@ -134,7 +184,6 @@ async def generate_agent_stream(
                             },
                         )
                     )
-
                 elif node_name == "retriever":
                     await event_queue.put(
                         format_sse(
@@ -143,68 +192,67 @@ async def generate_agent_stream(
                                 "tool": "hybrid_rag_search",
                                 "chunksRetrieved": len(step_state.retrieved_chunks),
                                 "citations": [citation_to_wire(c) for c in step_state.citations],
+                                "injectionWarnings": [
+                                    warning_to_wire(w) for w in step_state.injection_warnings
+                                ],
                             },
                         )
                     )
-
-                elif node_name == "critic":
+                elif node_name == "grounding":
                     await event_queue.put(
                         format_sse(
-                            "critic",
+                            "grounding",
                             {
                                 "sessionId": session_id,
-                                "reflectionScore": step_state.reflection_score,
-                                "isGrounded": step_state.is_grounded,
-                                "needsReplan": step_state.needs_replan,
-                                "feedback": step_state.reflection_feedback,
-                                "iteration": step_state.iteration_count,
+                                "grounding": step_state.grounding,
+                                "feedback": step_state.grounding_feedback,
                             },
                         )
                     )
 
-                elif node_name == "synthesizer":
-                    llm_started = True
-                    response_text = step_state.response
-                    words = response_text.split(" ")
-                    for i in range(0, len(words), 3):
-                        chunk = " ".join(words[i : i + 3]) + " "
-                        await event_queue.put(
-                            format_sse(
-                                "token",
-                                {
-                                    "sessionId": session_id,
-                                    "token": chunk,
-                                },
-                            )
-                        )
-                        await asyncio.sleep(0.01)
+                upcoming = next_node(node_name, step_state)
+                if upcoming:
+                    await event_queue.put(
+                        format_sse("node_start", {"node": upcoming, "sessionId": session_id})
+                    )
 
             if final_state.error:
-                if user_id:
-                    try:
-                        await default_rate_limiter.refund(user_id=user_id, is_guest=is_guest)
-                    except Exception as refund_err:  # noqa: BLE001
-                        logger.warning(f"Could not refund rate limit token: {refund_err}")
+                await refund_if_charged()
                 await event_queue.put(
                     format_sse("error", {"error": final_state.error, "sessionId": session_id})
                 )
                 return
 
-            # 3. Final completion event
+            # Planner refusals are fixed text, not model output: send them as one chunk.
+            if not tokens_sent and final_state.response:
+                await event_queue.put(
+                    format_sse("token", {"sessionId": session_id, "token": final_state.response})
+                )
+
+            # Persist before `done` so a client refetch sees the conversation; shield it so a
+            # disconnect cannot cancel the write half-way.
+            conversation_id_out: str | None = None
+            if user_id and not is_guest:
+                conversation_id_out = await asyncio.shield(
+                    persist_turn(user_id, session_id, query, final_state)
+                )
+
             await event_queue.put(
                 format_sse(
                     "done",
                     {
                         "sessionId": session_id,
+                        "conversationId": conversation_id_out,
                         "query": query,
                         "response": final_state.response,
                         "nodeHistory": final_state.node_history,
                         "plan": [plan_step_to_wire(s) for s in final_state.plan],
                         "citations": [citation_to_wire(c) for c in final_state.citations],
+                        "injectionWarnings": [
+                            warning_to_wire(w) for w in final_state.injection_warnings
+                        ],
                         "mermaidDiagrams": final_state.mermaid_diagrams,
-                        "reflectionScore": final_state.reflection_score,
-                        "isGrounded": final_state.is_grounded,
-                        "iterationCount": final_state.iteration_count,
+                        "grounding": final_state.grounding,
                         "isComplete": True,
                         "completedAt": final_state.completed_at.isoformat()
                         if final_state.completed_at
@@ -213,55 +261,15 @@ async def generate_agent_stream(
                 )
             )
 
-            # Persist chat turn to DB if authenticated Google user
-            if user_id and not is_guest:
-                try:
-                    conv_id = None
-                    try:
-                        conv_id = UUID(session_id)
-                    except ValueError:
-                        pass
-                    title = (query[:60] + "...") if len(query) > 60 else query
-                    conv = await neon_db.create_conversation(
-                        user_id, title=title, conversation_id=conv_id
-                    )
-                    if conv and "id" in conv:
-                        actual_conv_id = conv["id"]
-                        await neon_db.save_turn(
-                            actual_conv_id,
-                            query,
-                            final_state.response,
-                            plan_trace=[plan_step_to_wire(s) for s in final_state.plan],
-                            reflection_summary={
-                                "reflectionScore": final_state.reflection_score,
-                                "isGrounded": final_state.is_grounded,
-                                "mermaidDiagrams": final_state.mermaid_diagrams,
-                            },
-                        )
-                    else:
-                        logger.warning(
-                            f"Could not persist conversation {conv_id} for user {user_id}"
-                        )
-                except Exception as save_err:  # noqa: BLE001
-                    logger.warning(f"Could not persist conversation history: {save_err}")
-
         except asyncio.CancelledError:
             logger.info("Agent pipeline cancelled (client disconnect or abort)")
-            if user_id and not llm_started:
-                try:
-                    await default_rate_limiter.refund(user_id=user_id, is_guest=is_guest)
-                except Exception as refund_err:  # noqa: BLE001
-                    logger.warning(
-                        f"Could not refund rate limit token on cancellation: {refund_err}"
-                    )
+            # Once the model has produced output the cost is incurred; refund only earlier aborts.
+            if not tokens_sent:
+                await refund_if_charged()
             raise
         except Exception:
             logger.exception("Error during agent SSE streaming")
-            if user_id:
-                try:
-                    await default_rate_limiter.refund(user_id=user_id, is_guest=is_guest)
-                except Exception as refund_err:  # noqa: BLE001
-                    logger.warning(f"Could not refund rate limit token: {refund_err}")
+            await refund_if_charged()
             masked_error = "Internal error. Reference: " + session_id[:8]
             await event_queue.put(
                 format_sse("error", {"error": masked_error, "sessionId": session_id})
@@ -290,8 +298,8 @@ async def stream_agent_execution(
     graph: AgentGraph = Depends(lambda: default_agent_graph),
 ):
     """
-    Server-Sent Events (SSE) streaming endpoint for autonomous agent DAG execution.
-    Enforces token-bucket rate limiter with automatic 429 and retry headers.
+    Server-Sent Events (SSE) streaming endpoint for the agent pipeline.
+    Enforces the token-bucket rate limiter with automatic 429 and retry headers.
     """
     client_ip = get_client_ip(request)
 
@@ -306,7 +314,9 @@ async def stream_agent_execution(
             )
         await require_document_access(neon_db, doc_uuid, current_user)
 
-    if classify_query_intent(payload.query) != "out_of_scope":
+    # Out-of-scope refusals cost nothing, so they are not metered.
+    quota_charged = classify_query_intent(payload.query) != "out_of_scope"
+    if quota_charged:
         remaining = await default_rate_limiter.check_and_consume(
             user_id=current_user.id,
             client_ip=client_ip,
@@ -320,6 +330,7 @@ async def stream_agent_execution(
 
     session_id = uuid4().hex
     chat_history: list[dict[str, str]] = []
+    resumed_conversation: UUID | None = None
     if payload.sessionId and not current_user.is_guest:
         try:
             requested = UUID(payload.sessionId)
@@ -331,6 +342,7 @@ async def stream_agent_execution(
             )
             if rows is not None:
                 session_id = payload.sessionId
+                resumed_conversation = requested
                 chat_history = [{"role": r["role"], "content": r["content"]} for r in rows]
 
     return StreamingResponse(
@@ -341,9 +353,10 @@ async def stream_agent_execution(
             session_id=session_id,
             graph=graph,
             is_guest=current_user.is_guest,
-            client_ip=client_ip,
             quota_remaining=remaining,
+            quota_charged=quota_charged,
             chat_history=chat_history,
+            conversation_id=resumed_conversation,
         ),
         media_type="text/event-stream",
         headers={
@@ -360,9 +373,6 @@ async def get_tool_audit_logs(
     limit: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Retrieve immutable tool execution audit records (Neon ``tool_audit_logs``
-    first, in-memory ring fallback when the database is unavailable).
-    """
+    """Retrieve the caller's persisted tool execution audit records (``tool_audit_logs``)."""
     logs = await default_audit_logger.fetch_audit_logs_from_db(user_id=current_user.id, limit=limit)
     return {"logs": logs, "count": len(logs)}

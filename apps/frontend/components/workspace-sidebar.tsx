@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { McpInspector } from '@/components/mcp';
 import { SidebarChatHistory } from '@/components/sidebar';
+import { MAX_UPLOAD_MB } from '@/lib/limits';
 import type { ChatConversation } from '@nexusagent/contracts';
 
 export interface WorkspaceDoc {
@@ -61,7 +62,6 @@ export interface WorkspaceSidebarProps {
     onToggleCategory: (category: 'documents' | 'chats' | 'mcp') => void;
     docs: WorkspaceDoc[];
     docsError: string | null;
-    selectedCitationDoc: string | null;
     token: string | null;
     uploadState: UploadState;
     fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -80,7 +80,6 @@ export interface WorkspaceSidebarProps {
     onPrefetchConversation: (convId: string) => void;
     onOpenSignIn: () => void;
     chatNotice: string | null;
-    apiBase: string;
 }
 
 export function WorkspaceSidebar({
@@ -89,7 +88,6 @@ export function WorkspaceSidebar({
     onToggleCategory,
     docs,
     docsError,
-    selectedCitationDoc,
     token,
     uploadState,
     fileInputRef,
@@ -106,8 +104,7 @@ export function WorkspaceSidebar({
     onDeleteConversation,
     onPrefetchConversation,
     onOpenSignIn,
-    chatNotice,
-    apiBase
+    chatNotice
 }: WorkspaceSidebarProps) {
     return (
         <aside
@@ -133,47 +130,33 @@ export function WorkspaceSidebar({
                     isOpen={openCategories.documents}
                     onToggle={() => onToggleCategory('documents')}
                     badge={
-                        <Badge variant="soft" className="text-[10px] font-mono py-0 px-1.5">
+                        <Badge variant="soft" className="text-xs font-mono py-0 px-1.5">
                             {docs.length}
                         </Badge>
                     }
                 >
                     <div id="category-documents-content" className="p-3 pt-1 border-t border-border/50 space-y-2">
-                        <p className="text-[11px] text-muted-foreground">Pre-indexed AI benchmarks plus your uploads</p>
+                        <p className="text-xs text-muted-foreground">Pre-indexed AI benchmarks plus your uploads</p>
                         {docsError && (
-                            <p className="text-[11px] text-destructive" role="alert">
+                            <p className="text-xs text-destructive" role="alert">
                                 {docsError}
                             </p>
                         )}
                         <div className="space-y-1.5 max-h-35 overflow-y-auto">
-                            {docs.map((doc) => {
-                                const isSelected = Boolean(selectedCitationDoc && doc.filename.toLowerCase().includes(selectedCitationDoc.toLowerCase()));
-                                return (
-                                    <div
-                                        key={doc.id}
-                                        data-selected-doc={isSelected ? 'true' : undefined}
-                                        className={`flex items-center justify-between p-2 rounded-lg border text-[11px] transition-all ${
-                                            isSelected ? 'bg-primary/15 border-primary shadow-xs ring-1 ring-primary' : 'bg-secondary/40 border-border/70'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-1.5 truncate">
-                                            <FileText className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-                                            <span className={`truncate font-mono ${isSelected ? 'text-primary font-bold' : 'text-foreground'}`}>
-                                                {doc.filename}
-                                            </span>
-                                        </div>
-                                        {isSelected ? (
-                                            <Badge variant="default" className="text-[10px] px-1 py-0 shrink-0 font-mono">
-                                                Cited
-                                            </Badge>
-                                        ) : (
-                                            <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
-                                                {doc.isSeeded ? `${doc.totalChunks} chunks` : 'Yours'}
-                                            </Badge>
-                                        )}
+                            {docs.map((doc) => (
+                                <div
+                                    key={doc.id}
+                                    className="flex items-center justify-between p-2 rounded-lg border border-border/70 bg-secondary/40 text-xs"
+                                >
+                                    <div className="flex items-center gap-1.5 truncate">
+                                        <FileText className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                                        <span className="truncate font-mono text-foreground">{doc.filename}</span>
                                     </div>
-                                );
-                            })}
+                                    <Badge variant="outline" className="text-xs px-1 py-0 shrink-0">
+                                        {doc.isSeeded ? `${doc.totalChunks} chunks` : 'Yours'}
+                                    </Badge>
+                                </div>
+                            ))}
                         </div>
 
                         {/* Document Upload */}
@@ -201,11 +184,11 @@ export function WorkspaceSidebar({
                             )}
                             <span>{token ? 'Upload Markdown (.md, .txt)' : 'Sign in to upload'}</span>
                         </Button>
-                        <p className="text-[10px] text-muted-foreground text-center">Max 1 MB. Each upload uses one query.</p>
+                        <p className="text-xs text-muted-foreground text-center">Max {MAX_UPLOAD_MB} MB. Each upload uses at least one query.</p>
                         {uploadState.status !== 'idle' && (
                             <p
                                 role="status"
-                                className={`flex items-start gap-1 text-[11px] ${
+                                className={`flex items-start gap-1 text-xs ${
                                     uploadState.status === 'error'
                                         ? 'text-destructive'
                                         : uploadState.status === 'success'
@@ -223,7 +206,7 @@ export function WorkspaceSidebar({
                         <button
                             type="button"
                             onClick={onInquireAuthor}
-                            className="w-full text-center text-[11px] text-muted-foreground hover:text-primary transition-colors cursor-pointer pt-0.5"
+                            className="w-full text-center text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer pt-0.5"
                         >
                             Need custom ETL pipelines? Inquire with author &rarr;
                         </button>
@@ -239,7 +222,7 @@ export function WorkspaceSidebar({
                     onToggle={() => onToggleCategory('chats')}
                     badge={
                         isGoogleUser && conversations.length > 0 ? (
-                            <Badge variant="soft" className="text-[10px] font-mono py-0 px-1.5">
+                            <Badge variant="soft" className="text-xs font-mono py-0 px-1.5">
                                 {conversations.length}
                             </Badge>
                         ) : null
@@ -247,7 +230,7 @@ export function WorkspaceSidebar({
                 >
                     <div id="category-chats-content" className="p-2.5 pt-1 border-t border-border/50 space-y-1.5">
                         {chatNotice && (
-                            <p className="text-[11px] text-destructive" role="alert">
+                            <p className="text-xs text-destructive" role="alert">
                                 {chatNotice}
                             </p>
                         )}
@@ -274,19 +257,19 @@ export function WorkspaceSidebar({
                     isOpen={openCategories.mcp}
                     onToggle={() => onToggleCategory('mcp')}
                     badge={
-                        <Badge variant="soft" className="text-[10px] font-mono py-0 px-1.5">
+                        <Badge variant="soft" className="text-xs font-mono py-0 px-1.5">
                             v2
                         </Badge>
                     }
                 >
                     <div id="category-mcp-content" className="p-1 pt-0 border-t border-border/50">
-                        <McpInspector apiBase={apiBase} authToken={token} />
+                        <McpInspector onOpenSignIn={onOpenSignIn} />
                     </div>
                 </CollapsibleSection>
             </div>
 
             {/* d. Bottom Footer (always on bottom) */}
-            <div className="shrink-0 p-3 border-t border-border bg-card/80 text-[11px] text-muted-foreground flex items-center justify-between">
+            <div className="shrink-0 p-3 border-t border-border bg-card/80 text-xs text-muted-foreground flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Link href="/privacy" className="hover:text-primary transition-colors">
                         Privacy Policy
@@ -296,7 +279,7 @@ export function WorkspaceSidebar({
                         Terms
                     </Link>
                 </div>
-                <span className="font-mono text-[10px] text-muted-foreground">nexusagent.avinaba.com</span>
+                <span className="font-mono text-xs text-muted-foreground">nexusagent.avinaba.com</span>
             </div>
         </aside>
     );

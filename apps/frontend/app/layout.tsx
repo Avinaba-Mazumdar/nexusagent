@@ -60,6 +60,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 />
             </head>
             <body suppressHydrationWarning className="bg-background text-foreground antialiased font-sans min-h-screen">
+                <a href="#main-canvas" className="skip-link">
+                    Skip to chat
+                </a>
                 {children}
             </body>
         </html>

@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import logging
 import math
+import time
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
@@ -139,15 +140,10 @@ async def upload_document(
             status_code=status.HTTP_409_CONFLICT,
             detail="Upload already in progress",
         )
+    # No await between the check and the acquire, so this cannot interleave with another request.
+    await user_lock.acquire()
 
-    try:
-        await asyncio.wait_for(user_lock.acquire(), timeout=0.001)
-    except TimeoutError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Upload already in progress",
-        )
-
+    upload_started = time.perf_counter()
     try:
         client_ip = get_client_ip(request)
         filename = file.filename or "uploaded_document.md"
@@ -259,7 +255,7 @@ async def upload_document(
             tool_name="document_upload",
             input_args={"filename": filename, "bytes": len(raw_bytes)},
             output_summary={"document_id": str(new_doc_id), "chunks": len(chunks)},
-            duration_ms=0,
+            duration_ms=max(int((time.perf_counter() - upload_started) * 1000), 1),
             user_id=current_user.id,
             mcp_server="http-api",
         )

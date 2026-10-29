@@ -24,12 +24,12 @@
     --input: #cbd5e1;
     --ring: #004ea1;
 
-    --success: #15803d;
+    --success: #166534;
     --success-foreground: #ffffff;
     --success-bg: #ecfdf5;
     --success-border: #86efac;
 
-    --warning: #b45309;
+    --warning: #92400e;
     --warning-foreground: #ffffff;
     --warning-bg: #fffbeb;
     --warning-border: #fcd34d;
@@ -63,7 +63,7 @@
     --popover-foreground: #f8fafc;
     --primary: #3b82f6;
     --primary-hover: #2563eb;
-    --primary-foreground: #ffffff;
+    --primary-foreground: #0b1220;
     --secondary: #161f31;
     --secondary-foreground: #f8fafc;
     --muted: #161f31;
@@ -160,6 +160,9 @@
     --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
     --font-heading: 'Outfit', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
+
+    --text-code: 0.8125rem;
+    --text-code--line-height: 1.6;
 }
 
 body {

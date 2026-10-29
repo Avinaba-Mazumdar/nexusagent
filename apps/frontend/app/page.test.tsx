@@ -280,7 +280,8 @@ describe('Home Page - Layout and Header Controls', () => {
         await user.type(screen.getByRole('textbox', { name: /architecture question/i }), 'Hello{Enter}');
 
         expect(await screen.findByTestId('assistant-error')).toHaveTextContent(/quota exhausted/i);
-        expect(screen.getByText('Demo Query Limit Reached')).toBeInTheDocument();
+        expect(screen.getByText(/used all your free questions/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /send query/i })).toBeDisabled();
         // The live region announces the failure to screen-reader users as well
         expect(screen.getByRole('status', { name: '' })).toHaveTextContent(/quota exhausted/i);
 
@@ -313,7 +314,7 @@ describe('Home Page - Layout and Header Controls', () => {
                 lastSeenAt: '2026-09-13T00:00:00Z'
             })
         );
-        localStorage.setItem('nexusagent_quota', '25');
+        localStorage.setItem('nexusagent_quota', JSON.stringify({ remaining: 25, capacity: 25, resetsAt: null }));
 
         const originalFetch = global.fetch;
         global.fetch = vi.fn().mockResolvedValue({

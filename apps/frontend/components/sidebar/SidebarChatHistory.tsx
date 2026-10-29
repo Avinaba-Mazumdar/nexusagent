@@ -102,8 +102,8 @@ export function SidebarChatHistory({
             <div className="p-3 text-center space-y-2 bg-secondary/30 rounded-lg border border-border/60">
                 <MessageSquare className="h-5 w-5 text-muted-foreground/60 mx-auto" />
                 <div className="space-y-0.5">
-                    <p className="text-[11px] font-medium text-foreground">Sign in to save chat history</p>
-                    <p className="text-[10px] text-muted-foreground leading-snug">Conversations are synced securely with your Google account.</p>
+                    <p className="text-xs font-medium text-foreground">Sign in to save chat history</p>
+                    <p className="text-xs text-muted-foreground leading-snug">Conversations are synced securely with your Google account.</p>
                 </div>
                 <Button size="sm" variant="outline" onClick={onOpenSignIn} className="w-full text-xs font-semibold h-7 rounded-lg gap-1.5 cursor-pointer mt-1">
                     <LogIn className="h-3 w-3" />
@@ -124,7 +124,7 @@ export function SidebarChatHistory({
                     onChange={(e) => onSearchChange(e.target.value)}
                     placeholder="Search chats..."
                     aria-label="Search conversation history"
-                    className="w-full h-7 pl-7 pr-6 text-[11px] rounded-lg border border-border bg-secondary/40 text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+                    className="w-full h-7 pl-7 pr-6 text-xs rounded-lg border border-border bg-secondary/40 text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
                 />
                 {searchQuery && (
                     <button
@@ -143,13 +143,13 @@ export function SidebarChatHistory({
                 {isLoading && conversations.length === 0 ? (
                     <div className="flex items-center justify-center py-6 text-muted-foreground text-xs gap-1.5">
                         <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                        <span className="text-[11px]">Loading chats...</span>
+                        <span className="text-xs">Loading chats...</span>
                     </div>
                 ) : filteredConversations.length === 0 ? (
-                    <div className="py-6 px-2 text-center text-muted-foreground text-[11px] space-y-1">
+                    <div className="py-6 px-2 text-center text-muted-foreground text-xs space-y-1">
                         <MessageSquare className="h-5 w-5 mx-auto opacity-30" />
                         <p className="font-semibold text-foreground text-xs">{searchQuery ? 'No matching chats' : 'No history yet'}</p>
-                        <p className="text-[10px] leading-relaxed">
+                        <p className="text-xs leading-relaxed">
                             {searchQuery ? 'Try adjusting your search keywords.' : 'Send a prompt on the Chat Canvas to start.'}
                         </p>
                     </div>
@@ -160,7 +160,7 @@ export function SidebarChatHistory({
 
                         return (
                             <div key={groupKey} className="space-y-0.5">
-                                <span className="block px-1 text-[10px] font-bold text-muted-foreground tracking-wider uppercase">{groupKey}</span>
+                                <span className="block px-1 text-xs font-bold text-muted-foreground tracking-wider uppercase">{groupKey}</span>
                                 <div className="space-y-0.5">
                                     {items.map((conv) => {
                                         const isActive = activeSessionId === conv.id;
@@ -183,7 +183,7 @@ export function SidebarChatHistory({
                                                     className="min-w-0 flex-1 text-left cursor-pointer rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                                                 >
                                                     <p
-                                                        className={`truncate text-[11px] ${
+                                                        className={`truncate text-xs ${
                                                             isActive
                                                                 ? 'font-semibold text-primary'
                                                                 : 'text-foreground group-hover:text-primary transition-colors'
@@ -191,7 +191,7 @@ export function SidebarChatHistory({
                                                     >
                                                         {conv.title}
                                                     </p>
-                                                    <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                                         <Clock className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
                                                         <span>{formatRelativeTime(conv.updatedAt || conv.createdAt)}</span>
                                                         {conv.messageCount && conv.messageCount > 0 ? (
@@ -212,7 +212,7 @@ export function SidebarChatHistory({
                                                                 onDeleteConversation(conv.id);
                                                             }}
                                                             aria-label={`Confirm delete ${conv.title}`}
-                                                            className="flex items-center gap-0.5 px-1.5 py-1 rounded bg-destructive text-destructive-foreground text-[10px] font-semibold cursor-pointer"
+                                                            className="flex items-center gap-0.5 px-1.5 py-1 rounded bg-destructive text-destructive-foreground text-xs font-semibold cursor-pointer"
                                                         >
                                                             <Check className="h-3 w-3" aria-hidden="true" />
                                                             Delete

@@ -13,6 +13,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 
 from app.config import settings
+from app.db.models import RateLimitBucket
 from app.db.neon import NeonDatabase, neon_db
 
 logger = logging.getLogger("nexusagent.core.rate_limiter")
@@ -55,11 +56,25 @@ guest_signup_limiter = SlidingWindowCounter(limit=settings.GUEST_SIGNUPS_PER_IP_
 guest_ip_llm_limiter = SlidingWindowCounter(limit=settings.GUEST_IP_QUOTA_PER_HOUR)
 
 
-def _quota_exhausted() -> HTTPException:
+REPLENISH_WINDOW = timedelta(hours=1)
+
+
+def resets_at(bucket: RateLimitBucket) -> datetime:
+    """When the bucket next refills to capacity."""
+    last = bucket.last_replenished_at
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=UTC)
+    return last + REPLENISH_WINDOW
+
+
+def _quota_exhausted(bucket: RateLimitBucket | None = None) -> HTTPException:
+    retry_after = 3600
+    if bucket is not None:
+        retry_after = max(1, int((resets_at(bucket) - datetime.now(UTC)).total_seconds()))
     return HTTPException(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         detail="Free-tier quota limit reached. It replenishes hourly.",
-        headers={"Retry-After": "3600"},
+        headers={"Retry-After": str(retry_after)},
     )
 
 
@@ -96,15 +111,18 @@ class TokenBucketLimiter:
             user_id, default_tokens=self._capacity(is_guest), cost=cost
         )
         if remaining is None:
-            raise _quota_exhausted()
+            raise _quota_exhausted(await self.get_bucket(user_id, is_guest))
         return remaining
+
+    async def get_bucket(self, user_id: UUID, is_guest: bool = True) -> RateLimitBucket:
+        """Current bucket state without consuming."""
+        return await self.db.get_or_create_rate_limit(
+            user_id, default_tokens=self._capacity(is_guest)
+        )
 
     async def get_quota(self, user_id: UUID, is_guest: bool = True) -> int:
         """Fetch current quota without consuming."""
-        row = await self.db.get_or_create_rate_limit(
-            user_id, default_tokens=self._capacity(is_guest)
-        )
-        return row.tokens_remaining
+        return (await self.get_bucket(user_id, is_guest)).tokens_remaining
 
     async def refund(self, user_id: UUID, is_guest: bool = True) -> None:
         """Refund 1 token (capped at capacity) after a failed run. Best effort."""

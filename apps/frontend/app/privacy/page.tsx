@@ -24,7 +24,7 @@ export default function PrivacyPolicyPage() {
                         <span className="font-heading font-bold text-sm tracking-tight text-foreground">NexusAgent</span>
                     </Link>
                     <span className="text-muted-foreground text-xs hidden sm:inline-block">/</span>
-                    <Badge variant="outline" className="hidden sm:inline-flex text-[11px] font-mono border-border text-muted-foreground">
+                    <Badge variant="outline" className="hidden sm:inline-flex text-xs font-mono border-border text-muted-foreground">
                         nexusagent.avinaba.com
                     </Badge>
                 </div>
@@ -67,9 +67,9 @@ export default function PrivacyPolicyPage() {
                                 <Lock className="h-4 w-4" />
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">Host-Only Scoping</h3>
-                            <p className="text-[11px] text-muted-foreground leading-snug">
+                            <p className="text-xs text-muted-foreground leading-snug">
                                 Session tokens remain strictly partitioned to{' '}
-                                <code className="text-primary font-mono text-[10px]">nexusagent.avinaba.com</code> with no cross-subdomain sharing.
+                                <code className="text-primary font-mono text-xs">nexusagent.avinaba.com</code> with no cross-subdomain sharing.
                             </p>
                         </CardContent>
                     </Card>
@@ -80,7 +80,7 @@ export default function PrivacyPolicyPage() {
                                 <Trash2 className="h-4 w-4" />
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">24-Hour Ephemeral TTL</h3>
-                            <p className="text-[11px] text-muted-foreground leading-snug">
+                            <p className="text-xs text-muted-foreground leading-snug">
                                 Guest sessions, temporary document embeddings, and transient execution traces are automatically pruned after 24 hours.
                             </p>
                         </CardContent>
@@ -92,7 +92,7 @@ export default function PrivacyPolicyPage() {
                                 <KeyRound className="h-4 w-4" />
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">Zero Third-Party Trackers</h3>
-                            <p className="text-[11px] text-muted-foreground leading-snug">
+                            <p className="text-xs text-muted-foreground leading-snug">
                                 We run no third-party analytics, behavioral tracking, or fingerprinting scripts on our platform.
                             </p>
                         </CardContent>

@@ -226,14 +226,14 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
                 {/* Diagram Toolbar */}
                 <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-secondary/30 gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                        <Badge variant="soft" className="text-[10px] font-mono font-bold tracking-tight">
+                        <Badge variant="soft" className="text-xs font-mono font-bold tracking-tight">
                             Mermaid.js SVG
                         </Badge>
                         <span className="text-xs font-heading font-semibold text-foreground truncate">{title}</span>
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[10px] font-mono text-muted-foreground mr-1 hidden sm:inline">{(zoom * 100).toFixed(0)}%</span>
+                        <span className="text-xs font-mono text-muted-foreground mr-1 hidden sm:inline">{(zoom * 100).toFixed(0)}%</span>
 
                         {/* Pan/Zoom Controls */}
                         <Button
@@ -332,7 +332,7 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
                     {!isLoading && renderError && !showSource && (
                         <div className="p-4 text-center space-y-2 max-w-md">
                             <p className="text-xs text-warning font-semibold font-mono">Diagram parsing in progress or syntax error:</p>
-                            <p className="text-[11px] text-muted-foreground truncate">{renderError}</p>
+                            <p className="text-xs text-muted-foreground truncate">{renderError}</p>
                             <Button size="sm" variant="outline" onClick={() => setShowSource(true)} className="text-xs rounded-xl h-7">
                                 View Raw Syntax
                             </Button>
@@ -359,7 +359,7 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
                 </div>
 
                 {/* Footer status pill */}
-                <div className="px-3 py-1.5 border-t border-border bg-secondary/15 flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                <div className="px-3 py-1.5 border-t border-border bg-secondary/15 flex items-center justify-between text-xs text-muted-foreground font-mono">
                     <span>Drag or arrow keys to pan • +/- to zoom</span>
                     {isExpanded && <span>Esc to close</span>}
                 </div>

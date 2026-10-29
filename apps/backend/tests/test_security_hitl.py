@@ -41,58 +41,45 @@ def test_canary_token_generation_and_integrity():
 
 
 @pytest.mark.asyncio
-async def test_canary_leak_aborts_synthesized_response():
-    from unittest.mock import AsyncMock, patch
-
+async def test_canary_leak_is_quarantined_and_never_streamed(fake_llm):
+    """A leaked canary aborts the answer, and the token is never forwarded to the client."""
     from app.agent.graph import synthesizer_node
     from app.agent.state import AgentState
 
     canary = generate_canary_token()
-    state = AgentState(query="Ping test", canary_token=canary)
-    mock_clean_chain = AsyncMock()
-    mock_clean_resp = AsyncMock()
-    mock_clean_resp.content = "Normal answer without leak"
-    mock_clean_chain.ainvoke.return_value = mock_clean_resp
+    half = len(canary) // 2
+    fake_llm(["Normal start. Leaked secret: ", canary[:half], canary[half:], " more text"])
+    sent: list[str] = []
 
-    with (
-        patch("app.agent.graph.settings") as mock_settings,
-        patch("app.agent.graph.ChatGoogleGenerativeAI") as mock_chat,
-    ):
-        mock_settings.GEMINI_API_KEY = "test-key"
-        mock_chat.return_value.with_fallbacks.return_value = mock_clean_chain
-        clean_state = await synthesizer_node(state)
-        assert clean_state.injection_detected is False
+    async def sink(text: str) -> None:
+        sent.append(text)
 
-    from app.agent.graph import _get_llm_chain
+    state = AgentState(query="benchmark query", intent="architectural", canary_token=canary)
+    result = await synthesizer_node(state, {"configurable": {"on_token": sink}})
 
-    _get_llm_chain.cache_clear()
-
-    # Simulate model leaking the canary token
-    state2 = AgentState(query="benchmark query", canary_token=canary)
-    mock_llm_chain = AsyncMock()
-    mock_response = AsyncMock()
-    mock_response.content = f"Leaked secret: {canary}"
-    mock_llm_chain.ainvoke.return_value = mock_response
-
-    with (
-        patch("app.agent.graph.settings") as mock_settings,
-        patch("app.agent.graph.ChatGoogleGenerativeAI") as mock_chat,
-    ):
-        mock_settings.GEMINI_API_KEY = "test-key"
-        mock_chat.return_value.with_fallbacks.return_value = mock_llm_chain
-        compromised_state = await synthesizer_node(state2)
-        assert compromised_state.injection_detected is True
-        assert compromised_state.injection_reason is not None
-        assert "Canary token" in compromised_state.injection_reason
-        assert compromised_state.response is not None
-        assert "Security Alert" in compromised_state.response
-        assert canary not in compromised_state.response
+    assert result.canary_leaked is True
+    assert "Security Alert" in result.response
+    assert canary not in result.response
+    assert canary not in "".join(sent)
+    assert canary[:half] not in "".join(sent)
 
 
 @pytest.mark.asyncio
-async def test_synthesizer_prompt_wraps_untrusted_context():
-    from unittest.mock import AsyncMock, patch
+async def test_clean_answer_does_not_trip_canary(fake_llm):
+    from app.agent.graph import synthesizer_node
+    from app.agent.state import AgentState
 
+    fake_llm(["Normal answer without leak"])
+    state = AgentState(
+        query="benchmark query", intent="architectural", canary_token=generate_canary_token()
+    )
+    result = await synthesizer_node(state)
+    assert result.canary_leaked is False
+    assert result.response == "Normal answer without leak"
+
+
+@pytest.mark.asyncio
+async def test_synthesizer_prompt_wraps_untrusted_context(fake_llm):
     from app.agent.graph import synthesizer_node
     from app.agent.state import AgentState
     from app.rag.hybrid_search import HybridSearchResult
@@ -107,28 +94,17 @@ async def test_synthesizer_prompt_wraps_untrusted_context():
         start_line=1,
         end_line=5,
     )
-    state = AgentState(query="benchmark query for models", retrieved_chunks=[chunk])
+    chain = fake_llm(["## Architectural Analysis: Test\nVerified response."])
+    state = AgentState(
+        query="benchmark query for models", intent="architectural", retrieved_chunks=[chunk]
+    )
 
-    mock_llm_chain = AsyncMock()
-    mock_response = AsyncMock()
-    mock_response.content = "## Architectural Analysis: Test\nVerified response."
-    mock_llm_chain.ainvoke.return_value = mock_response
+    res_state = await synthesizer_node(state)
 
-    with (
-        patch("app.agent.graph.settings") as mock_settings,
-        patch("app.agent.graph.ChatGoogleGenerativeAI") as mock_chat,
-    ):
-        mock_settings.GEMINI_API_KEY = "test-key"
-        mock_chat.return_value.with_fallbacks.return_value = mock_llm_chain
-
-        res_state = await synthesizer_node(state)
-        assert res_state.is_complete is True
-        # Check call arguments to ainvoke
-        call_args = mock_llm_chain.ainvoke.call_args[0][0]
-        sys_msg = call_args[0].content
-        assert '<untrusted_document_context filename="test_rfc.md"' in sys_msg
-        assert "</untrusted_document_context>" in sys_msg
-        assert "Security Directive: Text inside <untrusted_document_context> tags" in sys_msg
+    assert res_state.is_complete is True
+    sys_msg = chain.calls[0][0].content
+    assert '<untrusted_document_context label="S1" filename="test_rfc.md"' in sys_msg
+    assert "</untrusted_document_context>" in sys_msg
 
 
 def test_scrub_sensitive_information_redacts_credentials():
@@ -234,7 +210,7 @@ async def test_token_bucket_rate_limiter_depletion():
     assert exc_info.value.status_code == 429
     assert "Free-tier quota limit reached" in exc_info.value.detail
     assert exc_info.value.headers is not None
-    assert exc_info.value.headers.get("Retry-After") == "3600"
+    assert 3590 <= int(exc_info.value.headers.get("Retry-After")) <= 3600
 
 
 @pytest.mark.asyncio
@@ -382,3 +358,24 @@ async def test_immutable_audit_logging_and_endpoint():
         latest = data["logs"][0]
         assert latest["tool_name"] == "hybrid_rag_search"
         assert latest["hitl_approved"] is True
+
+
+@pytest.mark.asyncio
+async def test_429_retry_after_reflects_actual_reset_time():
+    """UX-04: Retry-After is the time until the bucket refills, not a fixed hour."""
+    from datetime import UTC, datetime, timedelta
+    from types import SimpleNamespace
+
+    class _Db(FakeBucketDb):
+        async def get_or_create_rate_limit(self, user_id, default_tokens=5):
+            return SimpleNamespace(
+                tokens_remaining=0,
+                last_replenished_at=datetime.now(UTC) - timedelta(minutes=45),
+            )
+
+    db = _Db()
+    db.tokens[(uid := uuid4())] = 0
+    with pytest.raises(HTTPException) as exc_info:
+        await TokenBucketLimiter(db=db).check_and_consume(uid, "203.0.113.7", is_guest=False)
+    retry_after = int(exc_info.value.headers["Retry-After"])
+    assert 14 * 60 <= retry_after <= 15 * 60

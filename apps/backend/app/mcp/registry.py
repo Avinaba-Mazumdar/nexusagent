@@ -183,7 +183,7 @@ class McpRegistry:
                 isError=True,
             )
 
-        safe_results, _, _ = sanitize_retrieved_chunks(results)
+        safe_results, _ = sanitize_retrieved_chunks(results)
         if not safe_results:
             return ToolCallResult(
                 content=[

@@ -4,7 +4,8 @@ import * as React from 'react';
 import Script from 'next/script';
 import { Activity, Database, MessageSquare } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
-import { API_BASE } from '@/lib/api-client';
+import { apiClient } from '@/lib/api-client';
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from '@/lib/limits';
 import { HireMeModal } from '@/components/hire-me-modal';
 import { ObservabilityPanel, type LogEntry, type TelemetryMetrics } from '@/components/observability-panel';
 import { AgentStreamError, useAgentStream } from '@/hooks/useAgentStream';
@@ -14,11 +15,10 @@ import { WorkspaceSidebar, type WorkspaceDoc, type UploadState } from '@/compone
 import { ChatCanvas } from '@/components/chat-canvas';
 import { Composer } from '@/components/composer';
 import { useChatHistory, type ChatItem } from '@/hooks/useChatHistory';
-import type { ChatConversation, DocumentListResponse, DocumentMetadata } from '@nexusagent/contracts';
+import type { ChatConversation, Citation, DocumentListResponse, DocumentMetadata, DocumentUploadResponse } from '@nexusagent/contracts';
+import { SourceDialog } from '@/components/canvas';
 
 const MAX_LOG_ENTRIES = 200;
-const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
-const XL_BREAKPOINT_QUERY = '(min-width: 1280px)';
 
 function toWorkspaceDoc(doc: DocumentMetadata): WorkspaceDoc {
     return { id: doc.id, filename: doc.filename, totalChunks: doc.totalChunks, isSeeded: doc.isSeeded };
@@ -36,7 +36,7 @@ export default function Home() {
     const [streamingMsgId, setStreamingMsgId] = React.useState<string | null>(null);
     const [liveStatus, setLiveStatus] = React.useState('');
     const [mobileActiveTab, setMobileActiveTab] = React.useState<'workspace' | 'chat' | 'observability'>('chat');
-    const [selectedCitationDoc, setSelectedCitationDoc] = React.useState<string | null>(null);
+    const [activeCitation, setActiveCitation] = React.useState<Citation | null>(null);
     const [isObservabilityOpen, setIsObservabilityOpen] = React.useState(false);
 
     const [openCategories, setOpenCategories] = React.useState<{
@@ -56,7 +56,7 @@ export default function Home() {
         }));
     }, []);
 
-    const [metrics, setMetrics] = React.useState<TelemetryMetrics>({ firstTokenMs: null, totalLatencyMs: null, iterationCount: null });
+    const [metrics, setMetrics] = React.useState<TelemetryMetrics>({ firstTokenMs: null, totalLatencyMs: null });
     const [logs, setLogs] = React.useState<LogEntry[]>([]);
 
     const {
@@ -64,6 +64,7 @@ export default function Home() {
         token,
         quotaRemaining,
         bucketCapacity,
+        quotaResetsAt,
         isGuestLoading,
         isGoogleLoading,
         setIsGoogleLoading,
@@ -88,7 +89,6 @@ export default function Home() {
         setMessages,
         activeSessionId,
         setActiveSessionId,
-        loadConversations,
         handleNewChat,
         handleSelectConversationItem,
         handleDeleteConversation,
@@ -133,23 +133,12 @@ export default function Home() {
 
     const fetchDocs = React.useCallback(async () => {
         try {
-            const endpoint = `${API_BASE}/api/documents`;
-            const headers: Record<string, string> = {};
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-
-            const res = await fetch(endpoint, { headers });
-            if (res.ok) {
-                const data = await res.json();
-                if (Array.isArray(data.documents)) {
-                    setDocs((data as DocumentListResponse).documents.map(toWorkspaceDoc));
-                    setDocsError(null);
-                    return;
-                }
-            }
+            const data = await apiClient<DocumentListResponse>('/api/documents');
+            setDocs(data.documents.map(toWorkspaceDoc));
+            setDocsError(null);
         } catch {
-            // Reported below
+            setDocsError("Couldn't load the document list.");
         }
-        setDocsError("Couldn't load the document list.");
     }, [token]);
 
     React.useEffect(() => {
@@ -171,7 +160,7 @@ export default function Home() {
         e.target.value = '';
         if (!file || !token) return;
         if (file.size > MAX_UPLOAD_BYTES) {
-            setUploadState({ status: 'error', message: 'File is larger than the 5 MB limit.' });
+            setUploadState({ status: 'error', message: `File is larger than the ${MAX_UPLOAD_MB} MB limit.` });
             return;
         }
 
@@ -179,18 +168,12 @@ export default function Home() {
         const body = new FormData();
         body.append('file', file);
         try {
-            const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-            const res = await fetch(`${API_BASE}/api/documents/upload`, { method: 'POST', headers, body });
-            const data = await res.json().catch(() => null);
-            if (!res.ok) {
-                const detail = typeof data?.detail === 'string' ? data.detail : `Upload failed (HTTP ${res.status}).`;
-                throw new Error(res.status === 429 ? 'Quota exhausted. Each upload uses one query.' : detail);
-            }
+            const data = await apiClient<DocumentUploadResponse>('/api/documents/upload', { method: 'POST', body, timeoutMs: 120_000 });
             setUploadState({
                 status: 'success',
-                message: `Indexed ${data?.document?.filename ?? file.name} (${data?.chunksCount ?? 0} chunks).`
+                message: `Indexed ${data.document.filename} (${data.chunksCount} chunks).`
             });
-            if (typeof data?.quotaRemaining === 'number') {
+            if (typeof data.quotaRemaining === 'number') {
                 setQuotaRemaining(data.quotaRemaining);
             }
             void fetchDocs();
@@ -254,22 +237,6 @@ export default function Home() {
         [googleClientId, gisLoaded, initGsi, isDarkTheme]
     );
 
-    const handleCitationClick = React.useCallback((cite: { filename: string }) => {
-        setSelectedCitationDoc(cite.filename);
-        setOpenCategories((prev) => ({ ...prev, documents: true }));
-        if (typeof window !== 'undefined' && !window.matchMedia?.(XL_BREAKPOINT_QUERY).matches) {
-            setMobileActiveTab('workspace');
-        }
-    }, []);
-
-    React.useEffect(() => {
-        if (!selectedCitationDoc) return;
-        const frame = requestAnimationFrame(() => {
-            document.querySelector('[data-selected-doc="true"]')?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-        });
-        return () => cancelAnimationFrame(frame);
-    }, [selectedCitationDoc, openCategories.documents, mobileActiveTab]);
-
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
     const stickToBottomRef = React.useRef(true);
 
@@ -303,7 +270,6 @@ export default function Home() {
         try {
             const result = await agentStream.startStream({
                 query,
-                token,
                 sessionId: activeSessionId || undefined
             });
 
@@ -342,12 +308,11 @@ export default function Home() {
                     persistConversations(nextList);
                     return nextList;
                 });
-                void loadConversations(true);
             }
 
             setMessages((prev) => {
                 const next = prev.map((m) =>
-                    m.id === assistantMsgId ? { ...m, content: result.response, citations: result.citations, error: undefined, stopped: false } : m
+                    m.id === assistantMsgId ? { ...m, content: result.response, citations: result.citations, warnings: result.injectionWarnings, error: undefined, stopped: false } : m
                 );
                 if (currentSessionId) {
                     try {
@@ -359,6 +324,7 @@ export default function Home() {
                                     conversationId: currentSessionId,
                                     role: m.role,
                                     content: m.content,
+                                    reflectionSummary: m.citations ? { citations: m.citations } : undefined,
                                     createdAt: new Date().toISOString()
                                 }))
                             )
@@ -373,7 +339,7 @@ export default function Home() {
         } catch (err: unknown) {
             const errorText = err instanceof Error ? err.message : 'Failed to execute agent stream.';
             if (err instanceof AgentStreamError && err.status === 429) {
-                setQuotaRemaining(0);
+                setQuotaRemaining(0, err.retryAfterSeconds ? new Date(Date.now() + err.retryAfterSeconds * 1000).toISOString() : undefined);
             }
             updateMessage(assistantMsgId, { content: '', error: errorText });
             setLiveStatus(`Error: ${errorText}`);
@@ -391,7 +357,7 @@ export default function Home() {
         }
 
         if (quotaRemaining <= 0) {
-            setHireMeModalOpen(true);
+            setLiveStatus('You have used all your free questions for now.');
             return;
         }
 
@@ -405,10 +371,7 @@ export default function Home() {
 
     const handleRetry = (msg: ChatItem) => {
         if (!msg.query || agentStream.isStreaming) return;
-        if (quotaRemaining <= 0) {
-            setHireMeModalOpen(true);
-            return;
-        }
+        if (quotaRemaining <= 0) return;
         updateMessage(msg.id, { content: '', error: undefined, stopped: false });
         void streamInto(msg.query, msg.id);
     };
@@ -458,7 +421,6 @@ export default function Home() {
                     onToggleCategory={toggleCategory}
                     docs={docs}
                     docsError={docsError}
-                    selectedCitationDoc={selectedCitationDoc}
                     token={token}
                     uploadState={uploadState}
                     fileInputRef={fileInputRef}
@@ -476,7 +438,6 @@ export default function Home() {
                     onPrefetchConversation={prefetchMessages}
                     onOpenSignIn={() => setDialogOpen(true)}
                     chatNotice={chatNotice}
-                    apiBase={API_BASE}
                 />
 
                 {/* 3. Active Chat Canvas (Center) */}
@@ -484,6 +445,7 @@ export default function Home() {
                     mobileActiveTab={mobileActiveTab}
                     user={user}
                     quotaRemaining={quotaRemaining}
+                    quotaResetsAt={quotaResetsAt}
                     messages={messages}
                     isStreaming={agentStream.isStreaming}
                     streamedResponse={agentStream.streamedResponse}
@@ -496,7 +458,7 @@ export default function Home() {
                     onScroll={handleThreadScroll}
                     onNewChat={handleNewChat}
                     onRetry={handleRetry}
-                    onCitationClick={handleCitationClick}
+                    onCitationClick={setActiveCitation}
                     onHireMeClick={() => setHireMeModalOpen(true)}
                     onSelectPrompt={(text) => setPrompt(text)}
                 >
@@ -507,6 +469,7 @@ export default function Home() {
                         onKeyDown={handleComposerKeyDown}
                         isStreaming={agentStream.isStreaming}
                         onStop={agentStream.cancelStream}
+                        quotaExhausted={Boolean(token) && quotaRemaining <= 0}
                     />
                 </ChatCanvas>
 
@@ -516,7 +479,7 @@ export default function Home() {
                     logs={logs}
                     currentNode={agentStream.currentNode}
                     plan={agentStream.plan}
-                    reflectionScore={agentStream.reflectionScore}
+                    grounding={agentStream.grounding}
                     isStreaming={agentStream.isStreaming}
                     onClose={() => setIsObservabilityOpen(false)}
                     className={mobileActiveTab === 'observability' ? 'flex' : isObservabilityOpen ? 'hidden xl:flex' : 'hidden'}
@@ -538,7 +501,7 @@ export default function Home() {
                             }`}
                         >
                             <Icon className="h-5 w-5" aria-hidden="true" />
-                            <span className="text-[11px] mt-1">{label}</span>
+                            <span className="text-xs mt-1">{label}</span>
                         </button>
                     );
                 })}
@@ -560,6 +523,7 @@ export default function Home() {
                 renderGoogleButton={renderGoogleButton}
             />
             <HireMeModal open={hireMeModalOpen} onOpenChange={setHireMeModalOpen} />
+            <SourceDialog citation={activeCitation} onClose={() => setActiveCitation(null)} />
         </div>
     );
 }

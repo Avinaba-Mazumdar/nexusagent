@@ -1,9 +1,13 @@
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.rag.hybrid_search import HybridSearchResult
+
+Intent = Literal["greeting", "architectural", "out_of_scope"]
+Grounding = Literal["grounded", "weak", "none"]
 
 
 def utc_now() -> datetime:
@@ -11,9 +15,12 @@ def utc_now() -> datetime:
 
 
 class Citation(BaseModel):
+    """A source the model was shown. ``label`` ([S1], [S2], ...) is what the answer cites."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=lambda: uuid4().hex[:8])
+    label: str
     chunk_id: str
     document_id: str
     filename: str
@@ -32,48 +39,49 @@ class PlanStep(BaseModel):
     tool: str | None = None
 
 
+class InjectionWarning(BaseModel):
+    filename: str
+    reason: str
+
+
 class AgentState(BaseModel):
     """
-    Strongly-typed state container for LangGraph Agent DAG Execution Pipeline.
-    Maintains complete trace of planning, retrieval, tool executions,
-    reflection critique, loop iterations, and final architectural synthesis.
+    Strongly-typed state for the LangGraph pipeline:
+    planner -> retriever -> grounding check -> synthesizer.
     """
 
     model_config = ConfigDict(from_attributes=True)
 
-    # Core conversation identity
+    # Conversation identity
     session_id: str = Field(default_factory=lambda: uuid4().hex)
     user_id: UUID | None = None
+    conversation_id: UUID | None = None  # set only when resuming a persisted conversation
     query: str
     document_id: UUID | None = None
     chat_history: list[dict[str, str]] = Field(default_factory=list)
-    max_history_turns: int = 6
 
-    # DAG Node Execution History
+    # Node execution history
     node_history: list[str] = Field(default_factory=list)
     current_node: str | None = None
 
-    # Planning phase
+    # Planning (intent is classified once, by the caller or the planner)
+    intent: Intent | None = None
     plan: list[PlanStep] = Field(default_factory=list)
 
-    # Retrieval phase
+    # Retrieval
     retrieved_chunks: list[HybridSearchResult] = Field(default_factory=list)
     citations: list[Citation] = Field(default_factory=list)
+    injection_warnings: list[InjectionWarning] = Field(default_factory=list)
 
-    # Reflection Critic & Quality Loop
-    reflection_score: float = 0.0  # 0.0 to 1.0 (>= 0.70 considered grounded)
-    reflection_feedback: str | None = None
-    is_grounded: bool = False
-    needs_replan: bool = False
-    iteration_count: int = 0
-    max_iterations: int = 10
+    # Grounding check
+    grounding: Grounding = "none"
+    grounding_feedback: str | None = None
 
-    # Security Guardrails
+    # Security
     canary_token: str | None = None
-    injection_detected: bool = False
-    injection_reason: str | None = None
+    canary_leaked: bool = False
 
-    # Final Synthesis
+    # Final synthesis
     response: str = ""
     error: str | None = None
     mermaid_diagrams: list[str] = Field(default_factory=list)

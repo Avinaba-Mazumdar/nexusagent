@@ -24,7 +24,7 @@ export default function TermsAndConditionsPage() {
                         <span className="font-heading font-bold text-sm tracking-tight text-foreground">NexusAgent</span>
                     </Link>
                     <span className="text-muted-foreground text-xs hidden sm:inline-block">/</span>
-                    <Badge variant="outline" className="hidden sm:inline-flex text-[11px] font-mono border-border text-muted-foreground">
+                    <Badge variant="outline" className="hidden sm:inline-flex text-xs font-mono border-border text-muted-foreground">
                         nexusagent.avinaba.com
                     </Badge>
                 </div>
@@ -66,7 +66,7 @@ export default function TermsAndConditionsPage() {
                                 <Cpu className="h-4 w-4" />
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">Read-Only Tools</h3>
-                            <p className="text-[11px] text-muted-foreground leading-snug">
+                            <p className="text-xs text-muted-foreground leading-snug">
                                 Agent tools only search the knowledge base; they never modify data or execute code.
                             </p>
                         </CardContent>
@@ -78,7 +78,7 @@ export default function TermsAndConditionsPage() {
                                 <KeyRound className="h-4 w-4" />
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">Fair Usage &amp; Quotas</h3>
-                            <p className="text-[11px] text-muted-foreground leading-snug">
+                            <p className="text-xs text-muted-foreground leading-snug">
                                 Requests are subject to hourly token bucket quotas to ensure fair resource allocation across all users.
                             </p>
                         </CardContent>
@@ -90,7 +90,7 @@ export default function TermsAndConditionsPage() {
                                 <AlertOctagon className="h-4 w-4" />
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">No Malicious Probing</h3>
-                            <p className="text-[11px] text-muted-foreground leading-snug">
+                            <p className="text-xs text-muted-foreground leading-snug">
                                 Automated vulnerability scanning, prompt injection attacks, and subdomain abuse will trigger immediate IP revocation.
                             </p>
                         </CardContent>

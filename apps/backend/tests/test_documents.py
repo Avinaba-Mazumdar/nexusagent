@@ -260,7 +260,7 @@ async def test_document_upload_chunks_cap_413(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_document_upload_concurrent_lock_409(monkeypatch):
+async def test_document_upload_concurrent_lock_409(monkeypatch, fake_rate_db):
     """Test that concurrent uploads by the same user return 409 for the second request (SEC-03)."""
     import asyncio
     from unittest.mock import AsyncMock
@@ -284,7 +284,7 @@ async def test_document_upload_concurrent_lock_409(monkeypatch):
     monkeypatch.setattr("app.routes.documents.default_embedding_service.api_key", "test-key")
 
     async def slow_get_embeddings(*args, **kwargs):
-        await asyncio.sleep(0.15)
+        await asyncio.sleep(0.5)
         return [[0.1] * 768]
 
     monkeypatch.setattr(

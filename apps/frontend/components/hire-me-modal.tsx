@@ -71,9 +71,9 @@ export function HireMeModal({ open, onOpenChange }: HireMeModalProps) {
                     <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
                         <div>
                             <p className="font-semibold text-foreground text-xs">Available for contract &amp; advisory</p>
-                            <p className="text-[11px] text-muted-foreground">Typical turnaround for POC to staging: 2 to 4 weeks</p>
+                            <p className="text-xs text-muted-foreground">Typical turnaround for POC to staging: 2 to 4 weeks</p>
                         </div>
-                        <Badge variant="outline" className="text-[11px] font-mono border-primary/30 text-primary">
+                        <Badge variant="outline" className="text-xs font-mono border-primary/30 text-primary">
                             Open to projects
                         </Badge>
                     </div>

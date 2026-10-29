@@ -12,6 +12,7 @@ os.environ.setdefault("ENVIRONMENT", "test")
 # db-marked tests only ever touch a dedicated database (e.g. a Neon branch per CI run).
 os.environ["NEON_DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "")
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import UUID
 
@@ -54,10 +55,39 @@ class FakeBucketDb:
         return left - cost
 
     async def get_or_create_rate_limit(self, user_id, default_tokens=5):
-        return SimpleNamespace(tokens_remaining=self.tokens.setdefault(user_id, default_tokens))
+        return SimpleNamespace(
+            tokens_remaining=self.tokens.setdefault(user_id, default_tokens),
+            last_replenished_at=datetime.now(UTC),
+        )
 
     async def refund_rate_limit(self, user_id):
         self.tokens[user_id] = self.tokens.get(user_id, 0) + 1
+
+
+class FakeChain:
+    """Stand-in for the Gemini chain: ``astream`` yields the given text pieces as chunks."""
+
+    def __init__(self, pieces):
+        self.pieces = list(pieces)
+        self.calls = []
+
+    async def astream(self, messages):
+        self.calls.append(messages)
+        for piece in self.pieces:
+            yield SimpleNamespace(content=piece)
+
+
+@pytest.fixture
+def fake_llm(monkeypatch):
+    """Return ``use(pieces) -> FakeChain``: route synthesis to a canned streamed answer."""
+
+    def use(pieces):
+        chain = FakeChain(pieces)
+        monkeypatch.setattr("app.agent.graph.settings.GEMINI_API_KEY", "test-key")
+        monkeypatch.setattr("app.agent.graph._get_llm_chain", lambda api_key: chain)
+        return chain
+
+    return use
 
 
 @pytest.fixture

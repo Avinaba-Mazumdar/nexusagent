@@ -32,6 +32,8 @@ export interface DocumentUploadResponse {
     document: DocumentMetadata;
     chunksCount: number;
     previewChunks: DocumentChunkResponse[];
+    /** Remaining quota after this upload. */
+    quotaRemaining?: number;
 }
 
 export interface DocumentListResponse {

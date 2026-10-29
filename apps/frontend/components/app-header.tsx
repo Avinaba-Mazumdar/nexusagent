@@ -101,7 +101,7 @@ export function AppHeader({
                         <span className="font-semibold text-foreground tabular-nums">
                             {quotaRemaining}/{bucketCapacity}
                         </span>
-                        <span className="text-muted-foreground">{user.isGuest ? 'Free Pass' : 'Quota'}</span>
+                        <span className="text-muted-foreground">{user.isGuest ? 'Guest' : 'Questions'}</span>
                     </div>
                 )}
 
@@ -132,7 +132,7 @@ export function AppHeader({
                                 <div className="flex flex-col min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5">
                                         <span className="font-heading font-bold text-sm text-foreground truncate">{user.name}</span>
-                                        <Badge variant={user.isGuest ? 'outline' : 'soft'} className="text-[10px] px-1.5 py-0 font-medium shrink-0">
+                                        <Badge variant={user.isGuest ? 'outline' : 'soft'} className="text-xs px-1.5 py-0 font-medium shrink-0">
                                             {user.isGuest ? 'Guest' : 'Verified'}
                                         </Badge>
                                     </div>
@@ -154,7 +154,7 @@ export function AppHeader({
                                         style={{ width: `${Math.min(100, Math.max(0, (quotaRemaining / bucketCapacity) * 100))}%` }}
                                     />
                                 </div>
-                                <p className="text-[11px] text-muted-foreground">Hourly token replenishment enabled</p>
+                                <p className="text-xs text-muted-foreground">Refills every hour</p>
                             </div>
 
                             {/* Theme Switch */}
@@ -167,7 +167,7 @@ export function AppHeader({
                             </div>
 
                             {/* Legal & Policy Links */}
-                            <div className="py-2.5 border-b border-border flex items-center justify-between text-[11px] text-muted-foreground px-0.5">
+                            <div className="py-2.5 border-b border-border flex items-center justify-between text-xs text-muted-foreground px-0.5">
                                 <Link href="/privacy" className="hover:text-primary transition-colors">
                                     Privacy Policy
                                 </Link>

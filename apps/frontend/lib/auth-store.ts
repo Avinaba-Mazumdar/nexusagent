@@ -8,6 +8,27 @@ const STORAGE_KEY_QUOTA = 'nexusagent_quota';
 const STORAGE_KEY_DEVICE_ID = 'nexusagent_device_id';
 const CHAT_CACHE_PREFIXES = ['nexusagent_chat_history_', 'nexusagent_msgs_'];
 
+/** Quota numbers always come from the server; these are only shown until it answers. */
+interface QuotaSnapshot {
+    remaining: number;
+    capacity: number;
+    resetsAt: string | null;
+}
+
+const NO_QUOTA: QuotaSnapshot = { remaining: 0, capacity: 0, resetsAt: null };
+
+function readCachedQuota(): QuotaSnapshot {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY_QUOTA) ?? 'null');
+        if (typeof parsed?.remaining === 'number' && typeof parsed?.capacity === 'number') {
+            return { remaining: parsed.remaining, capacity: parsed.capacity, resetsAt: parsed.resetsAt ?? null };
+        }
+    } catch {
+        // Corrupt cache: fall through
+    }
+    return NO_QUOTA;
+}
+
 function getOrCreateDeviceId(): string {
     if (typeof window === 'undefined') return '';
     try {
@@ -27,6 +48,8 @@ interface AuthState {
     token: string | null;
     quotaRemaining: number;
     bucketCapacity: number;
+    /** ISO time when the bucket refills, if the server told us. */
+    quotaResetsAt: string | null;
     isGuestLoading: boolean;
     isGoogleLoading: boolean;
     error: string | null;
@@ -34,7 +57,7 @@ interface AuthState {
     loginGuest: () => Promise<boolean>;
     loginGoogle: (credential: string) => Promise<boolean>;
     logout: () => void;
-    setQuotaRemaining: (quota: number) => void;
+    setQuotaRemaining: (quota: number, resetsAt?: string | null) => void;
     initAuth: () => Promise<void>;
 }
 
@@ -47,11 +70,41 @@ export const useAuthStore = create<AuthState>((set, get) => {
         get().logout();
     });
 
+    const persistQuota = (quota: QuotaSnapshot) => {
+        try {
+            localStorage.setItem(STORAGE_KEY_QUOTA, JSON.stringify(quota));
+        } catch {
+            // Storage unavailable: the in-memory value still works for this tab.
+        }
+    };
+
+    /** Single place that records a login: persists the session and updates the store. */
+    const applySession = (token: string, user: UserSession, quota: QuotaSnapshot) => {
+        try {
+            localStorage.setItem(STORAGE_KEY_TOKEN, token);
+            localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+        } catch {
+            // Storage unavailable: session lasts until the tab closes.
+        }
+        persistQuota(quota);
+        set({
+            token,
+            user,
+            quotaRemaining: quota.remaining,
+            bucketCapacity: quota.capacity,
+            quotaResetsAt: quota.resetsAt,
+            isGuestLoading: false,
+            isGoogleLoading: false,
+            error: null
+        });
+    };
+
     return {
         user: null,
         token: null,
-        quotaRemaining: 5,
-        bucketCapacity: 5,
+        quotaRemaining: NO_QUOTA.remaining,
+        bucketCapacity: NO_QUOTA.capacity,
+        quotaResetsAt: null,
         isGuestLoading: false,
         isGoogleLoading: false,
         error: null,
@@ -60,11 +113,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
             set({ isGoogleLoading: loading });
         },
 
-        setQuotaRemaining: (quota: number) => {
-            if (typeof window !== 'undefined') {
-                localStorage.setItem(STORAGE_KEY_QUOTA, quota.toString());
-            }
-            set({ quotaRemaining: quota });
+        setQuotaRemaining: (quota: number, resetsAt?: string | null) => {
+            const next = { remaining: quota, capacity: get().bucketCapacity, resetsAt: resetsAt === undefined ? get().quotaResetsAt : resetsAt };
+            persistQuota(next);
+            set({ quotaRemaining: next.remaining, quotaResetsAt: next.resetsAt });
         },
 
         initAuth: async () => {
@@ -72,37 +124,29 @@ export const useAuthStore = create<AuthState>((set, get) => {
             try {
                 const token = localStorage.getItem(STORAGE_KEY_TOKEN);
                 const userStr = localStorage.getItem(STORAGE_KEY_USER);
-                const quota = localStorage.getItem(STORAGE_KEY_QUOTA);
-
                 if (!token || !userStr) {
                     return;
                 }
 
-                const user = JSON.parse(userStr) as UserSession;
+                const cached = readCachedQuota();
                 set({
                     token,
-                    user,
-                    quotaRemaining: quota ? parseInt(quota, 10) : 5
+                    user: JSON.parse(userStr) as UserSession,
+                    quotaRemaining: cached.remaining,
+                    bucketCapacity: cached.capacity,
+                    quotaResetsAt: cached.resetsAt
                 });
 
-                // Server-side session validation against Neon PostgreSQL via API client
+                // Server-side session validation via the API client
                 try {
                     const data = await apiClient<{
                         user: UserSession;
-                        quota?: { tokensRemaining: number; bucketCapacity: number };
+                        quota: { tokensRemaining: number; bucketCapacity: number; resetsAt?: string };
                     }>('/api/auth/me');
-
-                    const validatedUser = data.user;
-                    const validatedQuota = data.quota?.tokensRemaining ?? 5;
-                    const validatedCapacity = data.quota?.bucketCapacity ?? 5;
-
-                    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(validatedUser));
-                    localStorage.setItem(STORAGE_KEY_QUOTA, validatedQuota.toString());
-
-                    set({
-                        user: validatedUser,
-                        quotaRemaining: validatedQuota,
-                        bucketCapacity: validatedCapacity
+                    applySession(token, data.user, {
+                        remaining: data.quota.tokensRemaining,
+                        capacity: data.quota.bucketCapacity,
+                        resetsAt: data.quota.resetsAt ?? null
                     });
                 } catch {
                     // Handled by 401 interceptor or offline resilience
@@ -120,26 +164,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
                     method: 'POST',
                     body: JSON.stringify({ deviceId: deviceId || undefined })
                 });
-
-                const token = data.tokens.accessToken;
-                const user = data.user;
-                const quotaRemaining = data.quotaRemaining;
-                const bucketCapacity = data.bucketCapacity;
-
-                if (typeof window !== 'undefined') {
-                    localStorage.setItem(STORAGE_KEY_TOKEN, token);
-                    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-                    localStorage.setItem(STORAGE_KEY_QUOTA, quotaRemaining.toString());
-                }
-
-                set({
-                    token,
-                    user,
-                    quotaRemaining,
-                    bucketCapacity,
-                    isGuestLoading: false,
-                    error: null
-                });
+                applySession(data.tokens.accessToken, data.user, { remaining: data.quotaRemaining, capacity: data.bucketCapacity, resetsAt: null });
                 return true;
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Unknown error during guest sign-in';
@@ -155,25 +180,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
                     method: 'POST',
                     body: JSON.stringify({ credential })
                 });
-
-                const token = data.accessToken;
-                const user = data.user;
-                const quotaRemaining = data.quotaRemaining ?? 25;
-                const bucketCapacity = data.bucketCapacity ?? 25;
-
-                if (typeof window !== 'undefined') {
-                    localStorage.setItem(STORAGE_KEY_TOKEN, token);
-                    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-                    localStorage.setItem(STORAGE_KEY_QUOTA, quotaRemaining.toString());
-                }
-
-                set({
-                    token,
-                    user,
-                    quotaRemaining,
-                    bucketCapacity,
-                    isGoogleLoading: false,
-                    error: null
+                applySession(data.accessToken, data.user, {
+                    remaining: data.quotaRemaining ?? 0,
+                    capacity: data.bucketCapacity ?? 0,
+                    resetsAt: null
                 });
                 return true;
             } catch (err) {
@@ -182,21 +192,27 @@ export const useAuthStore = create<AuthState>((set, get) => {
                 return false;
             }
         },
+
         logout: () => {
             if (typeof window !== 'undefined') {
-                localStorage.removeItem(STORAGE_KEY_TOKEN);
-                localStorage.removeItem(STORAGE_KEY_USER);
-                localStorage.removeItem(STORAGE_KEY_QUOTA);
-                // Cached chat lists and transcripts must not outlive the session on a shared device.
-                Object.keys(localStorage)
-                    .filter((key) => CHAT_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)))
-                    .forEach((key) => localStorage.removeItem(key));
+                try {
+                    localStorage.removeItem(STORAGE_KEY_TOKEN);
+                    localStorage.removeItem(STORAGE_KEY_USER);
+                    localStorage.removeItem(STORAGE_KEY_QUOTA);
+                    // Cached chat lists and transcripts must not outlive the session on a shared device.
+                    Object.keys(localStorage)
+                        .filter((key) => CHAT_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)))
+                        .forEach((key) => localStorage.removeItem(key));
+                } catch {
+                    // Storage unavailable
+                }
             }
             set({
                 user: null,
                 token: null,
-                quotaRemaining: 5,
-                bucketCapacity: 5,
+                quotaRemaining: NO_QUOTA.remaining,
+                bucketCapacity: NO_QUOTA.capacity,
+                quotaResetsAt: null,
                 isGuestLoading: false,
                 isGoogleLoading: false,
                 error: null

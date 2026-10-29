@@ -110,6 +110,7 @@ def wrap_untrusted_context(
     start_line: int | None = None,
     end_line: int | None = None,
     doc_id: str | None = None,
+    label: str | None = None,
 ) -> str:
     """
     Wrap untrusted retrieved document content with strict XML-style security boundaries.
@@ -118,9 +119,10 @@ def wrap_untrusted_context(
     safe_content = sanitize_untrusted_text(content)
     line_attr = f' lines="{start_line}-{end_line}"' if start_line and end_line else ""
     doc_attr = f' id="{doc_id}"' if doc_id else ""
+    label_attr = f' label="{html.escape(label)}"' if label else ""
 
     return (
-        f'<untrusted_document_context filename="{html.escape(filename)}"{doc_attr}{line_attr}>\n'
+        f'<untrusted_document_context{label_attr} filename="{html.escape(filename)}"{doc_attr}{line_attr}>\n'
         f"{safe_content.strip()}\n"
         f"</untrusted_document_context>"
     )
@@ -155,37 +157,21 @@ def verify_canary_integrity(output: str, canary_token: str) -> bool:
 
 def sanitize_retrieved_chunks(
     chunks: Sequence[Any],
-) -> tuple[list[Any], list[str], list[dict[str, str]]]:
+) -> tuple[list[Any], list[dict[str, str]]]:
     """
     Defense-in-depth for indirect prompt injection arriving inside retrieved documents.
 
-    For each retrieved chunk:
-      1. Escape delimiter-breakout attempts (``sanitize_untrusted_text``).
-      2. Wrap the content in ``<untrusted_document_context>`` boundaries.
-      3. Scan for instruction-style patterns; flagged chunks are dropped entirely.
+    Each chunk has delimiter-breakout attempts escaped and credentials scrubbed. Chunks that
+    look like instructions are kept (they are only ever shown inside
+    ``<untrusted_document_context>`` boundaries) but reported, so the UI can warn the user.
 
-    Returns ``(sanitized_chunks, wrapped_contexts, flagged)`` where ``flagged``
-    entries carry the filename and the matched reason for observability.
+    Returns ``(sanitized_chunks, flagged)`` where ``flagged`` entries carry the filename and
+    the matched reason.
     """
-    sanitized_chunks: list[Any] = []
-    wrapped_contexts: list[str] = []
     flagged: list[dict[str, str]] = []
-
     for chunk in chunks:
-        clean = scrub_sensitive_information(sanitize_untrusted_text(chunk.content))
-        injected, reason = detect_prompt_injection(clean)
+        chunk.content = scrub_sensitive_information(sanitize_untrusted_text(chunk.content))
+        injected, reason = detect_prompt_injection(chunk.content)
         if injected:
             flagged.append({"filename": chunk.filename, "reason": reason or "injection pattern"})
-            continue
-        chunk.content = clean
-        sanitized_chunks.append(chunk)
-        wrapped_contexts.append(
-            wrap_untrusted_context(
-                clean,
-                filename=chunk.filename,
-                start_line=chunk.start_line,
-                end_line=chunk.end_line,
-            )
-        )
-
-    return sanitized_chunks, wrapped_contexts, flagged
+    return list(chunks), flagged

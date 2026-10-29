@@ -16,7 +16,7 @@ describe('useAgentStream Hook', () => {
         expect(result.current.currentNode).toBeNull();
         expect(result.current.citations).toEqual([]);
         expect(result.current.streamedResponse).toBe('');
-        expect(result.current.reflectionScore).toBe(0);
+        expect(result.current.grounding).toBeNull();
     });
 
     it('processes SSE events stream correctly', async () => {
@@ -28,7 +28,7 @@ describe('useAgentStream Hook', () => {
             'event: node_start\ndata: {"node": "planner", "status": "running"}\n\n',
             'event: token\ndata: {"token": "Hello "}\n\n',
             'event: token\ndata: {"token": "World!"}\n\n',
-            'event: critic\ndata: {"reflectionScore": 0.95, "isGrounded": true}\n\n',
+            'event: grounding\ndata: {"grounding": "grounded", "feedback": "Grounded in 1 retrieved sources."}\n\n',
             'event: done\ndata: {"sessionId": "test-session-123", "response": "Hello World!", "citations": [{"id": "c1", "chunkId": "chk1", "documentId": "d1", "filename": "doc.md", "headerPath": ["Architecture"], "preview": "Text"}]}\n\n'
         ];
 
@@ -60,7 +60,7 @@ describe('useAgentStream Hook', () => {
         expect(onQuotaMock).toHaveBeenCalledWith(3);
         expect(result.current.plan.length).toBe(1);
         expect(result.current.streamedResponse).toBe('Hello World!');
-        expect(result.current.reflectionScore).toBe(0.95);
+        expect(result.current.grounding).toBe('grounded');
         expect(result.current.citations.length).toBe(1);
         expect(result.current.citations[0].filename).toBe('doc.md');
     });

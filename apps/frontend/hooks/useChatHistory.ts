@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import type { ChatConversation, ChatMessageRecord, ChatHistoryResponse, ChatConversationDetailResponse, Citation } from '@nexusagent/contracts';
+import type { ChatConversation, ChatMessageRecord, ChatHistoryResponse, ChatConversationDetailResponse, Citation, InjectionWarning } from '@nexusagent/contracts';
 import { apiClient } from '@/lib/api-client';
 
 export interface ChatItem {
@@ -9,9 +9,16 @@ export interface ChatItem {
     role: 'user' | 'assistant';
     content: string;
     citations?: Citation[];
+    warnings?: InjectionWarning[];
     query?: string;
     error?: string;
     stopped?: boolean;
+}
+
+/** Citations are stored with the assistant message so reloaded answers keep their source pills. */
+function citationsOf(message: ChatMessageRecord): Citation[] | undefined {
+    const stored = (message.reflectionSummary as { citations?: Citation[] } | null | undefined)?.citations;
+    return Array.isArray(stored) && stored.length > 0 ? stored : undefined;
 }
 
 function byRecency(a: ChatConversation, b: ChatConversation): number {
@@ -45,6 +52,8 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
     // Clear messages and active conversation when user changes
     React.useEffect(() => {
         memoryMessageCache.current.clear();
+        lastFetchConversationsRef.current = 0;
+        setConversations([]);
         setMessages([]);
         setActiveSessionId(null);
     }, [user?.id]);
@@ -142,7 +151,8 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
                     historyMessages.map((m) => ({
                         id: m.id,
                         role: m.role as 'user' | 'assistant',
-                        content: m.content
+                        content: m.content,
+                        citations: citationsOf(m)
                     }))
                 );
             } else if (isLoading) {

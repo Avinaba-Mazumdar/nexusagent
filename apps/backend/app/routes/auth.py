@@ -11,7 +11,7 @@ from app.core.auth import (
     user_to_session,
     verify_google_token,
 )
-from app.core.rate_limiter import default_rate_limiter
+from app.core.rate_limiter import default_rate_limiter, resets_at
 from app.db.models import (
     GoogleAuthRequest,
     GuestPassRequest,
@@ -85,7 +85,7 @@ async def get_current_user_profile(
     await db.update_user_last_seen(current_user.id, client_ip)
     current_user.client_ip = client_ip
 
-    tokens_remaining = await default_rate_limiter.get_quota(
+    bucket = await default_rate_limiter.get_bucket(
         user_id=current_user.id,
         is_guest=current_user.is_guest,
     )
@@ -93,11 +93,11 @@ async def get_current_user_profile(
     return {
         "user": user_to_session(current_user),
         "quota": QuotaStatus(
-            tokensRemaining=tokens_remaining,
+            tokensRemaining=bucket.tokens_remaining,
             bucketCapacity=settings.GUEST_QUOTA_DEFAULT
             if current_user.is_guest
             else settings.USER_QUOTA_DEFAULT,
-            resetMinutes=60,
+            resetsAt=resets_at(bucket).isoformat(),
         ),
     }
 

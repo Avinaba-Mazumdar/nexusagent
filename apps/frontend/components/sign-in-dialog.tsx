@@ -44,11 +44,11 @@ export function SignInDialog({
                 <div className="flex flex-col gap-4 pt-1">
                     {/* Live Models Banner */}
                     <div className="bg-banner-bg border border-banner-border rounded-2xl p-3 sm:p-3.5 flex items-center gap-3">
-                        <span className="shrink-0 bg-banner-badge-bg text-banner-badge-text text-[10px] font-mono font-bold tracking-wider px-2 py-1 rounded-md uppercase">
+                        <span className="shrink-0 bg-banner-badge-bg text-banner-badge-text text-xs font-mono font-bold tracking-wider px-2 py-1 rounded-md uppercase">
                             Live models
                         </span>
-                        <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug">
-                            Answers are generated live by Google Gemini. Guests get 5 queries and Google accounts get 25; both refill hourly.
+                        <p className="text-xs sm:text-xs text-muted-foreground leading-snug">
+                            Answers are generated live by Google Gemini. Guests get a small free allowance; Google accounts get more. Both refill hourly.
                         </p>
                     </div>
 
@@ -81,7 +81,7 @@ export function SignInDialog({
                         <div className="absolute inset-0 flex items-center">
                             <div className="w-full border-t border-border/70" />
                         </div>
-                        <div className="relative bg-card px-3 text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
+                        <div className="relative bg-card px-3 text-xs uppercase tracking-widest font-bold text-muted-foreground">
                             OR
                         </div>
                     </div>
@@ -91,7 +91,7 @@ export function SignInDialog({
                         <div className="space-y-1">
                             <h3 className="text-sm font-bold text-foreground">Continue as Guest</h3>
                             <p className="text-xs text-muted-foreground leading-relaxed max-w-[220px] sm:max-w-[260px]">
-                                Start analyzing immediately. You will receive a 5 live LLM quota gift with zero registration required.
+                                Start right away with a free hourly allowance. No registration required.
                             </p>
                         </div>
                         <Button
@@ -105,7 +105,7 @@ export function SignInDialog({
                     </div>
                 </div>
 
-                <p className="text-[11px] text-muted-foreground text-center pt-1">
+                <p className="text-xs text-muted-foreground text-center pt-1">
                     By continuing, you agree to our{' '}
                     <Link href="/terms" onClick={() => onOpenChange(false)} className="text-primary hover:underline">
                         Terms &amp; Conditions
@@ -117,7 +117,7 @@ export function SignInDialog({
                     .
                 </p>
                 {error && (
-                    <p className="text-[11px] text-destructive text-center pt-1" role="alert">
+                    <p className="text-xs text-destructive text-center pt-1" role="alert">
                         {error}
                     </p>
                 )}
