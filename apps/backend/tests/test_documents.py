@@ -287,6 +287,60 @@ async def test_document_upload_concurrent_lock_409(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_duplicate_upload_does_not_consume_quota_log_09(monkeypatch):
+    """Regression (LOG-09): duplicate file upload returns 200 with quota unchanged."""
+    from datetime import UTC, datetime
+    from unittest.mock import AsyncMock
+    from uuid import uuid4
+
+    from app.core.auth import get_current_user
+    from app.core.rate_limiter import default_rate_limiter
+    from app.db.models import Document, User
+    from app.db.neon import get_db
+
+    default_rate_limiter.reset_for_test()
+    now = datetime.now(UTC)
+    user_id = uuid4()
+    test_user = User(
+        id=user_id,
+        email="dup-quota@example.com",
+        name="Dup Quota",
+        is_guest=True,
+        client_ip="127.0.0.1",
+        created_at=now,
+        last_seen_at=now,
+    )
+    app.dependency_overrides[get_current_user] = lambda: test_user
+
+    mock_db = AsyncMock()
+    mock_db.count_user_documents.return_value = 1
+    existing_doc = Document(
+        id=uuid4(),
+        user_id=user_id,
+        filename="dup.md",
+        mime_type="text/markdown",
+        sha256_hash="test-hash",
+        total_chunks=2,
+    )
+    mock_db.get_document_by_hash.return_value = existing_doc
+    mock_db.get_document_chunks.return_value = []
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            files = {"file": ("dup.md", b"# Dup Content", "text/markdown")}
+            headers = {"Authorization": "Bearer test-token"}
+            resp = await client.post("/api/documents/upload", files=files, headers=headers)
+            assert resp.status_code == 200
+            quota_after = await default_rate_limiter.get_quota(user_id=user_id, is_guest=True)
+            assert quota_after == 5
+    finally:
+        app.dependency_overrides.clear()
+        default_rate_limiter.reset_for_test()
+
+
+@pytest.mark.asyncio
 async def test_document_upload_user_cap_409():
     from unittest.mock import AsyncMock
 

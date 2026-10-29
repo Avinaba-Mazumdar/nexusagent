@@ -104,6 +104,7 @@ async def generate_agent_stream(
     await event_queue.put(format_sse("start", start_payload))
 
     async def run_pipeline():
+        llm_started = False
         try:
             final_state = initial_state
             async for node_name, step_state in graph.stream_steps(initial_state):
@@ -161,6 +162,7 @@ async def generate_agent_stream(
                     )
 
                 elif node_name == "synthesizer":
+                    llm_started = True
                     response_text = step_state.response
                     words = response_text.split(" ")
                     for i in range(0, len(words), 3):
@@ -243,6 +245,16 @@ async def generate_agent_stream(
                 except Exception as save_err:  # noqa: BLE001
                     logger.warning(f"Could not persist conversation history: {save_err}")
 
+        except asyncio.CancelledError:
+            logger.info("Agent pipeline cancelled (client disconnect or abort)")
+            if user_id and not llm_started:
+                try:
+                    await default_rate_limiter.refund(user_id=user_id, is_guest=is_guest)
+                except Exception as refund_err:  # noqa: BLE001
+                    logger.warning(
+                        f"Could not refund rate limit token on cancellation: {refund_err}"
+                    )
+            raise
         except Exception:
             logger.exception("Error during agent SSE streaming")
             if user_id:
@@ -283,6 +295,17 @@ async def stream_agent_execution(
     """
     client_ip = get_client_ip(request)
 
+    doc_uuid: UUID | None = None
+    if payload.documentId:
+        try:
+            doc_uuid = UUID(payload.documentId)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid documentId UUID format",
+            )
+        await require_document_access(neon_db, doc_uuid, current_user)
+
     if classify_query_intent(payload.query) != "out_of_scope":
         remaining = await default_rate_limiter.check_and_consume(
             user_id=current_user.id,
@@ -294,17 +317,6 @@ async def stream_agent_execution(
             user_id=current_user.id,
             is_guest=current_user.is_guest,
         )
-
-    doc_uuid: UUID | None = None
-    if payload.documentId:
-        try:
-            doc_uuid = UUID(payload.documentId)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid documentId UUID format",
-            )
-        await require_document_access(neon_db, doc_uuid, current_user)
 
     session_id = uuid4().hex
     chat_history: list[dict[str, str]] = []

@@ -195,7 +195,9 @@ export default function Home() {
                 status: 'success',
                 message: `Indexed ${data?.document?.filename ?? file.name} (${data?.chunksCount ?? 0} chunks).`
             });
-            setQuotaRemaining(Math.max(0, quotaRemaining - 1));
+            if (typeof data?.quotaRemaining === 'number') {
+                setQuotaRemaining(data.quotaRemaining);
+            }
             void fetchDocs();
         } catch (err) {
             setUploadState({ status: 'error', message: err instanceof Error ? err.message : 'Upload failed.' });

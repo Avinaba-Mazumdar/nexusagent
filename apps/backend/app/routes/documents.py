@@ -197,10 +197,14 @@ async def upload_document(
         existing_doc = await db.get_document_by_hash(sha256_hash, user_id=current_user.id)
         if existing_doc:
             existing_chunks = await db.get_document_chunks(existing_doc.id)
+            current_quota = await default_rate_limiter.get_quota(
+                user_id=current_user.id, is_guest=current_user.is_guest
+            )
             return DocumentUploadResponseWire(
                 document=document_to_wire(existing_doc),
                 chunksCount=existing_doc.total_chunks,
                 previewChunks=[chunk_to_wire(c) for c in existing_chunks[:5]],
+                quotaRemaining=current_quota,
             )
 
         if not default_embedding_service.api_key:
@@ -226,7 +230,7 @@ async def upload_document(
 
         # Charge quota proportional to chunk count
         cost = max(1, math.ceil(len(chunks) / 100))
-        await default_rate_limiter.check_and_consume(
+        remaining_quota = await default_rate_limiter.check_and_consume(
             user_id=current_user.id,
             client_ip=client_ip,
             is_guest=current_user.is_guest,
@@ -266,6 +270,7 @@ async def upload_document(
             document=document_to_wire(saved_doc),
             chunksCount=len(chunks),
             previewChunks=[chunk_to_wire(c) for c in chunks[:5]],
+            quotaRemaining=remaining_quota,
         )
     finally:
         user_lock.release()

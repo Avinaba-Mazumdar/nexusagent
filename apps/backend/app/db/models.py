@@ -149,3 +149,4 @@ class DocumentUploadResponseWire(BaseModel):
     document: DocumentMetadataWire
     chunksCount: int
     previewChunks: list[DocumentChunkWire]
+    quotaRemaining: int | None = None
