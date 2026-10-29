@@ -166,9 +166,11 @@ async def test_search_raises_runtime_error_when_db_disconnected():
 @pytest.mark.asyncio
 async def test_mcp_registry_catches_runtime_error():
     """Verify default_mcp_registry._exec_hybrid_search returns isError=True on RuntimeError (L-11)."""
-    from app.mcp.registry import default_mcp_registry
+    from app.mcp.registry import HybridRagSearchArgs, default_mcp_registry
 
-    res = await default_mcp_registry._exec_hybrid_search({"query": "Raft consensus"})
+    res = await default_mcp_registry._exec_hybrid_search(
+        HybridRagSearchArgs(query="Raft consensus")
+    )
     assert res.isError is True
     assert "Knowledge base unavailable" in res.content[0].text
 
@@ -206,8 +208,6 @@ async def test_hybrid_search_end_to_end_endpoint():
         total_chunks=2,
         is_seeded=False,
     )
-    await neon_db.create_document(doc)
-
     emb_chunk1 = generate_deterministic_embedding(
         "Raft consensus leader heartbeat quorum and election timeout."
     )
@@ -231,7 +231,7 @@ async def test_hybrid_search_end_to_end_endpoint():
         embedding=emb_chunk2,
         metadata={"startLine": 21, "endLine": 40, "headerPath": ["Database", "Indexes"]},
     )
-    await neon_db.insert_document_chunks([chunk1, chunk2])
+    await neon_db.create_document_with_chunks(doc, [chunk1, chunk2])
 
     # 3. Authenticate and query /api/rag/search
     token, _ = create_access_token({"sub": str(test_user.id), "role": "user"})
@@ -342,3 +342,54 @@ async def test_search_degrades_to_sparse_only_when_embedding_fails():
     assert len(results) == 1
     assert results[0].dense_rank is None and results[0].sparse_rank == 1
     db.search_chunks_dense.assert_not_called()
+
+
+def test_mcp_tool_schema_is_generated_from_the_validation_model():
+    """SEC-06: advertised schema and validation cannot drift."""
+    from app.mcp.registry import TOOLS
+
+    props = TOOLS[0].inputSchema.properties
+    assert props["limit"]["maximum"] == 20 and props["query"]["maxLength"] == 1000
+    assert TOOLS[0].inputSchema.required == ["query"]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [{"query": "x", "limit": "abc"}, [], {"query": "q" * 1001}, {"query": "x", "extra": 1}, {}],
+)
+@pytest.mark.asyncio
+async def test_mcp_invalid_arguments_return_invalid_params(arguments):
+    """SEC-06: bad arguments are rejected as -32602 before any quota is consumed."""
+    from app.mcp.dispatch import dispatch_mcp_method
+    from app.mcp.protocol import INVALID_PARAMS, JsonRpcRequest
+
+    req = JsonRpcRequest(
+        id=1,
+        method="tools/call",
+        params={"name": "hybrid_rag_search", "arguments": arguments},
+    )
+    res = await dispatch_mcp_method(req)
+    assert res.error is not None and res.error.code == INVALID_PARAMS
+
+
+@pytest.mark.asyncio
+async def test_mcp_search_output_is_wrapped_as_untrusted(monkeypatch):
+    """SEC-10: chunks returned to external agents sit inside untrusted-context delimiters."""
+    from unittest.mock import AsyncMock
+
+    from app.mcp import registry
+    from app.rag.hybrid_search import HybridSearchResult
+
+    chunk = HybridSearchResult(
+        id="c1",
+        document_id="d1",
+        chunk_index=0,
+        content="Raft needs a quorum.",
+        filename="a.md",
+        similarity_score=0.1,
+    )
+    monkeypatch.setattr(
+        registry.default_hybrid_search_engine, "search", AsyncMock(return_value=[chunk])
+    )
+    res = await registry.McpRegistry._exec_hybrid_search(registry.HybridRagSearchArgs(query="raft"))
+    assert "<untrusted_document_context" in res.content[0].text

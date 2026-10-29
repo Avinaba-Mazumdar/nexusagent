@@ -34,19 +34,23 @@ async def get_health():
             extensions = []
 
     is_healthy = db_connected
-    payload = {
-        "status": "healthy" if is_healthy else "unhealthy",
-        "app_name": settings.APP_NAME,
-        "version": settings.VERSION,
-        "environment": settings.ENVIRONMENT,
-        "timestamp": datetime.now(UTC).isoformat(),
-        "database": {
-            "status": "connected" if db_connected else "disconnected",
-            "connected": db_connected,
-            "engine": engine_str,
-            "extensions": extensions,
-        },
+    database = {
+        "status": "connected" if db_connected else "disconnected",
+        "connected": db_connected,
     }
+    payload: dict = {
+        "status": "healthy" if is_healthy else "unhealthy",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "database": database,
+    }
+    if settings.is_dev:
+        # Version/extension fingerprints stay out of production responses.
+        payload.update(
+            app_name=settings.APP_NAME,
+            version=settings.VERSION,
+            environment=settings.ENVIRONMENT,
+        )
+        database.update(engine=engine_str, extensions=extensions)
 
     status_code = status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
     return JSONResponse(status_code=status_code, content=payload)

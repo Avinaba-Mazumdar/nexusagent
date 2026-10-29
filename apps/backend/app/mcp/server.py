@@ -11,6 +11,7 @@ import sys
 
 from pydantic import ValidationError
 
+from app.db.neon import neon_db
 from app.mcp.dispatch import dispatch_mcp_method
 from app.mcp.protocol import (
     INTERNAL_ERROR,
@@ -25,8 +26,12 @@ logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger("nexusagent.mcp.stdio")
 
 
-async def handle_jsonrpc_request(req_dict: dict) -> dict:
+async def handle_jsonrpc_request(req_dict: object) -> dict:
     """Process incoming JSON-RPC 2.0 request dictionary and return response dictionary."""
+    if not isinstance(req_dict, dict):
+        return JsonRpcResponse(
+            id=None, error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request")
+        ).model_dump(exclude_none=True)
     try:
         req = JsonRpcRequest.model_validate(req_dict)
     except ValidationError, ValueError, TypeError:
@@ -38,8 +43,6 @@ async def handle_jsonrpc_request(req_dict: dict) -> dict:
     try:
         # Stdio server is a local, trusted process; calls are unmetered (user=None).
         resp = await dispatch_mcp_method(req)
-        if req.id is None:
-            return {}
         return resp.model_dump(exclude_none=True)
     except Exception:
         logger.exception("Error processing MCP method %s", req.method)
@@ -51,6 +54,9 @@ async def handle_jsonrpc_request(req_dict: dict) -> dict:
 
 async def main():
     """Stdio main loop reading lines from stdin and writing JSON-RPC to stdout."""
+    # Local, trusted process: tools/call is unmetered but still needs the knowledge-base database.
+    if not await neon_db.connect():
+        logger.error("Database unavailable; hybrid_rag_search will report the knowledge base down.")
     reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(reader)
     loop = asyncio.get_running_loop()
@@ -68,7 +74,8 @@ async def main():
         try:
             req_data = json.loads(line)
             res_data = await handle_jsonrpc_request(req_data)
-            if res_data and req_data.get("id") is not None:  # Notifications produce no response
+            is_notification = isinstance(req_data, dict) and req_data.get("id") is None
+            if res_data and not is_notification:  # Notifications produce no response
                 sys.stdout.write(json.dumps(res_data) + "\n")
                 sys.stdout.flush()
         except json.JSONDecodeError as e:
@@ -80,5 +87,12 @@ async def main():
             sys.stdout.flush()
 
 
+async def run() -> None:
+    try:
+        await main()
+    finally:
+        await neon_db.disconnect()
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run())

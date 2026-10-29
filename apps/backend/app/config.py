@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     GUEST_QUOTA_DEFAULT: int = 5
     USER_QUOTA_DEFAULT: int = 25
     MAX_DOCUMENTS_PER_USER: int = 20
+    CHAT_HISTORY_MESSAGES: int = 6
     MAX_CHUNKS_PER_DOCUMENT: int = 400
     GUEST_SIGNUPS_PER_IP_PER_HOUR: int = 5
     GUEST_IP_QUOTA_PER_HOUR: int = 15
@@ -60,9 +61,13 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GOOGLE_CLIENT_ID: str = ""
 
+    @property
+    def is_dev(self) -> bool:
+        return self.ENVIRONMENT in ("development", "test")
+
     @model_validator(mode="after")
     def validate_production_secrets(self) -> Settings:
-        if self.ENVIRONMENT in ("development", "test"):
+        if self.is_dev:
             if not self.JWT_SECRET_KEY:
                 self.JWT_SECRET_KEY = "nexusagent-local-dev-only-secret-not-for-production"
             return self

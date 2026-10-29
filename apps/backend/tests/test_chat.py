@@ -6,10 +6,10 @@ from app.main import app
 
 @pytest.mark.db
 @pytest.mark.asyncio
-async def test_get_seeded_documents():
+async def test_list_seeded_documents_without_auth():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/api/chat/documents")
+        response = await client.get("/api/documents")
         assert response.status_code == 200
         data = response.json()
         assert "documents" in data

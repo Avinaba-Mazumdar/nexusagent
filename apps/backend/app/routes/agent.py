@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.agent.graph import AgentGraph, classify_query_intent, default_agent_graph
 from app.agent.state import AgentState, Citation, PlanStep
+from app.config import settings
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
 from app.core.rate_limiter import default_rate_limiter
@@ -226,11 +227,10 @@ async def generate_agent_stream(
                     )
                     if conv and "id" in conv:
                         actual_conv_id = conv["id"]
-                        await neon_db.save_message(actual_conv_id, role="user", content=query)
-                        await neon_db.save_message(
+                        await neon_db.save_turn(
                             actual_conv_id,
-                            role="assistant",
-                            content=final_state.response,
+                            query,
+                            final_state.response,
                             plan_trace=[plan_step_to_wire(s) for s in final_state.plan],
                             reflection_summary={
                                 "reflectionScore": final_state.reflection_score,
@@ -325,10 +325,13 @@ async def stream_agent_execution(
             requested = UUID(payload.sessionId)
         except ValueError:
             requested = None
-        if requested and await neon_db.get_conversation(current_user.id, requested):
-            session_id = payload.sessionId
-            rows = await neon_db.get_conversation_messages(current_user.id, requested)
-            chat_history = [{"role": r["role"], "content": r["content"]} for r in rows][-2 * 6 :]
+        if requested:
+            rows = await neon_db.get_conversation_history(
+                current_user.id, requested, settings.CHAT_HISTORY_MESSAGES
+            )
+            if rows is not None:
+                session_id = payload.sessionId
+                chat_history = [{"role": r["role"], "content": r["content"]} for r in rows]
 
     return StreamingResponse(
         generate_agent_stream(

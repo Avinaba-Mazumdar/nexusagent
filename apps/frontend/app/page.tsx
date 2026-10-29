@@ -14,19 +14,14 @@ import { WorkspaceSidebar, type WorkspaceDoc, type UploadState } from '@/compone
 import { ChatCanvas } from '@/components/chat-canvas';
 import { Composer } from '@/components/composer';
 import { useChatHistory, type ChatItem } from '@/hooks/useChatHistory';
-import type { ChatConversation } from '@nexusagent/contracts';
+import type { ChatConversation, DocumentListResponse, DocumentMetadata } from '@nexusagent/contracts';
 
 const MAX_LOG_ENTRIES = 200;
 const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
 const XL_BREAKPOINT_QUERY = '(min-width: 1280px)';
 
-function normalizeDoc(raw: Record<string, unknown>): WorkspaceDoc {
-    return {
-        id: String(raw.id),
-        filename: String(raw.filename),
-        totalChunks: Number(raw.totalChunks ?? raw.total_chunks ?? 0),
-        isSeeded: Boolean(raw.isSeeded ?? raw.is_seeded ?? true)
-    };
+function toWorkspaceDoc(doc: DocumentMetadata): WorkspaceDoc {
+    return { id: doc.id, filename: doc.filename, totalChunks: doc.totalChunks, isSeeded: doc.isSeeded };
 }
 
 export default function Home() {
@@ -138,7 +133,7 @@ export default function Home() {
 
     const fetchDocs = React.useCallback(async () => {
         try {
-            const endpoint = token ? `${API_BASE}/api/documents` : `${API_BASE}/api/chat/documents`;
+            const endpoint = `${API_BASE}/api/documents`;
             const headers: Record<string, string> = {};
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -146,7 +141,7 @@ export default function Home() {
             if (res.ok) {
                 const data = await res.json();
                 if (Array.isArray(data.documents)) {
-                    setDocs(data.documents.map(normalizeDoc));
+                    setDocs((data as DocumentListResponse).documents.map(toWorkspaceDoc));
                     setDocsError(null);
                     return;
                 }

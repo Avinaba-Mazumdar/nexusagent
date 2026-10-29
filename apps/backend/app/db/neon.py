@@ -24,6 +24,10 @@ def build_or_tsquery(text: str) -> str:
     return " | ".join(terms)
 
 
+class DatabaseUnavailable(RuntimeError):
+    """Raised when a request needs the database but the pool is not connected."""
+
+
 class NeonDatabase:
     def __init__(self, dsn: str | None = None):
         self.dsn = dsn or settings.NEON_DATABASE_URL or settings.DATABASE_URL
@@ -32,7 +36,7 @@ class NeonDatabase:
     def get_pool(self) -> asyncpg.Pool:
         """Return the active connection pool or raise an error if not connected."""
         if self.pool is None:
-            raise RuntimeError("Neon database connection pool is not initialized.")
+            raise DatabaseUnavailable("Neon database connection pool is not initialized.")
         return self.pool
 
     async def connect(self) -> bool:
@@ -67,23 +71,11 @@ class NeonDatabase:
             self.pool = None
             logger.info("Closed Neon PostgreSQL connection pool.")
 
-    async def execute_migration(self, migration_sql: str) -> None:
-        """Execute DDL migration script."""
-        pool = self.get_pool()
-        async with pool.acquire() as conn:
-            await conn.execute(migration_sql)
-
     async def fetch(self, query: str, *args: Any) -> list[asyncpg.Record]:
         """Execute query and fetch all records."""
         pool = self.get_pool()
         async with pool.acquire() as conn:
             return await conn.fetch(query, *args)
-
-    async def fetchrow(self, query: str, *args: Any) -> asyncpg.Record | None:
-        """Execute query and fetch a single record."""
-        pool = self.get_pool()
-        async with pool.acquire() as conn:
-            return await conn.fetchrow(query, *args)
 
     async def create_user(self, user: User) -> User:
         """Insert a new user record."""
@@ -274,14 +266,6 @@ class NeonDatabase:
                 user_id,
             )
 
-    async def get_seeded_documents(self) -> list[dict]:
-        """Fetch list of active seeded benchmark documents."""
-        pool = self.get_pool()
-        query = "SELECT id, filename, total_chunks, uploaded_at FROM documents WHERE is_seeded = TRUE ORDER BY filename ASC;"
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(query)
-            return [dict(r) for r in rows]
-
     async def count_user_documents(self, user_id: UUID) -> int:
         """Count the number of documents owned by a user."""
         pool = self.get_pool()
@@ -334,55 +318,6 @@ class NeonDatabase:
                 await conn.executemany(chunk_query, records)
             return Document(**dict(row))
 
-    async def create_document(self, document: Document) -> Document:
-        """Insert a new document record into Neon documents table."""
-        pool = self.get_pool()
-        query = """
-            INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded, uploaded_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING id, user_id, filename, mime_type, sha256_hash, total_chunks, storage_path, is_seeded, uploaded_at;
-        """
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                query,
-                document.id,
-                document.user_id,
-                document.filename,
-                document.mime_type,
-                document.sha256_hash,
-                document.total_chunks,
-                document.storage_path,
-                document.is_seeded,
-                document.uploaded_at,
-            )
-            return Document(**dict(row))
-
-    async def insert_document_chunks(self, chunks: list[DocumentChunk]) -> int:
-        """Batch insert document chunks into Neon document_chunks table."""
-        if not chunks:
-            return 0
-        pool = self.get_pool()
-        query = """
-            INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, embedding_model, metadata, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8);
-        """
-        records = [
-            (
-                c.id,
-                c.document_id,
-                c.chunk_index,
-                c.content,
-                c.embedding,
-                settings.EMBEDDING_MODEL if c.embedding is not None else None,
-                json.dumps(c.metadata),
-                c.created_at,
-            )
-            for c in chunks
-        ]
-        async with pool.acquire() as conn:
-            await conn.executemany(query, records)
-        return len(chunks)
-
     async def get_document_by_id(self, document_id: UUID) -> Document | None:
         """Fetch document by primary UUID."""
         pool = self.get_pool()
@@ -391,21 +326,13 @@ class NeonDatabase:
             row = await conn.fetchrow(query, document_id)
             return Document(**dict(row)) if row else None
 
-    async def get_document_by_hash(
-        self, sha256_hash: str, user_id: UUID | None = None
-    ) -> Document | None:
-        """Fetch document by unique SHA-256 hash and optional user_id."""
+    async def get_document_by_hash(self, sha256_hash: str, user_id: UUID) -> Document | None:
+        """Fetch a user's document by SHA-256 hash (per-user deduplication)."""
         pool = self.get_pool()
-        if user_id:
-            query = "SELECT * FROM documents WHERE sha256_hash = $1 AND user_id = $2 LIMIT 1;"
-            async with pool.acquire() as conn:
-                row = await conn.fetchrow(query, sha256_hash, user_id)
-                return Document(**dict(row)) if row else None
-        else:
-            query = "SELECT * FROM documents WHERE sha256_hash = $1 LIMIT 1;"
-            async with pool.acquire() as conn:
-                row = await conn.fetchrow(query, sha256_hash)
-                return Document(**dict(row)) if row else None
+        query = "SELECT * FROM documents WHERE sha256_hash = $1 AND user_id = $2 LIMIT 1;"
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(query, sha256_hash, user_id)
+            return Document(**dict(row)) if row else None
 
     async def get_document_chunks(self, document_id: UUID) -> list[DocumentChunk]:
         """Fetch all chunks for a document ordered by chunk_index."""
@@ -546,25 +473,13 @@ class NeonDatabase:
         query = """
             INSERT INTO agent_conversations (id, user_id, title, created_at)
             VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-            ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title
+            ON CONFLICT (id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
             WHERE agent_conversations.user_id = EXCLUDED.user_id
             RETURNING id, user_id, title, created_at;
         """
         async with pool.acquire() as conn:
             row = await conn.fetchrow(query, cid, user_id, title)
             return dict(row) if row else {}
-
-    async def get_conversation(self, user_id: UUID, conversation_id: UUID) -> dict | None:
-        """Fetch a specific conversation for a user."""
-        pool = self.get_pool()
-        query = """
-            SELECT id, user_id, title, created_at
-            FROM agent_conversations
-            WHERE id = $1 AND user_id = $2;
-        """
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(query, conversation_id, user_id)
-            return dict(row) if row else None
 
     async def list_conversations(
         self,
@@ -631,56 +546,66 @@ class NeonDatabase:
             msg_rows = await conn.fetch(query_msgs, conversation_id)
             return dict(conv_row), [dict(r) for r in msg_rows]
 
-    async def get_conversation_messages(
-        self,
-        user_id: UUID,
-        conversation_id: UUID,
-    ) -> list[dict]:
-        """Fetch all messages for a verified user's conversation."""
+    async def get_conversation_history(
+        self, user_id: UUID, conversation_id: UUID, limit: int
+    ) -> list[dict] | None:
+        """Last ``limit`` messages (oldest first) of an owned conversation; None if not owned."""
         pool = self.get_pool()
         query = """
-            SELECT m.id, m.conversation_id, m.role, m.content, m.plan_trace, m.reflection_summary, m.created_at
-            FROM messages m
-            JOIN agent_conversations c ON m.conversation_id = c.id
-            WHERE c.id = $1 AND c.user_id = $2
-            ORDER BY m.created_at ASC;
+            SELECT role, content FROM (
+                SELECT m.role, m.content, m.created_at
+                FROM messages m
+                JOIN agent_conversations c ON m.conversation_id = c.id
+                WHERE c.id = $1 AND c.user_id = $2
+                ORDER BY m.created_at DESC
+                LIMIT $3
+            ) recent
+            ORDER BY created_at ASC;
         """
         async with pool.acquire() as conn:
-            rows = await conn.fetch(query, conversation_id, user_id)
+            owned = await conn.fetchval(
+                "SELECT 1 FROM agent_conversations WHERE id = $1 AND user_id = $2;",
+                conversation_id,
+                user_id,
+            )
+            if not owned:
+                return None
+            rows = await conn.fetch(query, conversation_id, user_id, limit)
             return [dict(r) for r in rows]
 
-    async def save_message(
+    async def save_turn(
         self,
         conversation_id: UUID,
-        role: str,
-        content: str,
+        user_content: str,
+        assistant_content: str,
         plan_trace: Any = None,
         reflection_summary: Any = None,
-    ) -> dict:
-        """Insert a message into a conversation."""
+    ) -> None:
+        """Persist a user question and its answer atomically and bump ``updated_at``."""
         pool = self.get_pool()
-        plan_trace_json = json.dumps(plan_trace) if plan_trace is not None else None
-        reflection_json = json.dumps(reflection_summary) if reflection_summary is not None else None
-        query = """
+        insert = """
             INSERT INTO messages (id, conversation_id, role, content, plan_trace, reflection_summary, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-            RETURNING id, conversation_id, role, content, plan_trace, reflection_summary, created_at;
+            VALUES ($1, $2, $3, $4, $5, $6, $7);
         """
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                query,
+        now = datetime.now(UTC)
+        async with pool.acquire() as conn, conn.transaction():
+            await conn.execute(
+                insert, uuid4(), conversation_id, "user", user_content, None, None, now
+            )
+            await conn.execute(
+                insert,
                 uuid4(),
                 conversation_id,
-                role,
-                content,
-                plan_trace_json,
-                reflection_json,
+                "assistant",
+                assistant_content,
+                json.dumps(plan_trace) if plan_trace is not None else None,
+                json.dumps(reflection_summary) if reflection_summary is not None else None,
+                now + timedelta(milliseconds=1),
             )
             await conn.execute(
                 "UPDATE agent_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1;",
                 conversation_id,
             )
-            return dict(row) if row else {}
 
     async def delete_conversation(self, user_id: UUID, conversation_id: UUID) -> bool:
         """Delete conversation and cascade messages for verified owner."""

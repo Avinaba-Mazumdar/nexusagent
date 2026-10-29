@@ -63,15 +63,9 @@ async def test_chat_history_google_user_crud():
         assert res.status_code == 200
         assert "conversations" in res.json()
 
-        # 2. Create conversation
-        res_create = await client.post(
-            "/api/chat/history",
-            json={"title": "Raft Consensus Analysis"},
-            headers=headers,
-        )
-        assert res_create.status_code == 201
-        created = res_create.json()
-        conv_id = created["id"]
+        # 2. Conversations are created by the agent stream; seed one directly
+        created = await neon_db.create_conversation(user_id, title="Raft Consensus Analysis")
+        conv_id = str(created["id"])
         assert created["title"] == "Raft Consensus Analysis"
 
         # 3. Retrieve conversation detail

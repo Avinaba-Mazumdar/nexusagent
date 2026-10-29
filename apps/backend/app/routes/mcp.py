@@ -90,7 +90,6 @@ async def direct_jsonrpc_gateway(
 @router.get("/sse")
 async def mcp_sse_endpoint(
     request: Request,
-    once: bool = False,
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     """
@@ -111,15 +110,11 @@ async def mcp_sse_endpoint(
     SESSIONS[session_id] = McpSession(owner_id=current_user.id, queue=queue)
 
     async def event_generator() -> AsyncGenerator[str]:
-        # 1. Emit the standard MCP endpoint event pointing to the message handler
-        endpoint_url = f"/api/mcp/messages?sessionId={session_id}"
-        yield f"event: endpoint\ndata: {endpoint_url}\n\n"
-
-        if once:
-            SESSIONS.pop(session_id, None)
-            return
-
         try:
+            # Standard MCP endpoint event pointing to the message handler
+            endpoint_url = f"/api/mcp/messages?sessionId={session_id}"
+            yield f"event: endpoint\ndata: {endpoint_url}\n\n"
+
             while True:
                 if await request.is_disconnected():
                     break

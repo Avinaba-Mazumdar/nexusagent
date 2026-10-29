@@ -3,17 +3,12 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user
 from app.db.models import User
 from app.db.neon import NeonDatabase, get_db
 
 router = APIRouter(prefix="/chat", tags=["Chat History & Seeded Knowledge Base"])
-
-
-class CreateConversationRequestWire(BaseModel):
-    title: str = Field(default="New Architectural Inquiry", max_length=255)
 
 
 def ensure_google_user(current_user: User) -> None:
@@ -61,13 +56,6 @@ def message_to_wire(m: dict) -> dict:
     }
 
 
-@router.get("/documents")
-async def list_seeded_documents(db: NeonDatabase = Depends(get_db)):
-    """Return pre-indexed benchmark documents available for RAG."""
-    docs = await db.get_seeded_documents()
-    return {"documents": docs}
-
-
 @router.get("/history")
 async def list_chat_history(
     q: str | None = Query(
@@ -82,18 +70,6 @@ async def list_chat_history(
     conversations = await db.list_conversations(current_user.id, search_term=q, limit=limit)
     formatted = [conversation_to_wire(c) for c in conversations]
     return {"conversations": formatted, "total": len(formatted)}
-
-
-@router.post("/history", status_code=status.HTTP_201_CREATED)
-async def create_chat_conversation(
-    payload: CreateConversationRequestWire,
-    current_user: User = Depends(get_current_user),
-    db: NeonDatabase = Depends(get_db),
-):
-    """Explicitly create a new conversation thread."""
-    ensure_google_user(current_user)
-    conv = await db.create_conversation(current_user.id, title=payload.title, conversation_id=None)
-    return conversation_to_wire(conv)
 
 
 @router.get("/history/{conversation_id}")

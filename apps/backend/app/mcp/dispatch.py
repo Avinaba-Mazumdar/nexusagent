@@ -9,7 +9,7 @@ from app.mcp.protocol import (
     JsonRpcRequest,
     JsonRpcResponse,
 )
-from app.mcp.registry import default_mcp_registry
+from app.mcp.registry import InvalidToolArguments, default_mcp_registry
 
 
 async def dispatch_mcp_method(
@@ -51,6 +51,13 @@ async def dispatch_mcp_method(
             return JsonRpcResponse(
                 id=req.id,
                 error=JsonRpcError(code=INVALID_PARAMS, message="Missing parameter 'name'."),
+            )
+
+        try:
+            default_mcp_registry.validate_arguments(tool_name, tool_args)
+        except InvalidToolArguments as exc:
+            return JsonRpcResponse(
+                id=req.id, error=JsonRpcError(code=INVALID_PARAMS, message=str(exc))
             )
 
         if user is not None:

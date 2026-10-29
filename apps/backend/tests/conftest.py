@@ -13,6 +13,9 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ["NEON_DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "")
 os.environ["DATABASE_URL"] = ""
 
+from types import SimpleNamespace
+from uuid import UUID
+
 import pytest
 
 from app.db.neon import neon_db
@@ -36,6 +39,36 @@ async def neon_pool():
     finally:
         if DB_STATE["connected"]:
             await neon_db.disconnect()
+
+
+class FakeBucketDb:
+    """In-memory stand-in for the rate-limit methods of NeonDatabase (per-user counter)."""
+
+    def __init__(self):
+        self.tokens: dict[UUID, int] = {}
+
+    async def consume_rate_limit(self, user_id, default_tokens=5, cost=1):
+        left = self.tokens.get(user_id, default_tokens)
+        if left < cost:
+            return None
+        self.tokens[user_id] = left - cost
+        return left - cost
+
+    async def get_or_create_rate_limit(self, user_id, default_tokens=5):
+        return SimpleNamespace(tokens_remaining=self.tokens.setdefault(user_id, default_tokens))
+
+    async def refund_rate_limit(self, user_id):
+        self.tokens[user_id] = self.tokens.get(user_id, 0) + 1
+
+
+@pytest.fixture
+def fake_rate_db(monkeypatch):
+    """Back the default rate limiter with an in-memory bucket store (no Neon needed)."""
+    from app.core.rate_limiter import default_rate_limiter
+
+    db = FakeBucketDb()
+    monkeypatch.setattr(default_rate_limiter, "db", db)
+    return db
 
 
 @pytest.fixture(autouse=True)

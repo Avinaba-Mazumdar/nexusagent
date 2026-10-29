@@ -312,7 +312,7 @@ async def test_document_upload_concurrent_lock_409(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_duplicate_upload_does_not_consume_quota_log_09(monkeypatch):
+async def test_duplicate_upload_does_not_consume_quota_log_09(fake_rate_db, monkeypatch):
     """Regression (LOG-09): duplicate file upload returns 200 with quota unchanged."""
     from datetime import UTC, datetime
     from unittest.mock import AsyncMock

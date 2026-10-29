@@ -1,13 +1,12 @@
 """
 Token-Bucket Rate Limiter.
-Enforces hourly token limits per user/IP:
+Enforces hourly token limits per user (bucket state lives in Neon PostgreSQL):
 - Guest users: 5 requests / hour
 - Authenticated registered users: 25 requests / hour
-Operates on Neon PostgreSQL with resilient in-memory fallback when offline.
+Guests are additionally capped per IP by in-process sliding-window counters.
 """
 
 import logging
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -18,34 +17,35 @@ from app.db.neon import NeonDatabase, neon_db
 
 logger = logging.getLogger("nexusagent.core.rate_limiter")
 
-
-@dataclass
-class MemoryBucket:
-    user_id: str
-    tokens_remaining: int
-    bucket_capacity: int
-    last_replenished_at: datetime
-    client_ip: str | None = None
+MAX_TRACKED_KEYS = 50_000
 
 
 class SlidingWindowCounter:
-    """Per-key event counter over a rolling window (per process)."""
+    """Per-key event counter over a rolling window (per process, bounded memory)."""
 
     def __init__(self, limit: int, window: timedelta = timedelta(hours=1)):
         self.limit = limit
         self.window = window
         self._events: dict[str, list[datetime]] = {}
 
+    def _prune_stale_keys(self, now: datetime) -> None:
+        self._events = {
+            key: events
+            for key, events in self._events.items()
+            if events and now - events[-1] < self.window
+        }
+
     def hit(self, key: str) -> bool:
         """Record an event; return False (and record nothing) when the key is over its limit."""
         now = datetime.now(UTC)
         recent = [t for t in self._events.get(key, []) if now - t < self.window]
-        if len(recent) >= self.limit:
-            self._events[key] = recent
-            return False
-        recent.append(now)
+        allowed = len(recent) < self.limit
+        if allowed:
+            recent.append(now)
         self._events[key] = recent
-        return True
+        if len(self._events) > MAX_TRACKED_KEYS:
+            self._prune_stale_keys(now)
+        return allowed
 
     def reset_for_test(self) -> None:
         self._events.clear()
@@ -55,40 +55,23 @@ guest_signup_limiter = SlidingWindowCounter(limit=settings.GUEST_SIGNUPS_PER_IP_
 guest_ip_llm_limiter = SlidingWindowCounter(limit=settings.GUEST_IP_QUOTA_PER_HOUR)
 
 
+def _quota_exhausted() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="Free-tier quota limit reached. It replenishes hourly.",
+        headers={"Retry-After": "3600"},
+    )
+
+
 class TokenBucketLimiter:
-    """Thread-safe / async token-bucket rate limiter with database & memory tiers."""
+    """Async token-bucket rate limiter backed by the ``rate_limit_buckets`` table."""
 
-    def __init__(self, db: NeonDatabase | None = None):
+    def __init__(self, db: NeonDatabase):
         self.db = db
-        # In-memory store keyed by str(user_id)
-        self._memory_buckets: dict[str, MemoryBucket] = {}
 
-    def _get_memory_bucket(self, user_id: UUID | str, default_tokens: int) -> MemoryBucket:
-        key = str(user_id)
-        now = datetime.now(UTC)
-        bucket = self._memory_buckets.get(key)
-
-        if not bucket:
-            bucket = MemoryBucket(
-                user_id=key,
-                tokens_remaining=default_tokens,
-                bucket_capacity=default_tokens,
-                last_replenished_at=now,
-            )
-            self._memory_buckets[key] = bucket
-            if len(self._memory_buckets) > 10_000:
-                cutoff = now - timedelta(hours=2)
-                self._memory_buckets = {
-                    k: v for k, v in self._memory_buckets.items() if v.last_replenished_at > cutoff
-                }
-            return bucket
-
-        # Check hourly replenishment
-        if (now - bucket.last_replenished_at) >= timedelta(hours=1):
-            bucket.tokens_remaining = bucket.bucket_capacity
-            bucket.last_replenished_at = now
-
-        return bucket
+    @staticmethod
+    def _capacity(is_guest: bool) -> int:
+        return settings.GUEST_QUOTA_DEFAULT if is_guest else settings.USER_QUOTA_DEFAULT
 
     async def check_and_consume(
         self,
@@ -109,81 +92,29 @@ class TokenBucketLimiter:
                 headers={"Retry-After": "3600"},
             )
 
-        default_tokens = settings.GUEST_QUOTA_DEFAULT if is_guest else settings.USER_QUOTA_DEFAULT
+        remaining = await self.db.consume_rate_limit(
+            user_id, default_tokens=self._capacity(is_guest), cost=cost
+        )
+        if remaining is None:
+            raise _quota_exhausted()
+        return remaining
 
-        # 1. Try PostgreSQL if pool is available
-        if self.db and self.db.pool:
-            try:
-                remaining = await self.db.consume_rate_limit(
-                    user_id, default_tokens=default_tokens, cost=cost
-                )
-                if remaining is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail="Free-tier quota limit reached. It replenishes hourly.",
-                        headers={"Retry-After": "3600"},
-                    )
-                return remaining
-            except HTTPException:
-                raise
-            except Exception as e:  # noqa: BLE001
-                logger.warning(
-                    f"Database rate limit query failed, falling back to memory bucket: {e}"
-                )
-
-        # 2. Resilient In-Memory Fallback
-        bucket = self._get_memory_bucket(user_id, default_tokens)
-        if bucket.tokens_remaining < cost:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Free-tier quota limit reached. It replenishes hourly.",
-                headers={"Retry-After": "3600"},
-            )
-
-        bucket.tokens_remaining -= cost
-        return bucket.tokens_remaining
-
-    async def get_quota(
-        self,
-        user_id: UUID,
-        is_guest: bool = True,
-    ) -> int:
+    async def get_quota(self, user_id: UUID, is_guest: bool = True) -> int:
         """Fetch current quota without consuming."""
-        default_tokens = settings.GUEST_QUOTA_DEFAULT if is_guest else settings.USER_QUOTA_DEFAULT
+        row = await self.db.get_or_create_rate_limit(
+            user_id, default_tokens=self._capacity(is_guest)
+        )
+        return row.tokens_remaining
 
-        if self.db and self.db.pool:
-            try:
-                row = await self.db.get_or_create_rate_limit(user_id, default_tokens=default_tokens)
-                return row.tokens_remaining
-            except Exception as e:  # noqa: BLE001
-                logger.warning(
-                    f"Database rate limit query failed, falling back to memory bucket: {e}"
-                )
-
-        bucket = self._get_memory_bucket(user_id, default_tokens)
-        return bucket.tokens_remaining
-
-    async def refund(
-        self,
-        user_id: UUID,
-        is_guest: bool = True,
-    ) -> None:
-        """Refund 1 token (capped at capacity) after a failed run."""
-        if self.db and self.db.pool:
-            try:
-                await self.db.refund_rate_limit(user_id)
-                return
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"Database rate limit refund failed: {e}")
-
-        key = str(user_id)
-        bucket = self._memory_buckets.get(key)
-        if bucket:
-            bucket.tokens_remaining = min(bucket.bucket_capacity, bucket.tokens_remaining + 1)
+    async def refund(self, user_id: UUID, is_guest: bool = True) -> None:
+        """Refund 1 token (capped at capacity) after a failed run. Best effort."""
+        try:
+            await self.db.refund_rate_limit(user_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Database rate limit refund failed: {e}")
 
     def reset_for_test(self) -> None:
-        """Clear memory cache for test isolation."""
-        self._memory_buckets.clear()
+        """Clear in-process counters for test isolation."""
         guest_signup_limiter.reset_for_test()
         guest_ip_llm_limiter.reset_for_test()
 

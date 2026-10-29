@@ -66,3 +66,30 @@ async def test_cors_headers():
         response = await client.options("/health", headers=headers)
         assert response.status_code == 200
         assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+
+@pytest.mark.asyncio
+async def test_health_hides_fingerprint_and_docs_in_production(monkeypatch):
+    """SEC-11: production health omits DB version/extensions and API docs are not mounted."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        data = (await client.get("/api/health")).json()
+    assert "engine" not in data["database"] and "extensions" not in data["database"]
+    assert "environment" not in data and "version" not in data
+
+
+@pytest.mark.asyncio
+async def test_database_outage_returns_503(monkeypatch):
+    """LOG-19: a missing pool becomes a 503, not an unhandled 500."""
+    from app.core.auth import create_access_token
+
+    monkeypatch.setattr(neon_db, "pool", None)
+    token, _ = create_access_token({"sub": "00000000-0000-0000-0000-000000000001"})
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert res.status_code == 503
+    assert res.headers["retry-after"] == "30"

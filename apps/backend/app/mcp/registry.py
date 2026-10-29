@@ -9,9 +9,11 @@ import time
 from typing import Any
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
 from app.config import KNOWLEDGE_BASE_DIR
 from app.core.audit_log import default_audit_logger
-from app.core.security_guardrails import compute_mcp_tool_hash, scan_mcp_tool_metadata
+from app.core.security_guardrails import sanitize_retrieved_chunks, wrap_untrusted_context
 from app.mcp.protocol import (
     ResourceDefinition,
     ToolCallContent,
@@ -24,30 +26,47 @@ from app.rag.hybrid_search import default_hybrid_search_engine
 logger = logging.getLogger("nexusagent.mcp.registry")
 
 
-# Tool Definitions
-TOOLS: list[ToolDefinition] = [
-    ToolDefinition(
-        name="hybrid_rag_search",
-        description="Performs dense pgvector and sparse BM25 hybrid search across RFC documents and AI model benchmarks fused via Reciprocal Rank Fusion (RRF).",
+class HybridRagSearchArgs(BaseModel):
+    """Typed arguments for ``hybrid_rag_search``; also the source of the advertised JSON schema."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(
+        min_length=1,
+        max_length=1000,
+        description="Natural language query to search across architectural RFCs and benchmarks.",
+    )
+    limit: int = Field(
+        default=5, ge=1, le=20, description="Maximum number of chunks to return (1 to 20)."
+    )
+
+
+class InvalidToolArguments(ValueError):
+    """Raised when tool arguments do not satisfy the tool's schema."""
+
+
+ARGUMENT_MODELS: dict[str, type[BaseModel]] = {"hybrid_rag_search": HybridRagSearchArgs}
+
+
+def _tool_definition(name: str, description: str, model: type[BaseModel]) -> ToolDefinition:
+    schema = model.model_json_schema()
+    return ToolDefinition(
+        name=name,
+        description=description,
         inputSchema=ToolInputSchema(
-            properties={
-                "query": {
-                    "type": "string",
-                    "description": "Natural language query to search across architectural RFCs and benchmarks.",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of chunks to return (1 to 20). Default is 5.",
-                    "default": 5,
-                },
-            },
-            required=["query"],
+            properties=schema["properties"], required=schema.get("required", [])
         ),
+    )
+
+
+TOOLS: list[ToolDefinition] = [
+    _tool_definition(
+        "hybrid_rag_search",
+        "Performs dense pgvector and sparse BM25 hybrid search across RFC documents and AI model "
+        "benchmarks fused via Reciprocal Rank Fusion (RRF).",
+        HybridRagSearchArgs,
     ),
 ]
-
-# Pinned cryptographic schema hashes for zero-trust MCP tool integrity (detects rug pull modifications)
-PINNED_TOOL_HASHES: dict[str, str] = {tool.name: compute_mcp_tool_hash(tool) for tool in TOOLS}
 
 
 # Resource Definitions
@@ -68,41 +87,28 @@ STATIC_RESOURCES: list[ResourceDefinition] = [
 
 
 class McpRegistry:
-    """Manages MCP tool execution, resource listing, and protocol dispatch with zero-trust validation."""
+    """Manages MCP tool execution and resource listing."""
 
-    @classmethod
-    def validate_tool_integrity(cls, tool: ToolDefinition) -> tuple[bool, str | None]:
-        """
-        Verify tool against Invariant Labs MCP tool poisoning attacks & rug pull hash drift.
-        Returns (is_valid, failure_reason).
-        """
-        is_poisoned, reason = scan_mcp_tool_metadata(tool)
-        if is_poisoned:
-            return False, reason
+    @staticmethod
+    def get_tools() -> list[dict[str, Any]]:
+        return [tool.model_dump() for tool in TOOLS]
 
-        expected_hash = PINNED_TOOL_HASHES.get(tool.name)
-        if expected_hash:
-            current_hash = compute_mcp_tool_hash(tool)
-            if current_hash != expected_hash:
-                return False, (
-                    f"Tool integrity violation: Schema hash mismatch for '{tool.name}' "
-                    f"(expected {expected_hash[:12]}..., got {current_hash[:12]}...). "
-                    "Possible unauthorized runtime tampering (rug pull attack)."
-                )
-        return True, None
-
-    @classmethod
-    def get_tools(cls) -> list[dict[str, Any]]:
-        safe_tools = []
-        for tool in TOOLS:
-            is_valid, reason = cls.validate_tool_integrity(tool)
-            if not is_valid:
-                logger.error("Skipping untrusted/poisoned MCP tool '%s': %s", tool.name, reason)
-                continue
-            dumped = tool.model_dump()
-            dumped["schemaHash"] = compute_mcp_tool_hash(tool)
-            safe_tools.append(dumped)
-        return safe_tools
+    @staticmethod
+    def validate_arguments(name: str, arguments: Any) -> BaseModel | None:
+        """Validate arguments against the tool's schema. Unknown tools return None."""
+        model = ARGUMENT_MODELS.get(name)
+        if model is None:
+            return None
+        if not isinstance(arguments, dict):
+            raise InvalidToolArguments("'arguments' must be an object.")
+        try:
+            return model.model_validate(arguments)
+        except ValidationError as exc:
+            problems = "; ".join(
+                f"{'.'.join(str(p) for p in err['loc']) or 'arguments'}: {err['msg']}"
+                for err in exc.errors()
+            )
+            raise InvalidToolArguments(problems) from exc
 
     @staticmethod
     def get_resources() -> list[dict[str, Any]]:
@@ -138,10 +144,10 @@ class McpRegistry:
     async def call_tool(
         cls, name: str, arguments: dict[str, Any], user_id: UUID | None = None
     ) -> ToolCallResult:
-        """Route and execute tool invocation with pre-execution poisoning & integrity gates."""
+        """Validate arguments, run the tool, and write an audit row."""
         start_time = time.perf_counter()
-        target_tool = next((t for t in TOOLS if t.name == name), None)
-        if not target_tool:
+        parsed = cls.validate_arguments(name, arguments)
+        if parsed is None:
             result = ToolCallResult(
                 content=[
                     ToolCallContent(
@@ -150,58 +156,35 @@ class McpRegistry:
                 ],
                 isError=True,
             )
+            audited_args: dict[str, Any] = {}
         else:
-            is_valid, reason = cls.validate_tool_integrity(target_tool)
-            if not is_valid:
-                logger.critical(
-                    "Execution blocked for poisoned/tampered MCP tool '%s': %s", name, reason
-                )
-                result = ToolCallResult(
-                    content=[ToolCallContent(text=f"Security Violation: {reason}")],
-                    isError=True,
-                )
-            elif name == "hybrid_rag_search":
-                result = await cls._exec_hybrid_search(arguments)
-            else:
-                result = ToolCallResult(
-                    content=[ToolCallContent(text=f"Unknown tool '{name}'.")],
-                    isError=True,
-                )
+            result = await cls._exec_hybrid_search(parsed)  # type: ignore[arg-type]
+            audited_args = parsed.model_dump()
 
         duration_ms = max(int((time.perf_counter() - start_time) * 1000), 0)
-        try:
-            await default_audit_logger.log_tool_audit(
-                tool_name=name,
-                input_args=arguments,
-                output_summary={"isError": result.isError},
-                duration_ms=duration_ms,
-                user_id=user_id,
-                mcp_server="nexusagent-mcp",
-            )
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Failed to log MCP tool audit: %s", e)
-
+        await default_audit_logger.log_tool_audit(
+            tool_name=name,
+            input_args=audited_args,
+            output_summary={"isError": result.isError},
+            duration_ms=duration_ms,
+            user_id=user_id,
+            mcp_server="nexusagent-mcp",
+        )
         return result
 
     @classmethod
-    async def _exec_hybrid_search(cls, arguments: dict[str, Any]) -> ToolCallResult:
-        query = str(arguments.get("query", "")).strip()
-        if not query:
-            return ToolCallResult(
-                content=[ToolCallContent(text="Missing required argument 'query'.")],
-                isError=True,
-            )
-        limit = min(max(int(arguments.get("limit", 5)), 1), 20)
-
+    async def _exec_hybrid_search(cls, args: HybridRagSearchArgs) -> ToolCallResult:
+        query = args.query.strip()
         try:
-            results = await default_hybrid_search_engine.search(query=query, limit=limit)
+            results = await default_hybrid_search_engine.search(query=query, limit=args.limit)
         except RuntimeError:
             return ToolCallResult(
                 content=[ToolCallContent(text="Knowledge base unavailable.")],
                 isError=True,
             )
 
-        if not results:
+        safe_results, _, _ = sanitize_retrieved_chunks(results)
+        if not safe_results:
             return ToolCallResult(
                 content=[
                     ToolCallContent(
@@ -212,15 +195,21 @@ class McpRegistry:
             )
 
         formatted_chunks = []
-        for idx, r in enumerate(results, start=1):
+        for idx, r in enumerate(safe_results, start=1):
             line_info = (
                 f" (Lines {r.start_line}-{r.end_line})" if r.start_line and r.end_line else ""
             )
             header_info = f" § {' > '.join(r.header_path)}" if r.header_path else ""
+            wrapped = wrap_untrusted_context(
+                r.content,
+                filename=r.filename,
+                start_line=r.start_line,
+                end_line=r.end_line,
+            )
             formatted_chunks.append(
                 f"### Result {idx}: [{r.filename}{line_info}]{header_info}\n"
                 f"Relevance Score (RRF): {r.similarity_score:.4f}\n\n"
-                f"{r.content.strip()}\n"
+                f"{wrapped}\n"
             )
 
         return ToolCallResult(

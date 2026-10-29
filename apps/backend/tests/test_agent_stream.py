@@ -54,7 +54,9 @@ async def test_agent_sse_streaming_endpoint():
 
 
 @pytest.mark.asyncio
-async def test_stream_inaccessible_document_does_not_consume_quota_log_09(monkeypatch):
+async def test_stream_inaccessible_document_does_not_consume_quota_log_09(
+    monkeypatch, fake_rate_db
+):
     """Regression (LOG-09): invalid or inaccessible documentId returns 404 without consuming quota."""
     from datetime import UTC, datetime
     from unittest.mock import AsyncMock

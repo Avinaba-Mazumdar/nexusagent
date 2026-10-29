@@ -217,16 +217,23 @@ async def test_mcp_read_unknown_resource_returns_invalid_params():
         app.dependency_overrides.pop(get_current_user, None)
 
 
-@pytest.mark.db
 @pytest.mark.asyncio
 async def test_mcp_sse_handshake_endpoint():
-    """Verify GET /api/mcp/sse emits the standard endpoint event."""
-    async with _auth_client() as client:
-        res = await client.get("/api/mcp/sse?once=true")
-        assert res.status_code == 200
-        assert "text/event-stream" in res.headers.get("content-type", "")
-        assert "event: endpoint" in res.text
-        assert "/api/mcp/messages?sessionId=" in res.text
+    """GET /api/mcp/sse emits the endpoint event first and frees its session on close."""
+    from app.routes.mcp import mcp_sse_endpoint
+
+    class _Request:
+        async def is_disconnected(self) -> bool:
+            return True
+
+    SESSIONS.clear()
+    response = await mcp_sse_endpoint(_Request(), current_user=User(id=uuid4(), name="g"))
+    assert "text/event-stream" in response.media_type
+    first = await response.body_iterator.__anext__()
+    assert "event: endpoint" in first
+    assert "/api/mcp/messages?sessionId=" in first
+    await response.body_iterator.aclose()
+    assert not SESSIONS
 
 
 @pytest.mark.asyncio
@@ -280,7 +287,7 @@ async def test_mcp_session_owner_isolation():
 
 
 @pytest.mark.asyncio
-async def test_mcp_tools_call_guest_quota_enforcement(monkeypatch):
+async def test_mcp_tools_call_guest_quota_enforcement(monkeypatch, fake_rate_db):
     """Verify guest tools/call is rate-limited to 5 calls per hour (SEC-01)."""
     default_rate_limiter.reset_for_test()
     now = datetime.now(UTC)
@@ -343,3 +350,11 @@ async def test_mcp_tools_call_guest_quota_enforcement(monkeypatch):
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         default_rate_limiter.reset_for_test()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("payload", [[1, 2], "ping", 7, None])
+async def test_stdio_rejects_non_object_payloads(payload):
+    """LOG-10: batches and scalars get INVALID_REQUEST instead of crashing the read loop."""
+    res = await handle_jsonrpc_request(payload)
+    assert res["error"]["code"] == -32600

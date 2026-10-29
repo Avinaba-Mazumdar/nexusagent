@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 
 from app.config import settings
 from app.core.audit_log import default_audit_logger
-from app.core.auth import get_client_ip, get_current_user
+from app.core.auth import get_client_ip, get_current_user, get_current_user_optional
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import (
     Document,
@@ -81,13 +81,13 @@ def chunk_to_wire(c: DocumentChunk) -> DocumentChunkWire:
 
 @router.get("", response_model=dict[str, list[DocumentMetadataWire]])
 async def list_documents(
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_current_user_optional),
     db: NeonDatabase = Depends(get_db),
 ):
     """
-    List all documents accessible to the current user (seeded documents + user uploads).
+    List documents visible to the caller: seeded documents, plus the user's uploads if signed in.
     """
-    docs = await db.list_all_documents(user_id=current_user.id)
+    docs = await db.list_all_documents(user_id=current_user.id if current_user else None)
     return {"documents": [document_to_wire(d) for d in docs]}
 
 
