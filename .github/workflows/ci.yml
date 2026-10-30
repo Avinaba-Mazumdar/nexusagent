@@ -5,6 +5,13 @@ on:
         branches: [master]
     pull_request:
 
+permissions:
+    contents: read
+
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
 jobs:
     backend:
         runs-on: ubuntu-latest
@@ -12,8 +19,11 @@ jobs:
             run:
                 working-directory: apps/backend
         steps:
-            - uses: actions/checkout@v4
-            - uses: astral-sh/setup-uv@v5
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+              with:
+                  enable-cache: true
+                  cache-dependency-glob: apps/backend/uv.lock
             - run: uv sync --frozen
             - run: uv run ruff check .
             - run: uv run ruff format --check .
@@ -26,10 +36,13 @@ jobs:
         # packages/contracts/src/generated.ts is generated from the API's OpenAPI schema; fail on drift.
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            - uses: astral-sh/setup-uv@v5
-            - uses: pnpm/action-setup@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+              with:
+                  enable-cache: true
+                  cache-dependency-glob: apps/backend/uv.lock
+            - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                   node-version: 24
                   cache: pnpm
@@ -41,9 +54,9 @@ jobs:
     frontend:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            - uses: pnpm/action-setup@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                   node-version: 24
                   cache: pnpm
@@ -56,3 +69,20 @@ jobs:
             - run: pnpm --filter @nexusagent/frontend build
               env:
                   NEXT_PUBLIC_API_URL: https://api.example.com
+
+    audit:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+            - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: 24
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm audit --prod --audit-level=high
+            - run: uv sync --frozen
+              working-directory: apps/backend
+            - run: uv run --with pip-audit pip-audit --skip-editable
+              working-directory: apps/backend
