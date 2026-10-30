@@ -136,3 +136,29 @@ async def test_audit_logs_endpoint_reads_db_rows():
         data = res.json()
         assert data["count"] >= 1
         assert any(entry["tool_name"] == "hybrid_rag_search" for entry in data["logs"])
+
+
+@pytest.mark.asyncio
+async def test_api_responses_carry_hardening_headers_r2_sec_09():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        health = await client.get("/api/health")
+        guest = await client.post("/api/auth/guest", json={})
+    assert health.headers["x-content-type-options"] == "nosniff"
+    assert health.headers["referrer-policy"] == "no-referrer"
+    assert "no-store" not in health.headers.get("cache-control", "")
+    assert guest.headers["cache-control"] == "no-store"
+
+
+def test_localhost_origins_are_only_allowed_in_development_r2_sec_09():
+    from app.config import Settings
+
+    prod = Settings(
+        ENVIRONMENT="production",
+        JWT_SECRET_KEY="x" * 40,
+        GOOGLE_CLIENT_ID="client",
+    )
+    assert prod.CORS_ORIGINS == ["https://nexusagent.avinaba.com"]
+    dev = Settings(ENVIRONMENT="development")
+    assert "http://localhost:3000" in dev.CORS_ORIGINS
+    assert "https://nexusagent.avinaba.com" in dev.CORS_ORIGINS

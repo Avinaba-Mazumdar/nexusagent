@@ -29,11 +29,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "gemini-embedding-001"
 
     PORT: int = 8000
-    CORS_ORIGINS: str | list[str] = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://nexusagent.avinaba.com",
-    ]
+    CORS_ORIGINS: str | list[str] = ["https://nexusagent.avinaba.com"]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -86,6 +82,11 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_production_secrets(self) -> Settings:
         if self.is_dev:
+            local_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+            self.CORS_ORIGINS = [
+                *(o for o in local_origins if o not in self.CORS_ORIGINS),
+                *self.CORS_ORIGINS,
+            ]
             if not self.JWT_SECRET_KEY:
                 self.JWT_SECRET_KEY = "nexusagent-local-dev-only-secret-not-for-production"
             return self

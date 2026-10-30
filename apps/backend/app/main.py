@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.body_limit import BodySizeLimitMiddleware
+from app.core.security_headers import SecurityHeadersMiddleware
 from app.db.migrations import apply_migrations
 from app.db.neon import DatabaseUnavailable, neon_db
 from app.rag.embeddings import default_embedding_service
@@ -78,6 +79,8 @@ app.add_middleware(
     upload_limit=settings.MAX_UPLOAD_REQUEST_BYTES,
     default_limit=settings.MAX_JSON_REQUEST_BYTES,
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Hardened CORS configuration: explicit origins from settings, restrictive methods and headers
 app.add_middleware(
