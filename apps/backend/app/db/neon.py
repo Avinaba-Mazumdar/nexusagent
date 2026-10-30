@@ -36,6 +36,8 @@ class NeonDatabase:
     def __init__(self, dsn: str | None = None):
         self.dsn = dsn or settings.NEON_DATABASE_URL
         self.pool: asyncpg.Pool | None = None
+        # pgvector >= 0.8 can keep scanning the HNSW index until enough rows pass the WHERE filter.
+        self.hnsw_iterative_scan = False
 
     def get_pool(self) -> asyncpg.Pool:
         """Return the active connection pool or raise an error if not connected."""
@@ -62,11 +64,23 @@ class NeonDatabase:
                 init=init_connection,
             )
             logger.info("Successfully connected to Neon PostgreSQL 18 connection pool.")
+            await self._detect_pgvector_features()
             return True
         except (asyncpg.PostgresError, OSError, ConnectionError) as e:
             logger.error(f"Failed to connect to Neon PostgreSQL: {e}")
             self.pool = None
             return False
+
+    async def _detect_pgvector_features(self) -> None:
+        try:
+            version = await self.get_pool().fetchval(
+                "SELECT extversion FROM pg_extension WHERE extname = 'vector';"
+            )
+            parts = tuple(int(p) for p in str(version).split(".")[:2])
+            self.hnsw_iterative_scan = parts >= (0, 8)
+        except (asyncpg.PostgresError, ValueError, TypeError) as e:
+            logger.warning(f"Could not detect the pgvector version ({e}); using plain HNSW scans.")
+            self.hnsw_iterative_scan = False
 
     async def disconnect(self) -> None:
         """Close connection pool."""
@@ -500,7 +514,13 @@ class NeonDatabase:
             ORDER BY c.embedding <=> $1::vector ASC
             LIMIT {limit_param};
         """
-        async with pool.acquire() as conn:
+        async with pool.acquire() as conn, conn.transaction():
+            # The WHERE filter runs after the HNSW scan, so a small ef_search can return too few rows.
+            if self.hnsw_iterative_scan:
+                await conn.execute("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
+                await conn.execute("SET LOCAL hnsw.max_scan_tuples = 20000")
+            else:
+                await conn.execute("SET LOCAL hnsw.ef_search = 200")
             rows = await conn.fetch(query, *params)
             return [dict(r) for r in rows]
 

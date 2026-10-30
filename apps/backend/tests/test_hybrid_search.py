@@ -418,3 +418,69 @@ async def test_embedding_gives_up_after_retries_with_unavailable(monkeypatch):
     finally:
         await service.aclose()
     assert len(calls) == 3
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_dense_search_finds_user_chunks_behind_many_seeded_chunks_r2_log_03():
+    """The HNSW scan must keep going until the user's own chunks pass the WHERE filter."""
+    import random
+    from uuid import uuid4
+
+    from app.db.models import Document, DocumentChunk, User
+    from app.db.neon import neon_db
+
+    rng = random.Random(7)
+    query_vec = [rng.random() for _ in range(EMBEDDING_DIMENSION)]
+
+    def near(scale: float) -> list[float]:
+        return [v + rng.random() * scale for v in query_vec]
+
+    user = await neon_db.create_user(
+        User(id=uuid4(), name="Dense", is_guest=True, device_id=uuid4().hex)
+    )
+    seeded_doc = Document(
+        id=uuid4(),
+        user_id=None,
+        filename="seed.md",
+        mime_type="text/markdown",
+        sha256_hash=uuid4().hex,
+        total_chunks=300,
+        is_seeded=True,
+    )
+    user_doc = Document(
+        id=uuid4(),
+        user_id=user.id,
+        filename="mine.md",
+        mime_type="text/markdown",
+        sha256_hash=uuid4().hex,
+        total_chunks=3,
+        is_seeded=False,
+    )
+    # 300 seeded chunks closer to the query than the user's 3 chunks.
+    seeded_chunks = [
+        DocumentChunk(
+            document_id=seeded_doc.id, chunk_index=i, content=f"seed {i}", embedding=near(0.01)
+        )
+        for i in range(300)
+    ]
+    user_chunks = [
+        DocumentChunk(
+            document_id=user_doc.id, chunk_index=i, content=f"mine {i}", embedding=near(0.5)
+        )
+        for i in range(3)
+    ]
+    try:
+        await neon_db.create_document_with_chunks(seeded_doc, seeded_chunks)
+        await neon_db.create_document_with_chunks(user_doc, user_chunks)
+        rows = await neon_db.search_chunks_dense(query_vec, user_id=user.id, limit=400)
+        assert {r["content"] for r in rows if r["content"].startswith("mine")} == {
+            "mine 0",
+            "mine 1",
+            "mine 2",
+        }
+    finally:
+        pool = neon_db.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM documents WHERE id = ANY($1::uuid[]);", [seeded_doc.id])
+            await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
