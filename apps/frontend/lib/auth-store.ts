@@ -8,6 +8,7 @@ const STORAGE_KEY_QUOTA = 'nexusagent_quota';
 const STORAGE_KEY_DEVICE_ID = 'nexusagent_device_id';
 const CHAT_CACHE_PREFIXES = ['nexusagent_chat_history_', 'nexusagent_msgs_'];
 /** Renew the token when less than this is left (tokens last 24 h), and re-check this often while the tab is open. */
+const SESSION_EXPIRED_NOTICE = 'Your session expired. Please sign in again.';
 const REFRESH_WHEN_LEFT_SECONDS = 12 * 60 * 60;
 const REFRESH_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
@@ -67,6 +68,8 @@ interface AuthState {
     isGuestLoading: boolean;
     isGoogleLoading: boolean;
     error: string | null;
+    /** Set when the server ended the session (expired or revoked); cleared by the next sign-in. */
+    sessionNotice: string | null;
     setIsGoogleLoading: (loading: boolean) => void;
     loginGuest: () => Promise<boolean>;
     loginGoogle: (credential: string) => Promise<boolean>;
@@ -114,7 +117,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     // Register 401 callback to smoothly reset session if server revokes or expires JWT token
     setOnUnauthorizedCallback(() => {
+        const hadSession = Boolean(get().token);
         clearSession();
+        if (hadSession) set({ sessionNotice: SESSION_EXPIRED_NOTICE });
     });
 
     const persistQuota = (quota: QuotaSnapshot) => {
@@ -142,7 +147,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
             quotaResetsAt: quota.resetsAt,
             isGuestLoading: false,
             isGoogleLoading: false,
-            error: null
+            error: null,
+            sessionNotice: null
         });
         startRefreshTimer();
     };
@@ -179,6 +185,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         isGuestLoading: false,
         isGoogleLoading: false,
         error: null,
+        sessionNotice: null,
 
         setIsGoogleLoading: (loading: boolean) => {
             set({ isGoogleLoading: loading });

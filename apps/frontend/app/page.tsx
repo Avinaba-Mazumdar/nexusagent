@@ -69,6 +69,7 @@ export default function Home() {
         isGoogleLoading,
         setIsGoogleLoading,
         error,
+        sessionNotice,
         loginGuest,
         loginGoogle,
         logout,
@@ -474,6 +475,8 @@ export default function Home() {
                     streamingMsgId={streamingMsgId}
                     isDarkTheme={isDarkTheme}
                     liveStatus={liveStatus}
+                    sessionNotice={sessionNotice}
+                    onSignIn={() => setDialogOpen(true)}
                     scrollContainerRef={scrollContainerRef}
                     onScroll={handleThreadScroll}
                     onNewChat={handleNewChat}

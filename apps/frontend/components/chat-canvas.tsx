@@ -22,6 +22,9 @@ export interface ChatCanvasProps {
     streamingMsgId: string | null;
     isDarkTheme: boolean;
     liveStatus: string;
+    /** Why the user was signed out, when the server ended their session. */
+    sessionNotice: string | null;
+    onSignIn: () => void;
     scrollContainerRef: React.RefObject<HTMLDivElement | null>;
     onScroll: () => void;
     onNewChat: () => void;
@@ -59,6 +62,8 @@ export function ChatCanvas({
     streamingMsgId,
     isDarkTheme,
     liveStatus,
+    sessionNotice,
+    onSignIn,
     scrollContainerRef,
     onScroll,
     onNewChat,
@@ -95,6 +100,18 @@ export function ChatCanvas({
             </div>
 
             <div ref={scrollContainerRef} onScroll={onScroll} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+                {sessionNotice && (
+                    <div
+                        role="status"
+                        className="p-4 rounded-xl border border-warning-border bg-warning-bg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm"
+                    >
+                        <p className="font-bold text-foreground">{sessionNotice}</p>
+                        <Button size="sm" variant="outline" onClick={onSignIn} className="text-xs font-semibold rounded-xl h-8 shrink-0">
+                            Sign in again
+                        </Button>
+                    </div>
+                )}
+
                 {/* Quota exhausted: say when it comes back */}
                 {user && quotaRemaining <= 0 && (
                     <div
