@@ -35,7 +35,6 @@ from app.core.security_guardrails import (
     sanitize_retrieved_chunks,
     wrap_untrusted_context,
 )
-from app.db.neon import NeonDatabase, neon_db
 from app.rag.hybrid_search import HybridSearchEngine, default_hybrid_search_engine
 
 logger = logging.getLogger("nexusagent.agent.graph")
@@ -555,12 +554,7 @@ def route_after_planner(state: AgentState) -> str:
 class AgentGraph:
     """LangGraph ``StateGraph``: planner -> retriever -> grounding -> synthesizer."""
 
-    def __init__(
-        self,
-        db: NeonDatabase | None = None,
-        search_engine: HybridSearchEngine | None = None,
-    ):
-        self.db = db or neon_db
+    def __init__(self, search_engine: HybridSearchEngine | None = None):
         self.search_engine = search_engine or default_hybrid_search_engine
         self.graph = self._build_graph()
 

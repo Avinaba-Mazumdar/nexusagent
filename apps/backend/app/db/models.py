@@ -29,7 +29,6 @@ class RateLimitBucket(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     user_id: UUID
-    client_ip: str | None = None
     tokens_remaining: int = 5
     bucket_capacity: int = 5
     last_replenished_at: datetime = Field(default_factory=utc_now)
@@ -66,8 +65,6 @@ class DocumentChunk(BaseModel):
             return None
         if hasattr(v, "tolist"):
             return [float(x) for x in v.tolist()]
-        if hasattr(v, "to_numpy"):
-            return [float(x) for x in v.to_numpy().tolist()]
         try:
             return [float(x) for x in v]
         except TypeError, ValueError:

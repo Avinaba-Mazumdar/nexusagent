@@ -87,8 +87,6 @@ def session_claims(user: User, auth_time: int | None = None) -> dict:
     """Claims identifying a session: who, which token generation, and when the login happened."""
     return {
         "sub": str(user.id),
-        "role": "guest" if user.is_guest else "user",
-        "is_guest": user.is_guest,
         "tv": user.token_version,
         "auth_time": auth_time if auth_time is not None else int(datetime.now(UTC).timestamp()),
     }
@@ -108,7 +106,7 @@ def user_to_session(user: User) -> UserSession:
 
 
 def hash_device_id(device_id: str) -> str:
-    """Compute constant-time SHA-256 hash of device_id to avoid storing or exposing raw credentials."""
+    """SHA-256 hash of device_id, so the raw credential is never stored or exposed."""
     return hashlib.sha256(device_id.encode("utf-8")).hexdigest()
 
 

@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0-alpha"
     ENVIRONMENT: str = "production"
     DEBUG: bool = False
-    KNOWLEDGE_BASE_DIR: Path = KNOWLEDGE_BASE_DIR
     # Free-tier text models, best first (ai.google.dev/gemini-api/docs/pricing, 2026-10-28). Each has
     # its own free quota; ModelRouter moves to the next one when a model returns 429.
     GEMINI_MODELS: list[str] = [
