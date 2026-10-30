@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPolicyPage() {
-    const lastUpdated = 'October 29, 2026';
+    const lastUpdated = 'October 30, 2026';
 
     return (
         <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -54,8 +54,8 @@ export default function PrivacyPolicyPage() {
                     <h1 className="text-3xl sm:text-4xl font-heading font-extrabold tracking-tight text-foreground">Privacy Policy</h1>
                     <p className="text-sm sm:text-base text-muted-foreground leading-relaxed max-w-3xl">
                         This Privacy Policy governs the collection, processing, and protection of data on{' '}
-                        <strong className="text-foreground font-semibold">{SITE_HOST}</strong>, an open-source autonomous systems analyst and
-                        architecture intelligence platform. We keep the data we hold to a minimum and describe it below.
+                        <strong className="text-foreground font-semibold">{SITE_HOST}</strong>, an open-source autonomous systems analyst and architecture
+                        intelligence platform. We keep the data we hold to a minimum and describe it below.
                     </p>
                 </div>
 
@@ -68,8 +68,8 @@ export default function PrivacyPolicyPage() {
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">Host-Only Scoping</h3>
                             <p className="text-xs text-muted-foreground leading-snug">
-                                Session tokens remain strictly partitioned to{' '}
-                                <code className="text-primary font-mono text-xs">{SITE_HOST}</code> with no cross-subdomain sharing.
+                                Session tokens remain strictly partitioned to <code className="text-primary font-mono text-xs">{SITE_HOST}</code> with no
+                                cross-subdomain sharing.
                             </p>
                         </CardContent>
                     </Card>
@@ -81,7 +81,8 @@ export default function PrivacyPolicyPage() {
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">Short Retention</h3>
                             <p className="text-xs text-muted-foreground leading-snug">
-                                Inactive guest accounts and their documents are deleted after 24 hours. Tool audit records are deleted after {AUDIT_RETENTION_DAYS} days.
+                                Inactive guest accounts and their documents are deleted after 24 hours. Tool audit records are deleted after{' '}
+                                {AUDIT_RETENTION_DAYS} days.
                             </p>
                         </CardContent>
                     </Card>
@@ -115,8 +116,9 @@ export default function PrivacyPolicyPage() {
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                                 <div>
-                                    <strong className="text-foreground">Ephemeral Guest Pass Data:</strong> When launching an instant guest session, we
-                                    create a random account ID. We store your IP address and a hash of a device identifier (not the identifier itself) to enforce rate limits and prevent abuse. No name, email, or physical identifier is collected.
+                                    <strong className="text-foreground">Ephemeral Guest Pass Data:</strong> When launching an instant guest session, we create a
+                                    random account ID. We store your IP address and a hash of a device identifier (not the identifier itself) to enforce rate
+                                    limits and prevent abuse. No name, email, or physical identifier is collected.
                                 </div>
                             </li>
                             <li className="flex items-start gap-2">
@@ -131,8 +133,9 @@ export default function PrivacyPolicyPage() {
                                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                                 <div>
                                     <strong className="text-foreground">System Queries &amp; Document Ingestion:</strong> Prompts submitted to the Synthesis
-                                    Canvas and Markdown documents uploaded to the Document Vault are parsed and stored with vector embeddings in Neon PostgreSQL. Your uploaded documents are only visible to your account (enforced by access
-                                    checks in the application). The text of your questions is also recorded in a tool audit log.
+                                    Canvas and Markdown documents uploaded to the Document Vault are parsed and stored with vector embeddings in Neon
+                                    PostgreSQL. Your uploaded documents are only visible to your account (enforced by access checks in the application). The
+                                    text of your questions is also recorded in a tool audit log.
                                 </div>
                             </li>
                         </ul>
@@ -145,9 +148,8 @@ export default function PrivacyPolicyPage() {
                             2. Subdomain Architecture &amp; Security Boundary
                         </h2>
                         <p>
-                            NexusAgent is deployed exclusively at the dedicated subdomain{' '}
-                            <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>. To safeguard your session against cross-origin or
-                            cross-subdomain attacks:
+                            NexusAgent is deployed exclusively at the dedicated subdomain <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>
+                            . To safeguard your session against cross-origin or cross-subdomain attacks:
                         </p>
                         <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
                             <p className="font-semibold text-foreground text-xs">Host-Only Token Scoping:</p>
@@ -165,12 +167,24 @@ export default function PrivacyPolicyPage() {
                             <Server className="h-4 w-4 text-primary" />
                             3. Infrastructure &amp; Third-Party Processors
                         </h2>
-                        <p>We employ vetted enterprise-tier cloud infrastructure to host and compute autonomous analysis:</p>
+                        <p>These third parties host the service and process your data on our behalf:</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                             <div className="p-3 rounded-xl border border-border bg-card space-y-1">
                                 <span className="font-bold text-foreground text-xs">Google AI / Google Cloud</span>
                                 <p className="text-xs text-muted-foreground">
-                                    Gemini model execution and embeddings. Your questions, excerpts of retrieved documents and the text of documents you upload are sent to the Gemini API. Depending on the API plan this deployment uses, Google may retain that data and use it to improve its products; see Google&apos;s Gemini API terms and avoid uploading confidential material.
+                                    Gemini model execution and embeddings. Your questions, excerpts of retrieved documents and the text of documents you upload
+                                    are sent to the Gemini API. This deployment uses the <strong className="text-foreground">Gemini API free tier</strong>.
+                                    Under Google&apos;s free-tier terms, content sent to the API is used to improve Google&apos;s products. Do not ask about or
+                                    upload confidential or personal information. See{' '}
+                                    <a
+                                        href="https://ai.google.dev/gemini-api/terms"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="underline hover:text-primary"
+                                    >
+                                        Google&apos;s Gemini API terms
+                                    </a>
+                                    .
                                 </p>
                             </div>
                             <div className="p-3 rounded-xl border border-border bg-card space-y-1">
@@ -201,17 +215,18 @@ export default function PrivacyPolicyPage() {
                         <p>We adhere to strict data minimization principles:</p>
                         <ul className="space-y-1.5 list-disc pl-5">
                             <li>
-                                <strong className="text-foreground">Ephemeral Guest Records:</strong> Inactive guest sessions are deleted after 24 hours by a scheduled job (
-                                <code className="font-mono text-xs">prune_guests.py</code>), removing their quota records and any documents they uploaded.
+                                <strong className="text-foreground">Ephemeral Guest Records:</strong> Inactive guest sessions are deleted after 24 hours by a
+                                scheduled job (<code className="font-mono text-xs">prune_guests.py</code>), removing their quota records and any documents they
+                                uploaded.
                             </li>
                             <li>
                                 <strong className="text-foreground">Authenticated User Workspaces:</strong> Retained until the user requests account deletion or
                                 deletes individual chats or uploaded documents in the app.
                             </li>
                             <li>
-                                <strong className="text-foreground">Tool Audit Records:</strong> Each search, upload and tool call is logged with its input (including your
-                                query text) for security review, and deleted after {AUDIT_RETENTION_DAYS} days. The run log in the observability panel is held in your
-                                browser only.
+                                <strong className="text-foreground">Tool Audit Records:</strong> Each search, upload and tool call is logged with its input
+                                (including your query text) for security review, and deleted after {AUDIT_RETENTION_DAYS} days. The run log in the observability
+                                panel is held in your browser only.
                             </li>
                         </ul>
                     </section>
@@ -250,8 +265,8 @@ export default function PrivacyPolicyPage() {
                         <h2 className="text-base font-heading font-bold text-foreground">6. Modifications to This Policy</h2>
                         <p>
                             We may update this Privacy Policy periodically to reflect architectural updates or security hardening on{' '}
-                            <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>. The revision date at the top of this document
-                            will denote the active version.
+                            <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>. The revision date at the top of this document will denote
+                            the active version.
                         </p>
                     </section>
                 </div>

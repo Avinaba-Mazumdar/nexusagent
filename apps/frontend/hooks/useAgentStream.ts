@@ -222,6 +222,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     if (data.plan !== undefined) setPlan(data.plan);
                                     if (data.citations !== undefined) setCitations(data.citations);
                                     if (data.grounding) setGrounding(data.grounding);
+                                    if (data.model) emitLog('INFERENCE', `Answered by ${data.model}`);
                                     const totalLatencyMs = Math.round(performance.now() - startTime);
                                     options?.onMetricUpdate?.((prev) => ({ ...prev, totalLatencyMs }));
                                     emitLog('STREAM', `Run finished in ${totalLatencyMs}ms`);

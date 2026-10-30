@@ -1,153 +1,69 @@
-# Artificial Analysis Independent Model Benchmark & Quality Index
+# Artificial Analysis LLM Leaderboard: Intelligence, Speed & Cost
 
-Source: artificialanalysis.ai/leaderboard
-Category: Quality Index, Speed/Cost Frontier, Output Throughput, TTFT Latency
-Last Updated: September 2026
-Provenance: curated snapshot kept in this repository. Figures are not scraped live and have not been independently re-verified against the named source; the retrieval date was not recorded. Treat them as illustrative until each table is checked against its source.
-Methodology: Independent third-party evaluation across standardized prompt suites measuring output quality, operational cost, and empirical response latency.
+Source URL: https://artificialanalysis.ai/leaderboards/models
+Retrieved: 2026-10-30
+Category: Intelligence Index, cost per task, output speed, latency to first chunk
+Provenance: copied from the leaderboard table on the retrieval date (top 30 rows by Artificial Analysis Intelligence Index, in the page's order). The page shows no last-updated date. Values are as published; nothing was estimated. "n/a" means the page showed no value.
+Methodology (per the page): Artificial Analysis compares over 250 AI models. The Intelligence Index is the site's composite score; the methodology is described at https://artificialanalysis.ai/faq. Each model appears once per reasoning-effort setting, and the effort is part of the row name.
 
 > [!NOTE]
-> Values marked with `-` indicate that the model is not tracked on Artificial Analysis's public API leaderboard or that the reasoning effort tier is not evaluated.
+> "Cost per Task" is the cost of running Artificial Analysis's evaluation tasks, not a price per 1M tokens. "Latency First Chunk" includes any thinking time before the first visible output, which is why high-effort reasoning settings show latencies of minutes.
 
 ---
 
-## 1. Executive Quality & Speed Matrix (All 26 Models at High / Standard Effort)
+## 1. Top 30 Models by Artificial Analysis Intelligence Index
 
-| Model Family  | Model Name          | Model Identifier               | Quality Index (0-100) | Blended Cost ($/1M) | Output Speed (tok/s) | Median TTFT (ms) | Value Score  |
-| :------------ | :------------------ | :----------------------------- | :-------------------- | :------------------ | :------------------- | :--------------- | :----------- |
-| **OpenAI**    | ChatGPT 6 Astra     | `openai/chatgpt-6-astra`       | 96.8                  | $13.00              | 88 tok/s             | 3,400ms          | 7.4 / 10     |
-| **OpenAI**    | ChatGPT 5.6 Sol     | `openai/chatgpt-5.6-sol`       | 93.8                  | $6.50               | 96 tok/s             | 2,600ms          | 8.4 / 10     |
-| **OpenAI**    | ChatGPT 5.6 Terra   | `openai/chatgpt-5.6-terra`     | 90.4                  | $2.60               | 115 tok/s            | 1,850ms          | 9.2 / 10     |
-| **OpenAI**    | ChatGPT 5.6 Luna    | `openai/chatgpt-5.6-luna`      | -                     | $0.81               | 145 tok/s            | 1,200ms          | -            |
-| **Anthropic** | Claude Opus 5       | `anthropic/claude-opus-5`      | 96.2                  | $16.25              | 78 tok/s             | 3,850ms          | 6.8 / 10     |
-| **Anthropic** | Claude Sonnet 5     | `anthropic/claude-sonnet-5`    | 94.6                  | $8.13               | 102 tok/s            | 2,350ms          | 8.2 / 10     |
-| **Anthropic** | Claude Fable 5.1    | `anthropic/claude-fable-5.1`   | 93.2                  | $3.90               | 120 tok/s            | 1,650ms          | 9.0 / 10     |
-| **Anthropic** | Claude Fable 5      | `anthropic/claude-fable-5`     | 91.8                  | $2.93               | 128 tok/s            | 1,500ms          | 9.2 / 10     |
-| **Google**    | Gemini 3.1 Pro      | `google/gemini-3.1-pro`        | 95.1                  | $4.88               | 95 tok/s             | 2,450ms          | 8.6 / 10     |
-| **Google**    | Gemini 3.8 Flash    | `google/gemini-3.8-flash`      | 91.0                  | $0.49               | 165 tok/s            | 1,100ms          | 9.8 / 10     |
-| **Google**    | Gemini 3.7 Flash    | `google/gemini-3.7-flash`      | 89.4                  | $0.33               | 175 tok/s            | 980ms            | 9.8 / 10     |
-| **Google**    | Gemini 3.6 Flash    | `google/gemini-3.6-flash`      | 86.5                  | $0.20               | 190 tok/s            | 820ms            | 9.8 / 10     |
-| **Google**    | Gemma 4             | `google/gemma-4`               | 84.8                  | $0.16               | 195 tok/s            | 760ms            | 9.8 / 10     |
-| **DeepSeek**  | DeepSeek V4.0 Pro   | `deepseek/deepseek-v4.0-pro`   | 95.4                  | $1.14               | 110 tok/s            | 1,980ms          | **9.9 / 10** |
-| **DeepSeek**  | DeepSeek V4.1 Flash | `deepseek/deepseek-v4.1-flash` | 91.2                  | $0.26               | 160 tok/s            | 1,150ms          | **9.9 / 10** |
-| **DeepSeek**  | DeepSeek V4.0 Flash | `deepseek/deepseek-v4.0-flash` | 86.8                  | $0.16               | 180 tok/s            | 920ms            | 9.8 / 10     |
-| **xAI**       | Grok 4.6            | `xai/grok-4.6`                 | 94.8                  | $9.10               | 92 tok/s             | 2,750ms          | 7.9 / 10     |
-| **xAI**       | Grok 4.5            | `xai/grok-4.5`                 | 92.5                  | $4.55               | 110 tok/s            | 2,050ms          | 8.8 / 10     |
-| **Alibaba**   | Qwen 3.8 Max        | `qwen/qwen-3.8-max`            | 94.0                  | $5.85               | 105 tok/s            | 2,300ms          | 8.7 / 10     |
-| **Alibaba**   | Qwen 3.8            | `qwen/qwen-3.8`                | 91.4                  | $0.65               | 138 tok/s            | 1,680ms          | 9.8 / 10     |
-| **Alibaba**   | Qwen 3.7 Coder      | `qwen/qwen-3.7-coder`          | 89.8                  | $0.72               | 145 tok/s            | 1,450ms          | 9.5 / 10     |
-| **Moonshot**  | Kimi K3             | `moonshot/kimi-k3`             | 92.1                  | $1.30               | 125 tok/s            | 1,920ms          | 9.6 / 10     |
-| **Zhipu**     | GLM 5.3             | `zhipu/glm-5.3`                | 91.5                  | $0.98               | 130 tok/s            | 1,840ms          | 9.7 / 10     |
-| **Zhipu**     | GLM 5.3 Flash       | `zhipu/glm-5.3-flash`          | 41.8                  | $0.24               | 185 tok/s            | 910ms            | -            |
-| **Muse**      | Muse 1.3 Spark      | `muse/muse-1.3-spark`          | 48.1                  | $2.00               | -                    | 44,850ms         | -            |
-| **Muse**      | Muse 1.2 Spark      | `muse/muse-1.2-spark`          | -                     | $0.13               | -                    | -                | -            |
-| **OpenAI**    | ChatGPT 6 Sol       | `openai/chatgpt-6-sol`         | 47.5                  | $4.00               | -                    | 163,528ms        | -            |
-| **OpenAI**    | ChatGPT 6 Luna      | `openai/chatgpt-6-luna`        | 37.3                  | $0.20               | -                    | 94,118ms         | -            |
-| **Anthropic** | Claude Opus 5.5     | `anthropic/claude-opus-5.5`    | 57.6                  | $8.00               | -                    | 681,274ms        | -            |
-| **Anthropic** | Claude Sonnet 5.5   | `anthropic/claude-sonnet-5.5`  | 56.0                  | $4.00               | -                    | 327,864ms        | -            |
-| **Google**    | Gemini 3.5 Flash    | `google/gemini-3.5-flash`      | 22.2                  | $0.85               | -                    | 9,631ms          | -            |
-| **xAI**       | Grok 4.7            | `xai/grok-4.7`                 | 46.4                  | $3.00               | -                    | 55,256ms         | -            |
-| **Xiaomi**    | MiMo V2.6 Pro       | `mimo/mimo-v2.6-pro`           | 46.3                  | $0.54               | -                    | 50,931ms         | -            |
-| **Xiaomi**    | MiMo V2.6 Flash     | `mimo/mimo-v2.6-flash`         | -                     | -                   | -                    | -                | -            |
-| **MiniMax**   | Minimax M3          | `minimax/minimax-m3`           | 29.2                  | $0.53               | -                    | 17,500ms         | -            |
-| **TypeSafe**  | Jev                 | `typesafe/jev`                 | -                     | -                   | -                    | -                | -            |
-| **Other**     | Laya                | `laya`                         | -                     | -                   | -                    | -                | -            |
+| Rank | Model (effort)                          | Creator   | Context | Intelligence Index | Cost per Task (USD) | Median Output Speed (tok/s) | Latency First Chunk (s) | Total Response (s) |
+| :--- | :-------------------------------------- | :-------- | :------ | :----------------- | :------------------ | :-------------------------- | :---------------------- | :----------------- |
+| 1    | Gemini 4 Carbon (high)                  | Google    | 1M      | 59                 | $7.76               | 83                          | 103.54                  | 109.60             |
+| 2    | Claude Opus 5.5 (max with fallback)     | Anthropic | 1M      | 58                 | $10.04              | 97                          | 644.22                  | 649.39             |
+| 3    | Claude Opus 5.5 (xhigh with fallback)   | Anthropic | 1M      | 57                 | $6.05               | 85                          | 121.20                  | 127.05             |
+| 4    | GPT-6 Astra (max)                       | OpenAI    | 1M      | 57                 | $6.24               | 79                          | 237.39                  | 243.74             |
+| 5    | GPT-6 Astra (xhigh)                     | OpenAI    | 1M      | 55                 | $3.66               | 64                          | 128.16                  | 135.99             |
+| 6    | GPT-6 Astra (high)                      | OpenAI    | 1M      | 55                 | $3.24               | 62                          | 37.83                   | 45.86              |
+| 7    | GPT-6.1 Sol (max)                       | OpenAI    | 1M      | 55                 | $1.27               | 81                          | 277.18                  | 283.35             |
+| 8    | Claude Sonnet 5.5 (max with fallback)   | Anthropic | 1M      | 54                 | $10.02              | 140                         | 410.96                  | 414.53             |
+| 9    | GPT-6.1 Sol (xhigh)                     | OpenAI    | 1M      | 52                 | $0.76               | 67                          | 106.94                  | 114.42             |
+| 10   | Claude Opus 5.5 (high with fallback)    | Anthropic | 1M      | 52                 | $3.46               | 80                          | 30.74                   | 36.99              |
+| 11   | GPT-6 Astra (medium)                    | OpenAI    | 1M      | 51                 | $2.73               | 58                          | 3.76                    | 12.32              |
+| 12   | GPT-6.1 Terra (max)                     | OpenAI    | 1M      | 51                 | $0.96               | 91                          | 233.43                  | 238.93             |
+| 13   | Gemini 4 Argon (high)                   | Google    | 1M      | 50                 | $7.68               | 83                          | 48.07                   | 54.07              |
+| 14   | GPT-6.1 Sol (high)                      | OpenAI    | 1M      | 50                 | $0.59               | 65                          | 33.88                   | 41.52              |
+| 15   | Muse Wonder Full (max)                  | Meta      | 1M      | 50                 | n/a                 | n/a                         | n/a                     | n/a                |
+| 16   | Claude Fable 5.1 (xhigh with fallback)  | Anthropic | 1M      | 50                 | $10.85              | 63                          | 70.91                   | 78.89              |
+| 17   | Claude Sonnet 5.5 (xhigh with fallback) | Anthropic | 1M      | 50                 | $4.09               | 107                         | 29.32                   | 33.97              |
+| 18   | Claude Fable 5.1 (max with fallback)    | Anthropic | 1M      | 49                 | $12.99              | 65                          | 218.04                  | 225.67             |
+| 19   | Claude Opus 5.5 (medium with fallback)  | Anthropic | 1M      | 48                 | $2.45               | 79                          | 12.68                   | 18.97              |
+| 20   | Claude Fable 5.1 (high with fallback)   | Anthropic | 1M      | 47                 | $7.54               | 57                          | 8.51                    | 17.27              |
+| 21   | GPT-6.1 Sol (medium)                    | OpenAI    | 1M      | 46                 | $0.36               | 53                          | 4.27                    | 13.74              |
+| 22   | Kimi K3.1 Pro                           | Kimi      | 1M      | 46                 | $3.68               | 32                          | 3.10                    | 81.04              |
+| 23   | GPT-6.1 Terra (xhigh)                   | OpenAI    | 1M      | 45                 | $0.40               | 91                          | 39.54                   | 45.03              |
+| 24   | Muse Wonder (max)                       | Meta      | 1.05M   | 43                 | $6.95               | 146                         | 27.21                   | 44.35              |
+| 25   | GPT-6 Astra (low)                       | OpenAI    | 1M      | 43                 | $1.42               | 58                          | 1.98                    | 10.61              |
+| 26   | Claude Fable 5.1 (medium with fallback) | Anthropic | 1M      | 43                 | $5.56               | 56                          | 3.90                    | 12.78              |
+| 27   | GPT-6.1 Terra (high)                    | OpenAI    | 1M      | 42                 | $0.26               | 91                          | 9.65                    | 15.15              |
+| 28   | Claude Sonnet 5.5 (high with fallback)  | Anthropic | 1M      | 41                 | $1.64               | 107                         | 10.07                   | 14.75              |
+| 29   | Claude Fable 5.1 (low with fallback)    | Anthropic | 1M      | 38                 | $4.47               | 55                          | 2.15                    | 11.28              |
+| 30   | GPT-6.1 Terra (medium)                  | OpenAI    | 1M      | 38                 | $0.17               | 91                          | 2.33                    | 7.83               |
 
----
+## 2. Reasoning-Effort Trade-offs (rows from Section 1, grouped by model)
 
-## 2. Complete Reasoning Effort Breakdown (High, Medium, Low)
+Each line lists effort setting: Intelligence Index / Cost per Task / Latency First Chunk.
 
-Thinking / reasoning effort levels:
+- **Claude Opus 5.5**: max 58 / $10.04 / 644.22 s; xhigh 57 / $6.05 / 121.20 s; high 52 / $3.46 / 30.74 s; medium 48 / $2.45 / 12.68 s.
+- **GPT-6 Astra**: max 57 / $6.24 / 237.39 s; xhigh 55 / $3.66 / 128.16 s; high 55 / $3.24 / 37.83 s; medium 51 / $2.73 / 3.76 s; low 43 / $1.42 / 1.98 s.
+- **GPT-6.1 Sol**: max 55 / $1.27 / 277.18 s; xhigh 52 / $0.76 / 106.94 s; high 50 / $0.59 / 33.88 s; medium 46 / $0.36 / 4.27 s.
+- **GPT-6.1 Terra**: max 51 / $0.96 / 233.43 s; xhigh 45 / $0.40 / 39.54 s; high 42 / $0.26 / 9.65 s; medium 38 / $0.17 / 2.33 s.
+- **Claude Sonnet 5.5**: max 54 / $10.02 / 410.96 s; xhigh 50 / $4.09 / 29.32 s; high 41 / $1.64 / 10.07 s.
+- **Claude Fable 5.1**: xhigh 50 / $10.85 / 70.91 s; max 49 / $12.99 / 218.04 s; high 47 / $7.54 / 8.51 s; medium 43 / $5.56 / 3.90 s; low 38 / $4.47 / 2.15 s.
 
-- **Low Effort**: Fast generation with compact chain-of-thought (1,024 tokens).
-- **Medium Effort**: Standard balanced reasoning tree (4,096 - 8,192 tokens).
-- **High Effort**: Maximum reflection and multi-hypothesis verification (16,384 - 32,768 tokens).
+## 3. Observations From the Table
 
-| Model Identifier               | Reasoning Effort | Quality Index (0-100) | Blended Cost ($/1M) | Output Speed (tok/s) | Median TTFT (ms) | Value Score  |
-| :----------------------------- | :--------------- | :-------------------- | :------------------ | :------------------- | :--------------- | :----------- |
-| `openai/chatgpt-6-astra`       | High             | 96.8                  | $13.00              | 88                   | 3,400ms          | 7.4 / 10     |
-| `openai/chatgpt-6-astra`       | Medium           | -                     | $10.00              | 94                   | 1,150ms          | -            |
-| `openai/chatgpt-6-astra`       | Low              | -                     | $7.00               | 102                  | 420ms            | -            |
-| `openai/chatgpt-5.6-sol`       | High             | 93.8                  | $6.50               | 96                   | 2,600ms          | 8.4 / 10     |
-| `openai/chatgpt-5.6-sol`       | Medium           | -                     | $5.00               | 106                  | 920ms            | -            |
-| `openai/chatgpt-5.6-sol`       | Low              | -                     | $3.50               | 116                  | 380ms            | -            |
-| `openai/chatgpt-5.6-terra`     | High             | 90.4                  | $2.60               | 115                  | 1,850ms          | 9.2 / 10     |
-| `openai/chatgpt-5.6-terra`     | Medium           | -                     | $2.00               | 125                  | 680ms            | -            |
-| `openai/chatgpt-5.6-terra`     | Low              | -                     | $1.40               | 136                  | 290ms            | -            |
-| `openai/chatgpt-5.6-luna`      | High             | -                     | $0.81               | 145                  | 1,200ms          | -            |
-| `openai/chatgpt-5.6-luna`      | Medium           | -                     | -                   | -                    | -                | -            |
-| `openai/chatgpt-5.6-luna`      | Low              | -                     | -                   | -                    | -                | -            |
-| `anthropic/claude-opus-5`      | High             | 96.2                  | $16.25              | 78                   | 3,850ms          | 6.8 / 10     |
-| `anthropic/claude-opus-5`      | Medium           | -                     | $12.50              | 85                   | 1,320ms          | -            |
-| `anthropic/claude-opus-5`      | Low              | -                     | $8.75               | 92                   | 480ms            | -            |
-| `anthropic/claude-sonnet-5`    | High             | 94.6                  | $8.13               | 102                  | 2,350ms          | 8.2 / 10     |
-| `anthropic/claude-sonnet-5`    | Medium           | -                     | $6.25               | 112                  | 840ms            | -            |
-| `anthropic/claude-sonnet-5`    | Low              | -                     | $4.38               | 122                  | 340ms            | -            |
-| `anthropic/claude-fable-5.1`   | High             | 93.2                  | $3.90               | 120                  | 1,650ms          | 9.0 / 10     |
-| `anthropic/claude-fable-5.1`   | Medium           | -                     | $3.00               | 130                  | 610ms            | -            |
-| `anthropic/claude-fable-5.1`   | Low              | -                     | $2.10               | 142                  | 260ms            | -            |
-| `anthropic/claude-fable-5`     | High             | 91.8                  | $2.93               | 128                  | 1,500ms          | 9.2 / 10     |
-| `anthropic/claude-fable-5`     | Medium           | -                     | $2.25               | 138                  | 560ms            | -            |
-| `anthropic/claude-fable-5`     | Low              | -                     | $1.58               | 150                  | 240ms            | -            |
-| `google/gemini-3.1-pro`        | High             | 95.1                  | $4.88               | 95                   | 2,450ms          | 8.6 / 10     |
-| `google/gemini-3.1-pro`        | Medium           | -                     | $3.75               | 105                  | 890ms            | -            |
-| `google/gemini-3.1-pro`        | Low              | -                     | $2.63               | 115                  | 360ms            | -            |
-| `google/gemini-3.8-flash`      | High             | 91.0                  | $0.49               | 165                  | 1,100ms          | 9.8 / 10     |
-| `google/gemini-3.8-flash`      | Medium           | -                     | $0.38               | 178                  | 420ms            | -            |
-| `google/gemini-3.8-flash`      | Low              | -                     | $0.26               | 190                  | 180ms            | -            |
-| `google/gemini-3.7-flash`      | High             | 89.4                  | $0.33               | 175                  | 980ms            | 9.8 / 10     |
-| `google/gemini-3.7-flash`      | Medium           | -                     | $0.25               | 188                  | 380ms            | -            |
-| `google/gemini-3.7-flash`      | Low              | -                     | $0.18               | 200                  | 160ms            | -            |
-| `google/gemini-3.6-flash`      | High             | 86.5                  | $0.20               | 190                  | 820ms            | 9.8 / 10     |
-| `google/gemini-3.6-flash`      | Medium           | -                     | -                   | -                    | -                | -            |
-| `google/gemini-3.6-flash`      | Low              | -                     | -                   | -                    | -                | -            |
-| `google/gemma-4`               | High             | 84.8                  | $0.16               | 195                  | 760ms            | 9.8 / 10     |
-| `google/gemma-4`               | Medium           | -                     | -                   | -                    | -                | -            |
-| `google/gemma-4`               | Low              | -                     | -                   | -                    | -                | -            |
-| `deepseek/deepseek-v4.0-pro`   | High             | 95.4                  | $1.14               | 110                  | 1,980ms          | **9.9 / 10** |
-| `deepseek/deepseek-v4.0-pro`   | Medium           | -                     | $0.88               | 120                  | 710ms            | -            |
-| `deepseek/deepseek-v4.0-pro`   | Low              | -                     | $0.61               | 132                  | 280ms            | -            |
-| `deepseek/deepseek-v4.1-flash` | High             | 91.2                  | $0.26               | 160                  | 1,150ms          | **9.9 / 10** |
-| `deepseek/deepseek-v4.1-flash` | Medium           | -                     | $0.20               | 172                  | 440ms            | -            |
-| `deepseek/deepseek-v4.1-flash` | Low              | -                     | $0.14               | 185                  | 190ms            | -            |
-| `deepseek/deepseek-v4.0-flash` | High             | 86.8                  | $0.16               | 180                  | 920ms            | 9.8 / 10     |
-| `deepseek/deepseek-v4.0-flash` | Medium           | -                     | -                   | -                    | -                | -            |
-| `deepseek/deepseek-v4.0-flash` | Low              | -                     | -                   | -                    | -                | -            |
-| `xai/grok-4.6`                 | High             | 94.8                  | $9.10               | 92                   | 2,750ms          | 7.9 / 10     |
-| `xai/grok-4.6`                 | Medium           | -                     | $7.00               | 100                  | 960ms            | -            |
-| `xai/grok-4.6`                 | Low              | -                     | $4.90               | 108                  | 390ms            | -            |
-| `xai/grok-4.5`                 | High             | 92.5                  | $4.55               | 110                  | 2,050ms          | 8.8 / 10     |
-| `xai/grok-4.5`                 | Medium           | -                     | $3.50               | 120                  | 740ms            | -            |
-| `xai/grok-4.5`                 | Low              | -                     | $2.45               | 130                  | 310ms            | -            |
-| `qwen/qwen-3.8-max`            | High             | 94.0                  | $5.85               | 105                  | 2,300ms          | 8.7 / 10     |
-| `qwen/qwen-3.8-max`            | Medium           | -                     | $4.50               | 115                  | 820ms            | -            |
-| `qwen/qwen-3.8-max`            | Low              | -                     | $3.15               | 125                  | 330ms            | -            |
-| `qwen/qwen-3.8`                | High             | 91.4                  | $0.65               | 138                  | 1,680ms          | 9.8 / 10     |
-| `qwen/qwen-3.8`                | Medium           | -                     | $0.50               | 148                  | 600ms            | -            |
-| `qwen/qwen-3.8`                | Low              | -                     | $0.35               | 160                  | 250ms            | -            |
-| `qwen/qwen-3.7-coder`          | High             | 89.8                  | $0.72               | 145                  | 1,450ms          | 9.5 / 10     |
-| `qwen/qwen-3.7-coder`          | Medium           | -                     | $0.55               | 158                  | 520ms            | -            |
-| `qwen/qwen-3.7-coder`          | Low              | -                     | $0.39               | 170                  | 210ms            | -            |
-| `moonshot/kimi-k3`             | High             | 92.1                  | $1.30               | 125                  | 1,920ms          | 9.6 / 10     |
-| `moonshot/kimi-k3`             | Medium           | -                     | $1.00               | 135                  | 690ms            | -            |
-| `moonshot/kimi-k3`             | Low              | -                     | $0.70               | 148                  | 280ms            | -            |
-| `zhipu/glm-5.3`                | High             | 91.5                  | $0.98               | 130                  | 1,840ms          | 9.7 / 10     |
-| `zhipu/glm-5.3`                | Medium           | -                     | $0.75               | 140                  | 660ms            | -            |
-| `zhipu/glm-5.3`                | Low              | -                     | $0.53               | 152                  | 270ms            | -            |
-| `zhipu/glm-5.3-flash`          | High             | -                     | $0.23               | 185                  | 910ms            | -            |
-| `zhipu/glm-5.3-flash`          | Medium           | -                     | -                   | -                    | -                | -            |
-| `zhipu/glm-5.3-flash`          | Low              | -                     | -                   | -                    | -                | -            |
-| `muse/muse-1.3-spark`          | High             | -                     | $0.29               | -                    | -                | -            |
-| `muse/muse-1.3-spark`          | Medium           | -                     | -                   | -                    | -                | -            |
-| `muse/muse-1.3-spark`          | Low              | -                     | -                   | -                    | -                | -            |
-| `muse/muse-1.2-spark`          | High             | -                     | $0.13               | -                    | -                | -            |
-| `muse/muse-1.2-spark`          | Medium           | -                     | -                   | -                    | -                | -            |
-| `muse/muse-1.2-spark`          | Low              | -                     | -                   | -                    | -                | -            |
+These follow directly from the numbers above; they are not claims made by Artificial Analysis.
 
----
-
-## 3. Artificial Analysis Frontier Takeaways
-
-1. **The Price-to-Performance Disruption**: DeepSeek V4.0 Pro occupies the top efficiency frontier of any reasoning model ever evaluated by Artificial Analysis, delivering a 95.4 Quality Index at an unprecedented $1.14 blended cost per million tokens.
-2. **Speed-Optimized Reasoning**: DeepSeek V4.0 Flash and Gemini 3.6 Flash sustain over 180–190 tokens/second while outperforming previous-generation flagship models.
-3. **Enterprise Quality Leaders**: ChatGPT 6 Astra (96.8) and Claude Opus 5 (96.2) represent the ceiling for mission-critical legal, financial, and mathematical analysis.
+- The two highest scores are Gemini 4 Carbon (high) at 59 and Claude Opus 5.5 (max with fallback) at 58.
+- GPT-6.1 Sol (max) reaches 55 at $1.27 per task, the lowest cost per task of any row scoring 55 or more.
+- Moving from max to xhigh effort costs one point for Claude Opus 5.5 (58 to 57) while cutting latency to first chunk from 644.22 s to 121.20 s.
+- For Claude Fable 5.1, xhigh (50) scores higher than max (49) while costing less per task ($10.85 vs $12.99).
+- The fastest median output speed in the top 30 is Muse Wonder (max) at 146 tok/s, followed by Claude Sonnet 5.5 (max with fallback) at 140 tok/s.
+- Kimi K3.1 Pro is the only model in the top 30 from a creator other than Google, Anthropic, OpenAI or Meta.

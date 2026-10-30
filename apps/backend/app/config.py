@@ -14,7 +14,18 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "production"
     DEBUG: bool = False
     KNOWLEDGE_BASE_DIR: Path = KNOWLEDGE_BASE_DIR
-    GEMINI_MODELS: list[str] = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+    # Free-tier text models, best first (ai.google.dev/gemini-api/docs/pricing, 2026-10-28). Each has
+    # its own free quota; ModelRouter moves to the next one when a model returns 429.
+    GEMINI_MODELS: list[str] = [
+        "gemini-3.8-flash",
+        "gemini-3.6-flash",
+        "gemini-3-flash-preview",
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-2.5-flash-lite",
+    ]
     EMBEDDING_MODEL: str = "gemini-embedding-001"
 
     PORT: int = 8000

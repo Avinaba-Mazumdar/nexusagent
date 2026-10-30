@@ -24,13 +24,13 @@ Browser (Next.js 16)                         FastAPI backend                    
 
 ## 2. Stack
 
-| Layer    | Technology                                                                                                                                                  |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Frontend | Next.js 16 (App Router, React 19, React Compiler), TypeScript, Tailwind CSS v4, Radix UI primitives, Zustand, react-markdown, Mermaid                       |
-| Backend  | Python 3.14, FastAPI, asyncpg, LangGraph, LangChain Google GenAI, LlamaIndex (markdown parsing)                                                             |
-| Data     | Neon PostgreSQL 18: `pgvector` (HNSW, cosine) and `tsvector` (GIN)                                                                                          |
-| Models   | Chat: `GEMINI_MODELS` (default `gemini-2.5-flash`, fallback `gemini-2.5-flash-lite`). Embeddings: `EMBEDDING_MODEL` (default `gemini-embedding-001`, 768-d) |
-| Monorepo | pnpm workspaces + Turborepo; `uv` for Python                                                                                                                |
+| Layer    | Technology                                                                                                                                                                                                                                     |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend | Next.js 16 (App Router, React 19, React Compiler), TypeScript, Tailwind CSS v4, Radix UI primitives, Zustand, react-markdown, Mermaid                                                                                                          |
+| Backend  | Python 3.14, FastAPI, asyncpg, LangGraph, LangChain Google GenAI, LlamaIndex (markdown parsing)                                                                                                                                                |
+| Data     | Neon PostgreSQL 18: `pgvector` (HNSW, cosine) and `tsvector` (GIN)                                                                                                                                                                             |
+| Models   | Chat: `GEMINI_MODELS` (default: the eight Gemini free-tier text models, `gemini-3.8-flash` first; `ModelRouter` skips a model that returned 429 until its quota resets). Embeddings: `EMBEDDING_MODEL` (default `gemini-embedding-001`, 768-d) |
+| Monorepo | pnpm workspaces + Turborepo; `uv` for Python                                                                                                                                                                                                   |
 
 Authoritative versions are in `apps/backend/pyproject.toml` and `apps/frontend/package.json`.
 

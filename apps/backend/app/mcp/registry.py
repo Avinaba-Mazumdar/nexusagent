@@ -73,14 +73,14 @@ TOOLS: list[ToolDefinition] = [
 STATIC_RESOURCES: list[ResourceDefinition] = [
     ResourceDefinition(
         uri="benchmark://benchlm-2026",
-        name="BenchLM 2026 AI Model Intelligence & Latency Suite",
-        description="Weekly frontier model reasoning, throughput, and TTFT benchmarks.",
+        name="BenchLM Overall Model Rankings",
+        description="BenchLM overall scores, prices and evidence levels (snapshot retrieved 2026-10-30).",
         mimeType="text/markdown",
     ),
     ResourceDefinition(
         uri="benchmark://cursorbench-coding",
         name="CursorBench Agentic Coding Leaderboard",
-        description="Comparative software engineering benchmarks for Claude, GPT, and Gemini.",
+        description="CursorBench 4.0 agentic coding scores and cost per task (snapshot retrieved 2026-10-30).",
         mimeType="text/markdown",
     ),
 ]

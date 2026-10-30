@@ -1,229 +1,134 @@
-# CursorBench Agentic Coding & IDE Refactoring Leaderboard
+# CursorBench 4.0 Agentic Coding Leaderboard
 
-Source: cursorbench.com/leaderboard
-Category: Agentic Code Editing, SWE Bug Fixing, Multi-File AST Transformation
-Last Updated: September 2026
-Provenance: curated snapshot kept in this repository. Figures are not scraped live and have not been independently re-verified against the named source; the retrieval date was not recorded. Treat them as illustrative until each table is checked against its source.
-Test Suites: SWE-Bench Verified (Full 2026 Edition), Multi-File Refactoring Benchmark, Live Repo Repair Loop
+Source URL: https://cursor.com/cursorbench
+Background: https://cursor.com/blog/cursorbench
+Retrieved: 2026-10-30 (newest changelog entry on the page: Oct 7, 2026)
+Category: Agentic coding score, cost per task, tokens per task, steps per task
+Provenance: copied from the CursorBench leaderboard on the retrieval date (all 81 rows, in the page's order). Values are as published; nothing was estimated. The page has a single score column and no provider column; each model appears once per reasoning-effort setting.
 
 > [!NOTE]
-> Values marked with `-` indicate that the model was not evaluated on this benchmark suite or that the reasoning effort level is not supported for full repository repair.
+> In Cursor's words: "We evaluate agents on ambiguous, multi-file tasks from real Cursor sessions. Higher scores are better." CursorBench 4.0 (Sep 10, 2026) added "new long-horizon problems focused on edit, refactor, investigation, intent understanding, managing jobs, and design adherence." Cost per task "is computed by applying each model's published per-million-token pricing (input, cache read, cache write, and output) to the tokens it used on each task. Results are subject to variance; small differences in scores may not be statistically meaningful."
+
+Version history from the page: 4.0 (Sep 10, 2026) long-horizon problems; 3.2 (Jul 8, 2026) "instruction following and advanced tool use problems"; 3.1 (May 19, 2026) "codebase understanding, bugfinding, planning, and code review"; 3.0 (Mar 11, 2026) "edit, refactor, and bugfix problems". Oct 7, 2026: "Updated Sonnet 5.5 results to account for adjusted pricing."
 
 ---
 
-## 1. Agentic Coding & Refactoring Matrix (Across Reasoning Efforts)
+## 1. CursorBench 4.0 Leaderboard (All 81 Rows)
 
-Thinking / reasoning effort levels:
+| Rank | Model (effort)                  | CursorBench 4.0 Score | Cost / Task | Tokens / Task | Steps / Task |
+| :--- | :------------------------------ | :-------------------- | :---------- | :------------ | :----------- |
+| 1    | Opus 5.5 Max                    | 57.8%                 | $13.43      | 218,363       | 185          |
+| 2    | Opus 5.5 Extra High             | 56.0%                 | $6.98       | 101,083       | 109          |
+| 3    | Opus 5.5 High                   | 56.0%                 | $3.97       | 53,078        | 68           |
+| 4    | Sonnet 5.5 Max                  | 55.5%                 | $7.05       | 271,920       | 170          |
+| 5    | Sonnet 5.5 Extra High           | 53.1%                 | $2.81       | 100,158       | 78           |
+| 6    | Gemini 4 Argon High             | 52.9%                 | $4.57       | 109,500       | 118          |
+| 7    | Gemini 4 Argon Medium           | 52.8%                 | $4.39       | 103,600       | 115          |
+| 8    | Opus 5.5 Medium                 | 52.5%                 | $2.91       | 37,954        | 54           |
+| 9    | Fable 5.1 Max                   | 51.8%                 | $17.28      | 117,236       | 128          |
+| 10   | Fable 5.1 Extra High            | 51.6%                 | $13.01      | 87,294        | 101          |
+| 11   | Gemini 4 Argon Low              | 50.6%                 | $4.09       | 94,200        | 110          |
+| 12   | Muse Wonder Max                 | 50.4%                 | $5.25       | 49,692        | 114          |
+| 13   | Fable 5.1 High                  | 49.2%                 | $9.08       | 58,438        | 77           |
+| 14   | Haiku 5.5 Max                   | 48.4%                 | $1.12       | 325,934       | 163          |
+| 15   | Muse Wonder Extra High          | 48.2%                 | $4.24       | 39,564        | 96           |
+| 16   | Sonnet 5.5 High                 | 47.8%                 | $1.20       | 37,391        | 41           |
+| 17   | DeepSeek V4.1 Flash 1017 Max    | 47.7%                 | $0.98       | 537,047       | 187          |
+| 18   | Fable 5.1 Medium                | 46.8%                 | $7.05       | 45,411        | 63           |
+| 19   | Opus 5 Max                      | 46.6%                 | $11.95      | 85,384        | 106          |
+| 20   | Grok 4.7 Extra High             | 46.3%                 | $6.01       | 70,141        | 88           |
+| 21   | DeepSeek V4.1 Flash 1017 Medium | 46.3%                 | $0.80       | 398,255       | 189          |
+| 22   | Opus 5 Extra High               | 46.1%                 | $11.43      | 80,094        | 103          |
+| 23   | Muse Wonder High                | 46.1%                 | $3.51       | 33,612        | 84           |
+| 24   | DeepSeek V4.1 Flash 1017 High   | 45.6%                 | $0.77       | 385,196       | 186          |
+| 25   | Muse Wonder Medium              | 45.2%                 | $2.82       | 27,124        | 75           |
+| 26   | Fable 5.1 Low                   | 45.1%                 | $5.44       | 34,795        | 51           |
+| 27   | DeepSeek V4.1 Flash 1017 Low    | 44.9%                 | $0.60       | 290,651       | 161          |
+| 28   | Opus 5 High                     | 44.7%                 | $9.00       | 61,405        | 86           |
+| 29   | Haiku 5.5 Extra High            | 44.3%                 | $0.56       | 143,813       | 93           |
+| 30   | Grok 4.7 High                   | 43.9%                 | $4.69       | 56,382        | 71           |
+| 31   | Opus 5.5 Low                    | 43.7%                 | $1.17       | 15,811        | 28           |
+| 32   | Opus 5 Medium                   | 43.3%                 | $6.94       | 45,272        | 72           |
+| 33   | GLM 5.3 Max                     | 42.6%                 | $5.05       | 96,387        | 166          |
+| 34   | Haiku 5.5 High                  | 42.3%                 | $0.32       | 77,057        | 59           |
+| 35   | GPT-5.6 Sol Max                 | 41.7%                 | $8.23       | 42,944        | 99           |
+| 36   | Muse Wonder Low                 | 41.7%                 | $1.91       | 18,880        | 56           |
+| 37   | Grok 4.7 Medium                 | 41.6%                 | $3.49       | 36,683        | 60           |
+| 38   | Muse Spark 1.3 Max              | 41.6%                 | $2.64       | 52,005        | 98           |
+| 39   | Grok 4.6 Extra High             | 41.4%                 | $6.10       | 49,814        | 56           |
+| 40   | GPT-5.6 Terra Max               | 41.3%                 | $5.14       | 60,814        | 107          |
+| 41   | Opus 5 Low                      | 40.7%                 | $4.87       | 31,995        | 57           |
+| 42   | Grok 4.6 High                   | 40.4%                 | $5.20       | 41,387        | 48           |
+| 43   | Gemini 3.8 Flash High           | 39.6%                 | $4.70       | 162,565       | 324          |
+| 44   | Sonnet 5.5 Medium               | 39.2%                 | $0.52       | 16,036        | 22           |
+| 45   | GLM 5.3 High                    | 38.0%                 | $3.24       | 60,031        | 114          |
+| 46   | GPT-5.6 Sol Extra High          | 37.7%                 | $4.40       | 24,729        | 55           |
+| 47   | Muse Spark 1.3 Extra High       | 37.5%                 | $2.10       | 40,891        | 83           |
+| 48   | Gemini 3.8 Flash Medium         | 37.3%                 | $4.06       | 128,364       | 290          |
+| 49   | Haiku 5.5 Medium                | 36.9%                 | $0.17       | 42,659        | 39           |
+| 50   | GLM 5.3 Flash Max               | 36.8%                 | $0.39       | 56,410        | 118          |
+| 51   | Grok 4.6 Medium                 | 36.1%                 | $3.48       | 24,893        | 40           |
+| 52   | GPT-5.6 Luna Max                | 35.9%                 | $1.03       | 87,284        | 208          |
+| 53   | Sonnet 5.5 Low                  | 35.8%                 | $0.37       | 11,668        | 18           |
+| 54   | GPT-5.6 Sol High                | 35.7%                 | $2.85       | 16,174        | 41           |
+| 55   | Muse Wonder Minimal             | 34.2%                 | $0.84       | 9,761         | 33           |
+| 56   | Sonnet 5 Max                    | 34.1%                 | $7.17       | 149,257       | 140          |
+| 57   | GPT-5.6 Terra Extra High        | 33.6%                 | $1.81       | 23,436        | 43           |
+| 58   | Grok 4.6 Low                    | 33.4%                 | $2.25       | 16,307        | 32           |
+| 59   | Muse Spark 1.3 High             | 33.4%                 | $1.66       | 30,654        | 69           |
+| 60   | GLM 5.3 Low                     | 33.3%                 | $2.04       | 31,983        | 81           |
+| 61   | Grok 4.7 Low                    | 33.1%                 | $1.58       | 15,677        | 40           |
+| 62   | GPT-5.6 Luna Extra High         | 33.0%                 | $0.44       | 40,598        | 98           |
+| 63   | Muse Spark 1.3 Medium           | 32.6%                 | $1.49       | 27,255        | 64           |
+| 64   | Sonnet 5 Extra High             | 32.0%                 | $4.55       | 83,373        | 102          |
+| 65   | GPT-5.6 Sol Medium              | 31.1%                 | $1.77       | 10,111        | 32           |
+| 66   | GLM 5.3 Flash High              | 31.1%                 | $0.25       | 35,104        | 84           |
+| 67   | Haiku 5.5 Low                   | 30.9%                 | $0.08       | 23,382        | 25           |
+| 68   | Sonnet 5 High                   | 30.8%                 | $3.48       | 61,146        | 85           |
+| 69   | GPT-5.6 Terra High              | 30.7%                 | $1.11       | 13,162        | 33           |
+| 70   | GPT-5.6 Luna High               | 29.4%                 | $0.25       | 23,368        | 64           |
+| 71   | Muse Spark 1.3 Low              | 29.3%                 | $0.93       | 17,483        | 47           |
+| 72   | Sonnet 5 Medium                 | 28.0%                 | $2.31       | 39,114        | 65           |
+| 73   | Composer 2.5                    | 27.7%                 | $0.68       | 17,347        | 41           |
+| 74   | GPT-5.6 Terra Medium            | 27.6%                 | $0.64       | 7,307         | 25           |
+| 75   | GLM 5.3 Flash Low               | 26.9%                 | $0.15       | 17,831        | 58           |
+| 76   | GPT-5.6 Terra Low               | 25.2%                 | $0.52       | 5,914         | 23           |
+| 77   | GPT-5.6 Sol Low                 | 24.6%                 | $0.87       | 4,885         | 21           |
+| 78   | Muse Spark 1.3 Minimal          | 24.3%                 | $0.56       | 10,620        | 34           |
+| 79   | Sonnet 5 Low                    | 24.1%                 | $1.39       | 23,772        | 46           |
+| 80   | GPT-5.6 Luna Medium             | 22.2%                 | $0.08       | 7,642         | 32           |
+| 81   | GPT-5.6 Luna Low                | 16.0%                 | $0.03       | 3,288         | 18           |
 
-- **Low Effort**: Inline autocomplete and local function edits (<1,000 reasoning tokens).
-- **Medium Effort**: Scoped component refactors and cross-module edits (2,048 - 8,192 reasoning tokens).
-- **High Effort**: Full repository test-driven repair and complex architecture rewrites (16,384 - 32,768 reasoning tokens).
+## 2. Best Score per Model Family (from Section 1)
 
-| Model Family         | Model Name          | Reasoning Effort | SWE-Bench Verified | Multi-File Edit Success | Syntax Error Rate | Mean Repair Rounds |
-| :------------------- | :------------------ | :--------------- | :----------------- | :---------------------- | :---------------- | :----------------- |
-| **Anthropic Claude** | Claude Opus 5.5     | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | Claude Opus 5       | High             | 64.2%              | 94.8%                   | 0.8%              | 1.15               |
-|                      |                     | Medium           | 59.5%              | 91.2%                   | 1.3%              | 1.38               |
-|                      |                     | Low              | -                  | 86.4%                   | 2.1%              | 1.74               |
-|                      | Claude Sonnet 5.5   | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | Claude Sonnet 5     | High             | 62.8%              | 93.6%                   | 0.9%              | 1.18               |
-|                      |                     | Medium           | 58.1%              | 89.9%                   | 1.5%              | 1.42               |
-|                      |                     | Low              | -                  | 85.0%                   | 2.4%              | 1.80               |
-|                      | Claude Fable 5.1    | High             | 60.4%              | 91.5%                   | 1.2%              | 1.25               |
-|                      |                     | Medium           | 55.8%              | 87.6%                   | 1.8%              | 1.51               |
-|                      |                     | Low              | -                  | 82.7%                   | 2.9%              | 1.92               |
-|                      | Claude Fable 5      | High             | 58.6%              | 89.8%                   | 1.4%              | 1.30               |
-|                      |                     | Medium           | 54.0%              | 85.9%                   | 2.1%              | 1.58               |
-|                      |                     | Low              | -                  | 80.8%                   | 3.3%              | 2.02               |
-| **OpenAI ChatGPT**   | ChatGPT 6 Astra     | High             | 65.0%              | 95.2%                   | 0.7%              | 1.12               |
-|                      |                     | Medium           | 60.3%              | 91.8%                   | 1.2%              | 1.35               |
-|                      |                     | Low              | -                  | 87.0%                   | 1.9%              | 1.70               |
-|                      | ChatGPT 6 Sol       | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | ChatGPT 6 Luna      | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | ChatGPT 5.6 Sol     | High             | 61.5%              | 92.4%                   | 1.1%              | 1.22               |
-|                      |                     | Medium           | 56.9%              | 88.7%                   | 1.7%              | 1.47               |
-|                      |                     | Low              | -                  | 83.8%                   | 2.6%              | 1.87               |
-|                      | ChatGPT 5.6 Terra   | High             | 57.8%              | 89.0%                   | 1.5%              | 1.33               |
-|                      |                     | Medium           | 53.2%              | 85.1%                   | 2.2%              | 1.62               |
-|                      |                     | Low              | -                  | 80.0%                   | 3.5%              | 2.08               |
-|                      | ChatGPT 5.6 Luna    | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-| **Google Gemini**    | Gemini 3.1 Pro      | High             | 63.4%              | 94.0%                   | 0.9%              | 1.17               |
-|                      |                     | Medium           | 58.7%              | 90.4%                   | 1.4%              | 1.40               |
-|                      |                     | Low              | -                  | 85.5%                   | 2.2%              | 1.77               |
-|                      | Gemini 3.8 Flash    | High             | 59.8%              | 90.9%                   | 1.3%              | 1.27               |
-|                      |                     | Medium           | 55.2%              | 87.0%                   | 1.9%              | 1.54               |
-|                      |                     | Low              | -                  | 82.0%                   | 3.0%              | 1.96               |
-|                      | Gemini 3.7 Flash    | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | Gemini 3.6 Flash    | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | Gemini 3.5 Flash    | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-| **DeepSeek**         | DeepSeek V4.0 Pro   | High             | 63.8%              | 94.2%                   | 0.8%              | 1.16               |
-|                      |                     | Medium           | 59.1%              | 90.7%                   | 1.4%              | 1.39               |
-|                      |                     | Low              | -                  | 85.8%                   | 2.2%              | 1.76               |
-|                      | DeepSeek V4.1 Flash | High             | 60.1%              | 91.2%                   | 1.2%              | 1.26               |
-|                      |                     | Medium           | 55.5%              | 87.3%                   | 1.8%              | 1.53               |
-|                      |                     | Low              | -                  | 82.3%                   | 2.9%              | 1.94               |
-|                      | DeepSeek V4.0 Flash | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-| **xAI Grok**         | Grok 4.7            | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | Grok 4.6            | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | Grok 4.5            | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-| **Moonshot Kimi**    | Kimi K3             | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-| **Alibaba Qwen**     | Qwen 3.8 Max        | High             | 62.4%              | 93.1%                   | 1.0%              | 1.19               |
-|                      |                     | Medium           | 57.7%              | 89.4%                   | 1.5%              | 1.43               |
-|                      |                     | Low              | -                  | 84.6%                   | 2.4%              | 1.82               |
-|                      | Qwen 3.8            | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | Qwen 3.7 Coder      | High             | 61.2%              | 92.5%                   | 1.1%              | 1.21               |
-|                      |                     | Medium           | 56.7%              | 88.6%                   | 1.7%              | 1.48               |
-|                      |                     | Low              | -                  | 83.9%                   | 2.7%              | 1.86               |
-| **Zhipu GLM**        | GLM 5.3             | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | GLM 5.3 Flash       | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-| **Google Gemma**     | Gemma 4             | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-| **Muse Spark**       | Muse 1.3 Spark      | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | Muse 1.2 Spark      | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-| **Xiaomi MiMo**      | MiMo V2.6 Pro       | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-|                      | MiMo V2.6 Flash     | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-| **MiniMax**          | Minimax M3          | High             | -                  | -                       | -                 | -                  |
-|                      |                     | Medium           | -                  | -                       | -                 | -                  |
-|                      |                     | Low              | -                  | -                       | -                 | -                  |
-| **TypeSafe**         | Jev                 | High             | -                  | -                       | -                 | -                  |
-| **Other**            | Laya                | High             | -                  | -                       | -                 | -                  |
+| Model family             | Best setting     | Score | Cost / Task |
+| :----------------------- | :--------------- | :---- | :---------- |
+| Opus 5.5                 | Max              | 57.8% | $13.43      |
+| Sonnet 5.5               | Max              | 55.5% | $7.05       |
+| Gemini 4 Argon           | High             | 52.9% | $4.57       |
+| Fable 5.1                | Max              | 51.8% | $17.28      |
+| Muse Wonder              | Max              | 50.4% | $5.25       |
+| Haiku 5.5                | Max              | 48.4% | $1.12       |
+| DeepSeek V4.1 Flash 1017 | Max              | 47.7% | $0.98       |
+| Opus 5                   | Max              | 46.6% | $11.95      |
+| Grok 4.7                 | Extra High       | 46.3% | $6.01       |
+| GLM 5.3                  | Max              | 42.6% | $5.05       |
+| GPT-5.6 Sol              | Max              | 41.7% | $8.23       |
+| Muse Spark 1.3           | Max              | 41.6% | $2.64       |
+| Grok 4.6                 | Extra High       | 41.4% | $6.10       |
+| GPT-5.6 Terra            | Max              | 41.3% | $5.14       |
+| Gemini 3.8 Flash         | High             | 39.6% | $4.70       |
+| GLM 5.3 Flash            | Max              | 36.8% | $0.39       |
+| GPT-5.6 Luna             | Max              | 35.9% | $1.03       |
+| Sonnet 5                 | Max              | 34.1% | $7.17       |
+| Composer 2.5             | (single setting) | 27.7% | $0.68       |
 
----
+## 3. Observations From the Table
 
-## 2. CursorBench 4.0 Multi-File Refactoring & Live Repair Benchmark
+These follow directly from the numbers above; they are not claims made by Cursor.
 
-Official benchmark telemetry scraped directly from `cursor.com/cursorbench`:
-
-| Model                  | Effort Tier | Score (%) | Avg Cost / Task | Output Tokens | Avg Steps |
-| :--------------------- | :---------- | :-------- | :-------------- | :------------ | :-------- |
-| **Fable 5.1**          | Max         | 51.8%     | $17.28          | 117,236       | 128.1     |
-| **Fable 5.1**          | Xhigh       | 51.6%     | $13.01          | 87,294        | 101.4     |
-| **Fable 5.1**          | High        | 49.2%     | $9.08           | 58,438        | 77.2      |
-| **Fable 5.1**          | Medium      | 46.8%     | $7.05           | 45,411        | 63.5      |
-| **Fable 5.1**          | Low         | 45.1%     | $5.44           | 34,795        | 51.3      |
-| **Opus 5.5**           | Max         | 57.8%     | $13.43          | 218,363       | 184.5     |
-| **Opus 5.5**           | Xhigh       | 56%       | $6.98           | 101,083       | 108.6     |
-| **Opus 5.5**           | High        | 56%       | $3.97           | 53,078        | 68.2      |
-| **Opus 5.5**           | Medium      | 52.5%     | $2.91           | 37,954        | 53.8      |
-| **Opus 5.5**           | Low         | 43.7%     | $1.17           | 15,811        | 28.1      |
-| **Opus 5**             | Max         | 46.6%     | $11.95          | 85,384        | 106.4     |
-| **Opus 5**             | Xhigh       | 46.1%     | $11.43          | 80,094        | 103.1     |
-| **Opus 5**             | High        | 44.7%     | $9.00           | 61,405        | 86.3      |
-| **Opus 5**             | Medium      | 43.3%     | $6.94           | 45,272        | 71.7      |
-| **Opus 5**             | Low         | 40.7%     | $4.87           | 31,995        | 57.0      |
-| **Grok 4.7**           | Xhigh       | 46.3%     | $6.01           | 70,141        | 87.7      |
-| **Grok 4.7**           | High        | 43.9%     | $4.69           | 56,382        | 71.3      |
-| **Grok 4.7**           | Medium      | 41.6%     | $3.49           | 36,683        | 60.3      |
-| **Grok 4.7**           | Low         | 33.1%     | $1.58           | 15,677        | 40.2      |
-| **Grok 4.6**           | Xhigh       | 41.4%     | $6.10           | 49,814        | 55.8      |
-| **Grok 4.6**           | High        | 40.4%     | $5.20           | 41,387        | 47.6      |
-| **Grok 4.6**           | Medium      | 36.1%     | $3.48           | 24,893        | 39.5      |
-| **Grok 4.6**           | Low         | 33.4%     | $2.25           | 16,307        | 31.9      |
-| **GPT-5.6 Sol**        | Max         | 41.7%     | $8.23           | 42,944        | 99.0      |
-| **GPT-5.6 Sol**        | Xhigh       | 37.7%     | $4.40           | 24,729        | 54.7      |
-| **GPT-5.6 Sol**        | High        | 35.7%     | $2.85           | 16,174        | 40.6      |
-| **GPT-5.6 Sol**        | Medium      | 31.1%     | $1.77           | 10,111        | 31.8      |
-| **GPT-5.6 Sol**        | Low         | 24.6%     | $0.87           | 4,885         | 20.9      |
-| **GPT-5.6 Terra**      | Max         | 41.3%     | $5.14           | 60,814        | 107.0     |
-| **GPT-5.6 Terra**      | Xhigh       | 33.6%     | $1.81           | 23,436        | 42.8      |
-| **GPT-5.6 Terra**      | High        | 30.7%     | $1.11           | 13,162        | 33.0      |
-| **GPT-5.6 Terra**      | Medium      | 27.6%     | $0.64           | 7,307         | 25.4      |
-| **GPT-5.6 Terra**      | Low         | 25.2%     | $0.52           | 5,914         | 23.3      |
-| **GPT-5.6 Luna**       | Max         | 35.9%     | $1.03           | 87,284        | 208.1     |
-| **GPT-5.6 Luna**       | Xhigh       | 33.0%     | $0.44           | 40,598        | 97.9      |
-| **GPT-5.6 Luna**       | High        | 29.4%     | $0.25           | 23,368        | 64.0      |
-| **GPT-5.6 Luna**       | Medium      | 22.2%     | $0.08           | 7,642         | 32.0      |
-| **GPT-5.6 Luna**       | Low         | 16.0%     | $0.03           | 3,288         | 18.4      |
-| **Sonnet 5.5**         | Max         | 55.5%     | $9.67           | 271,920       | 169.5     |
-| **Sonnet 5.5**         | Xhigh       | 53.1%     | $3.88           | 100,158       | 78.1      |
-| **Sonnet 5.5**         | High        | 47.8%     | $1.67           | 37,391        | 41.0      |
-| **Sonnet 5.5**         | Medium      | 39.2%     | $0.70           | 16,036        | 22.4      |
-| **Sonnet 5.5**         | Low         | 35.8%     | $0.50           | 11,668        | 17.8      |
-| **Sonnet 5**           | Max         | 34.1%     | $7.17           | 149,257       | 140.3     |
-| **Sonnet 5**           | Xhigh       | 32%       | $4.55           | 83,373        | 102.0     |
-| **Sonnet 5**           | High        | 30.8%     | $3.48           | 61,146        | 85.1      |
-| **Sonnet 5**           | Medium      | 28%       | $2.31           | 39,114        | 64.5      |
-| **Sonnet 5**           | Low         | 24.1%     | $1.39           | 23,772        | 45.8      |
-| **Gemini 3.8 Flash**   | High        | 39.6%     | $4.70           | 162,565       | 323.8     |
-| **Gemini 3.8 Flash**   | Medium      | 37.3%     | $4.06           | 128,364       | 289.6     |
-| **Muse Spark 1.3**     | Max         | 41.6%     | $2.64           | 52,005        | 98.3      |
-| **Muse Spark 1.3**     | Xhigh       | 37.5%     | $2.10           | 40,891        | 82.5      |
-| **Muse Spark 1.3**     | High        | 33.4%     | $1.66           | 30,654        | 68.6      |
-| **Muse Spark 1.3**     | Medium      | 32.6%     | $1.49           | 27,255        | 63.9      |
-| **Muse Spark 1.3**     | Low         | 29.3%     | $0.93           | 17,483        | 47.2      |
-| **Muse Spark 1.3**     | Minimal     | 24.3%     | $0.56           | 10,620        | 34.0      |
-| **GLM 5.3**            | Max         | 42.6%     | $5.05           | 96,387        | 166.3     |
-| **GLM 5.3**            | High        | 38%       | $3.24           | 60,031        | 113.6     |
-| **GLM 5.3**            | Low         | 33.3%     | $2.04           | 31,983        | 81.3      |
-| **GLM 5.3 Flash**      | Max         | 36.8%     | $0.39           | 56,410        | 117.8     |
-| **GLM 5.3 Flash**      | High        | 31.1%     | $0.25           | 35,104        | 83.7      |
-| **GLM 5.3 Flash**      | Low         | 26.9%     | $0.15           | 17,831        | 57.7      |
-| **ChatGPT 6 Astra**    | -           | -         | -               | -             | -         |
-| **ChatGPT 6 Sol**      | -           | -         | -               | -             | -         |
-| **ChatGPT 6 Luna**     | -           | -         | -               | -             | -         |
-| **Claude 5 Fable**     | -           | -         | -               | -             | -         |
-| **Gemini 3.1 Pro**     | -           | -         | -               | -             | -         |
-| **Gemini 3.7 Flash**   | -           | -         | -               | -             | -         |
-| **Gemini 3.6 Flash**   | -           | -         | -               | -             | -         |
-| **Gemini 3.5 Flash**   | -           | -         | -               | -             | -         |
-| **Grok 4.5**           | -           | -         | -               | -             | -         |
-| **Muse 1.2 Spark**     | -           | -         | -               | -             | -         |
-| **DeepSeek 4.1 Flash** | -           | -         | -               | -             | -         |
-| **DeepSeek 4 Pro**     | -           | -         | -               | -             | -         |
-| **DeepSeek 4 Flash**   | -           | -         | -               | -             | -         |
-| **MiMo V2.6 Pro**      | -           | -         | -               | -             | -         |
-| **MiMo V2.6 Flash**    | -           | -         | -               | -             | -         |
-| **Qwen 3.8 Max**       | -           | -         | -               | -             | -         |
-| **Qwen 3.8**           | -           | -         | -               | -             | -         |
-| **Kimi K3**            | -           | -         | -               | -             | -         |
-| **Minimax M3**         | -           | -         | -               | -             | -         |
-| **Jev**                | -           | -         | -               | -             | -         |
-| **Laya**               | -           | -         | -               | -             | -         |
-
----
-
-## 3. Cursor IDE Integration Insights
-
-- **Zero Syntax Breakage**: Frontier models at High reasoning effort (ChatGPT 6 Astra, Claude Opus 5, Gemini 3.1 Pro, DeepSeek V4.0 Pro) achieve sub-1% syntax error rates, allowing automated tests to run cleanly on the first pass.
-- **Dedicated Coder Models**: Qwen 3.7 Coder achieves 61.2% on SWE-Bench Verified at a fraction of frontier API costs, making it the top open-weights agentic coding backend.
+- Opus 5.5 High (56.0%, $3.97) matches Opus 5.5 Extra High (56.0%, $6.98) at about 57% of the cost per task and roughly half the tokens.
+- The lowest-cost rows scoring above 45%: DeepSeek V4.1 Flash 1017 High (45.6%, $0.77), DeepSeek V4.1 Flash 1017 Medium (46.3%, $0.80), DeepSeek V4.1 Flash 1017 Max (47.7%, $0.98) and Haiku 5.5 Max (48.4%, $1.12). DeepSeek V4.1 Flash 1017 Max uses the most tokens per task on the board (537,047).
+- Gemini 3.8 Flash takes the most steps per task of any model (324 at High, 290 at Medium).
+- Sonnet 5.5 Medium (39.2%) takes 22 steps per task at $0.52, against 170 steps and $7.05 for Sonnet 5.5 Max (55.5%).
+- Composer 2.5, the only model listed with a single setting, scores 27.7% at $0.68 per task.

@@ -425,6 +425,11 @@ export interface components {
             isComplete: boolean;
             /** Mermaiddiagrams */
             mermaidDiagrams: string[];
+            /**
+             * Model
+             * @default null
+             */
+            model: string | null;
             /** Nodehistory */
             nodeHistory: string[];
             /** Plan */

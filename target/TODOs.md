@@ -94,12 +94,12 @@ The AST-denylist sandbox was escapable and ran on the API host. Removed together
 
 - [x] Pre-seeded benchmark knowledge base (`knowledge_base/`, `scripts/seed_kb.py`)
 - [x] One-click guest access with quota badge and refill time
-- [ ] Source URL and retrieval date for every benchmark table (see DOC-05 in `report.md`)
+- [x] Source URL and retrieval date for every benchmark table (knowledge base re-scraped 2026-10-30)
 - [Removed] Deterministic offline simulator: a Gemini API key is required for answers and uploads
 
 ### Phase 13: Quality [Partial]
 
 - [x] Offline backend suite and frontend suite green; CI workflow in `.github/workflows/ci.yml`
-- [x] Upgraded to Gemini 2.5 models (`GEMINI_MODELS`) with fallback cascade
+- [x] Route across all Gemini free-tier text models (`GEMINI_MODELS`, `ModelRouter`); a rate-limited model is skipped until its quota resets
 - [x] Generate `packages/contracts` types from the backend OpenAPI schema (`pnpm contracts:generate`; CI fails on drift)
 - [Removed] LangSmith tracing (data privacy)

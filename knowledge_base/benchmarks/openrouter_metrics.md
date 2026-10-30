@@ -1,108 +1,119 @@
-# OpenRouter Model Throughput, Latency & Pricing Index
+# OpenRouter Model Pricing & Context Index
 
-Source: openrouter.ai/rankings
-Category: Provider Pricing, TTFT Latency, Tokens/Sec Throughput, Reasoning Overheads
-Last Updated: September 2026
-Provenance: curated snapshot kept in this repository. Figures are not scraped live and have not been independently re-verified against the named source; the retrieval date was not recorded. Treat them as illustrative until each table is checked against its source.
-Telemetry Scope: Production edge clusters across global provider routes
-
-> [!NOTE]
-> Values marked with `-` indicate that the provider does not levy a reasoning surcharge or that the model operates at a single fixed inference latency without variable reasoning effort tiers.
+Source URL: https://openrouter.ai/api/v1/models (public model catalogue API)
+Retrieved: 2026-10-30
+Category: Per-token list prices, context windows, release dates, free variants
+Provenance: generated directly from the API response (456 models listed). Prices are OpenRouter's catalogue list prices converted from USD per token to USD per 1M tokens; nothing was estimated. Prices change often; re-check the source before relying on a figure.
 
 ---
 
-## 1. Provider Pricing, Context Windows & Throughput Matrix
+## 1. Latest Text Models per Provider (newest 5 each, batch variants excluded)
 
-| Model Identifier               | Context Window | Prompt ($/1M) | Completion ($/1M) | Reasoning Surcharge  | Max Output | Tokens / Sec |
-| :----------------------------- | :------------- | :------------ | :---------------- | :------------------- | :--------- | :----------- |
-| `openai/chatgpt-6-astra`       | 2,000,000      | $4.00         | $16.00            | +$16.00/1M reasoning | 64,000     | 88 tok/s     |
-| `openai/chatgpt-5.6-sol`       | 1,000,000      | $2.00         | $8.00             | +$8.00/1M reasoning  | 32,000     | 96 tok/s     |
-| `openai/chatgpt-5.6-terra`     | 500,000        | $0.80         | $3.20             | +$3.20/1M reasoning  | 16,000     | 115 tok/s    |
-| `openai/chatgpt-5.6-luna`      | 256,000        | $0.25         | $1.00             | -                    | 8,192      | 145 tok/s    |
-| `anthropic/claude-opus-5`      | 1,000,000      | $5.00         | $20.00            | +$20.00/1M reasoning | 64,000     | 78 tok/s     |
-| `anthropic/claude-sonnet-5`    | 1,000,000      | $2.50         | $10.00            | +$10.00/1M reasoning | 64,000     | 102 tok/s    |
-| `anthropic/claude-fable-5.1`   | 500,000        | $1.20         | $4.80             | +$4.80/1M reasoning  | 32,000     | 120 tok/s    |
-| `anthropic/claude-fable-5`     | 500,000        | $0.90         | $3.60             | +$3.60/1M reasoning  | 32,000     | 128 tok/s    |
-| `google/gemini-3.1-pro`        | 10,000,000     | $1.50         | $6.00             | -                    | 64,000     | 95 tok/s     |
-| `google/gemini-3.8-flash`      | 4,000,000      | $0.15         | $0.60             | -                    | 64,000     | 165 tok/s    |
-| `google/gemini-3.7-flash`      | 2,000,000      | $0.10         | $0.40             | -                    | 32,000     | 175 tok/s    |
-| `google/gemini-3.6-flash`      | 1,000,000      | $0.06         | $0.25             | -                    | 16,000     | 190 tok/s    |
-| `google/gemma-4`               | 256,000        | $0.05         | $0.20             | -                    | 16,000     | 195 tok/s    |
-| `deepseek/deepseek-v4.0-pro`   | 1,000,000      | $0.35         | $1.40             | -                    | 64,000     | 110 tok/s    |
-| `deepseek/deepseek-v4.1-flash` | 512,000        | $0.08         | $0.32             | -                    | 32,000     | 160 tok/s    |
-| `deepseek/deepseek-v4.0-flash` | 256,000        | $0.05         | $0.20             | -                    | 16,000     | 180 tok/s    |
-| `xai/grok-4.6`                 | 2,000,000      | $2.80         | $11.20            | -                    | 64,000     | 92 tok/s     |
-| `xai/grok-4.5`                 | 1,000,000      | $1.40         | $5.60             | -                    | 32,000     | 110 tok/s    |
-| `moonshot/kimi-k3`             | 5,000,000      | $0.40         | $1.60             | -                    | 32,000     | 125 tok/s    |
-| `zhipu/glm-5.3`                | 1,000,000      | $0.30         | $1.20             | -                    | 32,000     | 130 tok/s    |
-| `zhipu/glm-5.3-flash`          | 512,000        | $0.07         | $0.28             | -                    | 16,000     | 185 tok/s    |
-| `qwen/qwen-3.8-max`            | 2,000,000      | $1.80         | $7.20             | -                    | 64,000     | 105 tok/s    |
-| `qwen/qwen-3.8`                | 1,000,000      | $0.20         | $0.80             | -                    | 32,000     | 138 tok/s    |
-| `qwen/qwen-3.7-coder`          | 1,000,000      | $0.22         | $0.88             | -                    | 32,000     | 145 tok/s    |
-| `muse/muse-1.3-spark`          | 512,000        | $0.09         | $0.36             | -                    | 32,000     | 170 tok/s    |
-| `muse/muse-1.2-spark`          | 256,000        | $0.04         | $0.16             | -                    | 16,000     | 210 tok/s    |
-| `openai/chatgpt-6-sol`         | 1,050,000      | $2.00         | $10.00            | -                    | 128,000    | -            |
-| `openai/chatgpt-6-luna`        | 1,050,000      | $0.10         | $0.50             | -                    | 128,000    | -            |
-| `anthropic/claude-opus-5.5`    | 1,000,000      | $4.00         | $20.00            | -                    | 128,000    | -            |
-| `anthropic/claude-sonnet-5.5`  | 1,000,000      | $2.00         | $10.00            | -                    | 128,000    | -            |
-| `google/gemini-3.5-flash`      | 1,048,576      | $1.50         | $9.00             | +$9.00/1M reasoning  | 65,536     | -            |
-| `xai/grok-4.7`                 | 500,000        | $2.00         | $6.00             | -                    | 450,000    | -            |
-| `mimo/mimo-v2.6-pro`           | 1,050,000      | $0.43         | $0.87             | -                    | 131,072    | -            |
-| `mimo/mimo-v2.6-flash`         | 1,048,576      | $0.14         | $0.28             | -                    | 131,072    | -            |
-| `minimax/minimax-m3`           | 1,048,576      | $0.30         | $1.20             | -                    | 512,000    | -            |
-| `typesafe/jev-router`          | 1,000,000      | -             | -                 | -                    | -          | -            |
-| `laya`                         | -              | -             | -                 | -                    | -          | -            |
+| Provider    | Model                        | OpenRouter ID                           | Context (tokens) | Input $/1M | Output $/1M | Listed on  |
+| :---------- | :--------------------------- | :-------------------------------------- | :--------------- | :--------- | :---------- | :--------- |
+| OpenAI      | GPT-6.1 Terra Pro            | `openai/gpt-6.1-terra-pro`              | 1,050,000        | $1.00      | $5.00       | 2026-10-26 |
+| OpenAI      | GPT-6.1 Terra                | `openai/gpt-6.1-terra`                  | 1,050,000        | $1.00      | $5.00       | 2026-10-26 |
+| OpenAI      | GPT-6.1 Sol Pro              | `openai/gpt-6.1-sol-pro`                | 1,050,000        | $2.00      | $10.00      | 2026-09-29 |
+| OpenAI      | GPT-6.1 Sol                  | `openai/gpt-6.1-sol`                    | 1,050,000        | $2.00      | $10.00      | 2026-09-29 |
+| OpenAI      | GPT-6 Luna Pro               | `openai/gpt-6-luna-pro`                 | 1,050,000        | $0.10      | $0.50       | 2026-09-22 |
+| Anthropic   | Claude Haiku 5.5             | `anthropic/claude-haiku-5.5`            | 1,000,000        | $0.10      | $0.50       | 2026-10-07 |
+| Anthropic   | Claude Sonnet 5.5            | `anthropic/claude-sonnet-5.5`           | 1,000,000        | $2.00      | $10.00      | 2026-09-28 |
+| Anthropic   | Claude Opus 5.5              | `anthropic/claude-opus-5.5`             | 1,000,000        | $4.00      | $20.00      | 2026-09-22 |
+| Anthropic   | Claude Fable 5.1             | `anthropic/claude-fable-5.1`            | 1,000,000        | $10.00     | $50.00      | 2026-09-01 |
+| Anthropic   | Claude Opus 5                | `anthropic/claude-opus-5`               | 1,000,000        | $5.00      | $25.00      | 2026-07-24 |
+| Google      | Gemini 4 Argon               | `google/gemini-4-argon`                 | 1,048,576        | $2.00      | $10.00      | 2026-10-13 |
+| Google      | Gemini 3.8 Flash             | `google/gemini-3.8-flash`               | 1,048,576        | $0.825     | $4.125      | 2026-09-02 |
+| Google      | Gemini 3.7 Flash             | `google/gemini-3.7-flash`               | 1,048,576        | $0.75      | $3.75       | 2026-08-13 |
+| Google      | Gemini 3.6 Flash             | `google/gemini-3.6-flash`               | 1,048,576        | $0.75      | $3.75       | 2026-07-21 |
+| Google      | Gemini 3.5 Flash Lite        | `google/gemini-3.5-flash-lite`          | 1,048,576        | $0.30      | $2.50       | 2026-07-21 |
+| xAI         | Grok 4.7                     | `x-ai/grok-4.7`                         | 500,000          | $2.00      | $6.00       | 2026-09-21 |
+| xAI         | Grok 4.6                     | `x-ai/grok-4.6`                         | 500,000          | $2.00      | $6.00       | 2026-08-12 |
+| xAI         | Grok 4.5                     | `x-ai/grok-4.5`                         | 500,000          | $2.00      | $6.00       | 2026-07-08 |
+| xAI         | Grok Build 0.1               | `x-ai/grok-build-0.1`                   | 256,000          | $1.00      | $2.00       | 2026-05-20 |
+| xAI         | Grok 4.3                     | `x-ai/grok-4.3`                         | 1,000,000        | $1.25      | $2.50       | 2026-04-30 |
+| Meta        | Muse Spark Open              | `meta/muse-spark-open`                  | 1,048,576        | $1.25      | $4.25       | 2026-10-15 |
+| Meta        | Muse Wonder                  | `meta/muse-wonder`                      | 1,048,576        | $4.00      | $20.00      | 2026-10-12 |
+| Meta        | Muse Spark 1.3 Contributor   | `meta/muse-spark-1.3-contributor`       | 1,048,576        | $0.10      | $0.20       | 2026-09-02 |
+| Meta        | Muse Spark 1.3               | `meta/muse-spark-1.3`                   | 1,048,576        | $1.25      | $4.25       | 2026-09-02 |
+| Meta        | Muse Spark 1.2 Contributor   | `meta/muse-spark-1.2-contributor`       | 1,048,576        | $0.10      | $0.20       | 2026-08-21 |
+| Moonshot AI | Kimi K3.1 Pro                | `moonshotai/kimi-k3.1-pro`              | 1,048,576        | $2.00      | $10.00      | 2026-10-23 |
+| Moonshot AI | Kimi K3                      | `moonshotai/kimi-k3`                    | 1,048,576        | $0.192     | $15.00      | 2026-07-16 |
+| Moonshot AI | Kimi K2.7 Code               | `moonshotai/kimi-k2.7-code`             | 262,144          | $0.56      | $3.10       | 2026-06-12 |
+| Moonshot AI | Kimi K2.6                    | `moonshotai/kimi-k2.6`                  | 262,144          | $0.65      | $3.41       | 2026-04-20 |
+| Moonshot AI | Kimi K2.5                    | `moonshotai/kimi-k2.5`                  | 262,144          | $0.50      | $2.50       | 2026-01-27 |
+| DeepSeek    | DeepSeek V4.1 Flash 1017     | `deepseek/deepseek-v4.1-flash-1017`     | 1,048,576        | $0.30      | $1.20       | 2026-10-17 |
+| DeepSeek    | DeepSeek V4.1 Flash          | `deepseek/deepseek-v4.1-flash`          | 1,048,576        | $0.045     | $0.50       | 2026-09-10 |
+| DeepSeek    | DeepSeek V4 Flash Vision Exp | `deepseek/deepseek-v4-flash-vision-exp` | 1,048,576        | $0.216     | $0.647      | 2026-08-21 |
+| DeepSeek    | DeepSeek V4 Pro 0813         | `deepseek/deepseek-v4-pro-0813`         | 1,048,576        | $1.32      | $3.96       | 2026-08-12 |
+| DeepSeek    | DeepSeek V4 Flash 0731       | `deepseek/deepseek-v4-flash-0731`       | 1,048,576        | $0.119     | $0.238      | 2026-07-31 |
+| Qwen        | Qwen3.8 Max Prime            | `qwen/qwen3.8-max-prime`                | 1,000,000        | $4.00      | $12.00      | 2026-09-23 |
+| Qwen        | Qwen3.8 Omni Flash           | `qwen/qwen3.8-omni-flash`               | 1,000,000        | $0.15      | $0.47       | 2026-09-21 |
+| Qwen        | Qwen3.8 Max (0902)           | `qwen/qwen3.8-max-0902`                 | 1,000,000        | $2.00      | $6.00       | 2026-09-03 |
+| Qwen        | Qwen3.8 Flash                | `qwen/qwen3.8-flash`                    | 1,000,000        | $0.15      | $0.47       | 2026-08-26 |
+| Qwen        | Qwen3.8 27B                  | `qwen/qwen3.8-27b`                      | 1,000,000        | $0.15      | $1.875      | 2026-08-14 |
+| Z.ai        | GLM 5.3 Prime                | `z-ai/glm-5.3-prime`                    | 1,000,000        | $2.80      | $8.80       | 2026-09-23 |
+| Z.ai        | GLM 5.3 FlashX               | `z-ai/glm-5.3-flashx`                   | 1,048,576        | $0.37      | $1.25       | 2026-09-18 |
+| Z.ai        | GLM 5.3 Flash                | `z-ai/glm-5.3-flash`                    | 1,048,576        | $0.15      | $0.50       | 2026-08-26 |
+| Z.ai        | GLM 5.3                      | `z-ai/glm-5.3`                          | 1,048,576        | $0.08      | $3.60       | 2026-08-18 |
+| Z.ai        | GLM 5.2                      | `z-ai/glm-5.2`                          | 1,048,576        | $0.006     | $7.00       | 2026-06-16 |
+| Mistral     | Mistral Large 4              | `mistralai/mistral-large-4-0`           | 1,048,576        | $0.70      | $2.10       | 2026-10-06 |
+| Mistral     | Mistral Medium 3.5           | `mistralai/mistral-medium-3-5`          | 262,144          | $1.50      | $7.50       | 2026-04-30 |
+| Mistral     | Mistral Small 4              | `mistralai/mistral-small-2603`          | 262,144          | $0.15      | $0.60       | 2026-03-16 |
+| Mistral     | Devstral 2 2512              | `mistralai/devstral-2512`               | 262,144          | $0.40      | $2.00       | 2025-12-09 |
+| Mistral     | Ministral 3 14B 2512         | `mistralai/ministral-14b-2512`          | 262,144          | $0.20      | $0.20       | 2025-12-02 |
 
----
+## 2. Lowest Combined Price Among the Models Above (input + output per 1M tokens)
 
-## 2. Latency Benchmarks (TTFT ms) Across Reasoning Efforts
+| Rank | Model                             | OpenRouter ID                     | Input $/1M | Output $/1M | Input + Output $/1M |
+| :--- | :-------------------------------- | :-------------------------------- | :--------- | :---------- | :------------------ |
+| 1    | Muse Spark 1.3 Contributor (Meta) | `meta/muse-spark-1.3-contributor` | $0.10      | $0.20       | $0.30               |
+| 2    | Muse Spark 1.2 Contributor (Meta) | `meta/muse-spark-1.2-contributor` | $0.10      | $0.20       | $0.30               |
+| 3    | DeepSeek V4 Flash 0731 (DeepSeek) | `deepseek/deepseek-v4-flash-0731` | $0.119     | $0.238      | $0.357              |
+| 4    | Ministral 3 14B 2512 (Mistral)    | `mistralai/ministral-14b-2512`    | $0.20      | $0.20       | $0.40               |
+| 5    | DeepSeek V4.1 Flash (DeepSeek)    | `deepseek/deepseek-v4.1-flash`    | $0.045     | $0.50       | $0.545              |
+| 6    | GPT-6 Luna Pro (OpenAI)           | `openai/gpt-6-luna-pro`           | $0.10      | $0.50       | $0.60               |
+| 7    | Claude Haiku 5.5 (Anthropic)      | `anthropic/claude-haiku-5.5`      | $0.10      | $0.50       | $0.60               |
+| 8    | Qwen3.8 Omni Flash (Qwen)         | `qwen/qwen3.8-omni-flash`         | $0.15      | $0.47       | $0.62               |
+| 9    | Qwen3.8 Flash (Qwen)              | `qwen/qwen3.8-flash`              | $0.15      | $0.47       | $0.62               |
+| 10   | GLM 5.3 Flash (Z.ai)              | `z-ai/glm-5.3-flash`              | $0.15      | $0.50       | $0.65               |
 
-Time To First Token (TTFT in milliseconds) measured from client edge across Low, Medium, and High reasoning effort traces:
+## 3. Free Variants (`:free` IDs, text output)
 
-| Model Identifier               | TTFT (Low Effort) | TTFT (Medium Effort) | TTFT (High Effort) | Cold-Start Overhead |
-| :----------------------------- | :---------------- | :------------------- | :----------------- | :------------------ |
-| `openai/chatgpt-6-astra`       | 420ms             | 1,150ms              | 3,400ms            | +210ms              |
-| `openai/chatgpt-5.6-sol`       | 380ms             | 920ms                | 2,600ms            | +180ms              |
-| `openai/chatgpt-5.6-terra`     | 290ms             | 680ms                | 1,850ms            | +140ms              |
-| `openai/chatgpt-5.6-luna`      | -                 | 190ms                | -                  | +95ms               |
-| `anthropic/claude-opus-5`      | 480ms             | 1,320ms              | 3,850ms            | +240ms              |
-| `anthropic/claude-sonnet-5`    | 340ms             | 840ms                | 2,350ms            | +160ms              |
-| `anthropic/claude-fable-5.1`   | 260ms             | 610ms                | 1,650ms            | +120ms              |
-| `anthropic/claude-fable-5`     | 240ms             | 560ms                | 1,500ms            | +110ms              |
-| `google/gemini-3.1-pro`        | 360ms             | 890ms                | 2,450ms            | +150ms              |
-| `google/gemini-3.8-flash`      | 180ms             | 420ms                | 1,100ms            | +85ms               |
-| `google/gemini-3.7-flash`      | 160ms             | 380ms                | 980ms              | +75ms               |
-| `google/gemini-3.6-flash`      | -                 | 140ms                | -                  | +65ms               |
-| `google/gemma-4`               | -                 | 130ms                | -                  | +60ms               |
-| `deepseek/deepseek-v4.0-pro`   | 280ms             | 710ms                | 1,980ms            | +130ms              |
-| `deepseek/deepseek-v4.1-flash` | 190ms             | 440ms                | 1,150ms            | +90ms               |
-| `deepseek/deepseek-v4.0-flash` | -                 | 150ms                | -                  | +70ms               |
-| `xai/grok-4.6`                 | 390ms             | 960ms                | 2,750ms            | +190ms              |
-| `xai/grok-4.5`                 | 310ms             | 740ms                | 2,050ms            | +150ms              |
-| `moonshot/kimi-k3`             | 280ms             | 690ms                | 1,920ms            | +135ms              |
-| `zhipu/glm-5.3`                | 270ms             | 660ms                | 1,840ms            | +130ms              |
-| `zhipu/glm-5.3-flash`          | -                 | 150ms                | -                  | +70ms               |
-| `qwen/qwen-3.8-max`            | 330ms             | 820ms                | 2,300ms            | +160ms              |
-| `qwen/qwen-3.8`                | 250ms             | 600ms                | 1,680ms            | +120ms              |
-| `qwen/qwen-3.7-coder`          | 210ms             | 520ms                | 1,450ms            | +105ms              |
-| `muse/muse-1.3-spark`          | -                 | 170ms                | -                  | +80ms               |
-| `muse/muse-1.2-spark`          | -                 | 120ms                | -                  | +55ms               |
-| `openai/chatgpt-6-sol`         | -                 | -                    | -                  | -                   |
-| `openai/chatgpt-6-luna`        | -                 | -                    | -                  | -                   |
-| `anthropic/claude-opus-5.5`    | -                 | -                    | -                  | -                   |
-| `anthropic/claude-sonnet-5.5`  | -                 | -                    | -                  | -                   |
-| `google/gemini-3.5-flash`      | -                 | -                    | -                  | -                   |
-| `xai/grok-4.7`                 | -                 | -                    | -                  | -                   |
-| `mimo/mimo-v2.6-pro`           | -                 | -                    | -                  | -                   |
-| `mimo/mimo-v2.6-flash`         | -                 | -                    | -                  | -                   |
-| `minimax/minimax-m3`           | -                 | -                    | -                  | -                   |
-| `typesafe/jev-router`          | -                 | -                    | -                  | -                   |
-| `laya`                         | -                 | -                    | -                  | -                   |
+| Model                                      | OpenRouter ID                                        | Context (tokens) |
+| :----------------------------------------- | :--------------------------------------------------- | :--------------- |
+| Cohere: North Mini Code (free)             | `cohere/north-mini-code:free`                        | 256,000          |
+| Dots Studio: Dots3-Note Preview (free)     | `dots-studio/dots-3-note-preview:free`               | 512,000          |
+| Google: Gemma 4 26B A4B (free)             | `google/gemma-4-26b-a4b-it:free`                     | 262,144          |
+| Google: Gemma 4 31B (free)                 | `google/gemma-4-31b-it:free`                         | 262,144          |
+| LiquidAI: LFM2.5-2.6B (free)               | `liquid/lfm-2.5-2.6b:free`                           | 65,536           |
+| NVIDIA: Nemotron 3 Nano Omni (free)        | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | 256,000          |
+| NVIDIA: Nemotron 3 Ultra (free)            | `nvidia/nemotron-3-ultra-550b-a55b:free`             | 1,000,000        |
+| NVIDIA: Nemotron 3.5 Content Safety (free) | `nvidia/nemotron-3.5-content-safety:free`            | 128,000          |
+| NVIDIA: Nemotron 3.5 Lightning (free)      | `nvidia/nemotron-3.5-lightning:free`                 | 1,000,000        |
+| NVIDIA: Nemotron 3.5 Super VL (free)       | `nvidia/nemotron-3.5-super-vl:free`                  | 1,000,000        |
+| Poolside: Laguna S 2.1 (free)              | `poolside/laguna-s-2.1:free`                         | 262,144          |
+| Poolside: Laguna XS 2.1 (free)             | `poolside/laguna-xs-2.1:free`                        | 262,144          |
+| Recursive: Flint (free)                    | `recursive/flint-v1.0:free`                          | 262,144          |
+| Thinking Machines: Inkling Small (free)    | `thinkingmachines/inkling-small:free`                | 1,048,576        |
+| Thinking Machines: Inkling (free)          | `thinkingmachines/inkling:free`                      | 1,048,576        |
+| XingChen: Xing4.0 29B A4B (free)           | `xingchen-agi/xing4.0-29b-a4b:free`                  | 262,144          |
 
----
+## 4. Top Models on the OpenRouter Rankings Page
 
-## 3. Economic Routing Recommendations
+Source URL: https://openrouter.ai/rankings
+Retrieved: 2026-10-30 (page states: usage data through Oct 29, 2026)
 
-1. **High-Throughput Interactive Tier**: Gemini 3.8 Flash and DeepSeek V4.1 Flash provide optimal performance under $0.60/1M tokens while sustaining sub-200ms TTFT.
-2. **Deep Mathematical Proofs & Formal Verification**: ChatGPT 6 Astra and Claude Opus 5 dominate High-effort theorem reasoning, justifying their premium completion tiers for mission-critical tasks.
-3. **Massive Context Retrieval**: Gemini 3.1 Pro (10M context window) and Kimi K3 (5M context window) enable entire repository ingests without chunk boundary fragmentation.
+The rankings page shows a "Top Models" list ordered by the Artificial Analysis Intelligence Index (not by token usage; the usage leaderboard is rendered client-side and was not captured). The first ten entries:
+
+| Rank | Model (effort shown on page) | Creator     | AA Intelligence Index |
+| :--- | :--------------------------- | :---------- | :-------------------- |
+| 1    | Claude Opus 5.5 (Max)        | Anthropic   | 58.4                  |
+| 2    | GPT-6 Astra (Max)            | OpenAI      | 56.9                  |
+| 3    | GPT-6.1 Sol (Max)            | OpenAI      | 54.5                  |
+| 4    | Claude Sonnet 5.5 (Max)      | Anthropic   | 54.2                  |
+| 5    | Qwen3.8 Max                  | Qwen        | 53.4                  |
+| 6    | GPT-6.1 Terra (Max)          | OpenAI      | 51.0                  |
+| 7    | Gemini 4 Argon (High)        | Google      | 50.4                  |
+| 8    | Claude Fable 5.1 (Xhigh)     | Anthropic   | 49.7                  |
+| 9    | Kimi K3.1 Pro                | Moonshot AI | 46.0                  |
+| 10   | Muse Spark 1.3 (Max)         | Meta        | 36.4                  |

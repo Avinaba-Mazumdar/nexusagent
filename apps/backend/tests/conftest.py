@@ -84,7 +84,7 @@ def fake_llm(monkeypatch):
     def use(pieces):
         chain = FakeChain(pieces)
         monkeypatch.setattr("app.agent.graph.settings.GEMINI_API_KEY", "test-key")
-        monkeypatch.setattr("app.agent.graph._get_llm_chain", lambda api_key: chain)
+        monkeypatch.setattr("app.agent.graph._get_llm", lambda api_key, model: chain)
         return chain
 
     return use
@@ -103,13 +103,15 @@ def fake_rate_db(monkeypatch):
 @pytest.fixture(autouse=True)
 def reset_rate_limiters():
     """Reset token buckets and sliding-window counters between tests."""
-    from app.agent.graph import _get_llm_chain
+    from app.agent.graph import _get_llm, default_model_router
     from app.core.rate_limiter import default_rate_limiter
 
-    _get_llm_chain.cache_clear()
+    _get_llm.cache_clear()
+    default_model_router.reset()
     default_rate_limiter.reset_for_test()
     yield
-    _get_llm_chain.cache_clear()
+    _get_llm.cache_clear()
+    default_model_router.reset()
     default_rate_limiter.reset_for_test()
 
 

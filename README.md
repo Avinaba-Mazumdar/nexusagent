@@ -74,7 +74,7 @@ Backend configuration (`apps/backend/.env.local`):
 - `GOOGLE_CLIENT_ID`: required for Google OAuth. Production refuses to start without `JWT_SECRET_KEY` (≥ 32 chars) and `GOOGLE_CLIENT_ID`.
 - `NEON_DATABASE_URL`: the startup migration creates the schema automatically.
 - `GEMINI_API_KEY`: required. The agent synthesizes answers with Gemini and embeds queries and uploaded documents with `gemini-embedding-001`. Without it, chat answers and document uploads return an error.
-- `GEMINI_MODELS`: chat model IDs, tried in order (default: `["gemini-2.5-flash", "gemini-2.5-flash-lite"]`).
+- `GEMINI_MODELS`: chat model IDs in preference order. The default lists every Gemini free-tier text model (`gemini-3.8-flash` first). When a model returns 429 the next one answers, and the exhausted model is skipped until its quota resets (the advised retry delay for per-minute limits, midnight Pacific for daily limits).
 - `EMBEDDING_MODEL`: the single embedding model (default `gemini-embedding-001`). Changing it requires re-running `scripts/seed_kb.py` and re-uploading your documents.
 
 Frontend configuration (`apps/frontend/.env.local`):

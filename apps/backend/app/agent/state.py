@@ -83,6 +83,7 @@ class AgentState(BaseModel):
 
     # Final synthesis
     response: str = ""
+    model: str | None = None  # the Gemini model that produced ``response``
     error: str | None = None
     mermaid_diagrams: list[str] = Field(default_factory=list)
     is_complete: bool = False

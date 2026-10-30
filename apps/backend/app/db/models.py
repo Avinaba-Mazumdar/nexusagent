@@ -293,6 +293,7 @@ class AgentDoneEventWire(BaseModel):
     injectionWarnings: list[InjectionWarningWire]
     mermaidDiagrams: list[str]
     grounding: Literal["grounded", "weak", "none"]
+    model: str | None = None
     isComplete: bool
     completedAt: str | None = None
 

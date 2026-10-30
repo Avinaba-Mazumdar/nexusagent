@@ -281,6 +281,7 @@ async def generate_agent_stream(
                         ],
                         mermaidDiagrams=final_state.mermaid_diagrams,
                         grounding=final_state.grounding,
+                        model=final_state.model,
                         isComplete=True,
                         completedAt=final_state.completed_at.isoformat()
                         if final_state.completed_at

@@ -58,7 +58,7 @@ When writing code or proposing changes for NexusAgent, you MUST strictly follow 
 
 1. **Monorepo Directory Invariants**:
     - `apps/frontend`: Next.js 16 App Router (`^16.0.0`) + React 19 + TypeScript 7 + shadcn/ui + Tailwind CSS v4 + Zustand + Lucide React + Mermaid.js. Light-mode enterprise theme by default. _Never reintroduce Nuxt or ad-hoc CSS frameworks._
-    - `apps/backend`: FastAPI (`>=0.115`) + Python 3.14 + LangGraph (`>=1.2.12`) + LangChain Google GenAI (`GEMINI_MODELS`, default `gemini-2.5-flash` then `gemini-2.5-flash-lite`) + a hand-written JSON-RPC MCP server + LlamaIndex (`llama-index-core >=0.14.25`) + Neon PostgreSQL 18 (`asyncpg`) + `pgvector`. Versions are authoritative in `pyproject.toml` / `package.json`.
+    - `apps/backend`: FastAPI (`>=0.115`) + Python 3.14 + LangGraph (`>=1.2.12`) + LangChain Google GenAI (`GEMINI_MODELS`: every free-tier text model, routed by `app/agent/model_router.py` when one hits its quota) + a hand-written JSON-RPC MCP server + LlamaIndex (`llama-index-core >=0.14.25`) + Neon PostgreSQL 18 (`asyncpg`) + `pgvector`. Versions are authoritative in `pyproject.toml` / `package.json`.
     - `packages/contracts`: Shared TypeScript schemas and JSON-RPC 2.0 wire definitions.
 2. **Neon PostgreSQL 18 Data Tier & Python Backend Auth Guarantee**:
     - Single Unified Data Tier: Neon Serverless PostgreSQL 18 with `pgvector` (HNSW indexing), full-text `tsvector` BM25 search, connection pooling, and FastAPI-managed authentication (Guest JWTs + Password/OAuth sessions) is used across local development and production. Locally, no separate database is maintained.

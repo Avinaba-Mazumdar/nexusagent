@@ -58,6 +58,18 @@
                         "title": "Mermaiddiagrams",
                         "type": "array"
                     },
+                    "model": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": null,
+                        "title": "Model"
+                    },
                     "nodeHistory": {
                         "items": {
                             "type": "string"

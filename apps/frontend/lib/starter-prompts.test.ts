@@ -11,11 +11,11 @@ const kbText = readdirSync(KB_DIR)
 
 // Model and source names each prompt relies on must exist in the knowledge base.
 const REQUIRED_TERMS: Record<string, string[]> = {
-    [STARTER_PROMPTS[0]]: ['claude opus 5', 'chatgpt 6 astra'],
+    [STARTER_PROMPTS[0]]: ['claude opus 5.5', 'gpt-6 astra', 'intelligence index'],
     [STARTER_PROMPTS[1]]: ['openrouter'],
     [STARTER_PROMPTS[2]]: ['benchlm'],
-    [STARTER_PROMPTS[3]]: ['gemini 3.8 flash', 'deepseek v4.1 flash'],
-    [MCP_DEFAULT_QUERY]: ['claude opus 5', 'swe-bench verified']
+    [STARTER_PROMPTS[3]]: ['gemini 3.8 flash', 'deepseek v4.1 flash', 'cursorbench'],
+    [MCP_DEFAULT_QUERY]: ['opus 5.5', 'cursorbench 4.0']
 };
 
 describe('starter prompts', () => {

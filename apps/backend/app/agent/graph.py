@@ -4,7 +4,8 @@
 
 The planner classifies intent and short-circuits out-of-scope queries, the retriever runs hybrid
 RAG, the grounding check reports whether retrieval found usable sources, and the synthesizer
-streams a Gemini answer (with a model fallback cascade) that cites sources as [S1], [S2], ...
+streams a Gemini answer that cites sources as [S1], [S2], ... The model is chosen by
+``ModelRouter``, which moves to the next configured model when one hits its free-tier quota.
 """
 
 import functools
@@ -18,8 +19,14 @@ from typing import Any
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai.chat_models import (
+    GoogleModelNotFoundError,
+    GooglePermissionDeniedError,
+    GoogleRateLimitError,
+)
 from langgraph.graph import END, StateGraph
 
+from app.agent.model_router import ModelRouter
 from app.agent.state import AgentState, Citation, InjectionWarning, Intent, PlanStep
 from app.config import settings
 from app.core.audit_log import default_audit_logger
@@ -326,13 +333,59 @@ async def grounding_node(state: AgentState) -> AgentState:
     return state
 
 
-@functools.lru_cache(maxsize=1)
-def _get_llm_chain(api_key: str):
-    primary, *fallbacks = [
-        ChatGoogleGenerativeAI(model=m, temperature=0.1, api_key=api_key)
-        for m in settings.GEMINI_MODELS
-    ]
-    return primary.with_fallbacks(fallbacks) if fallbacks else primary
+default_model_router = ModelRouter(settings.GEMINI_MODELS)
+
+
+@functools.lru_cache(maxsize=32)
+def _get_llm(api_key: str, model: str):
+    # One attempt per model: on a 429 the router moves on instead of backing off on the same model.
+    return ChatGoogleGenerativeAI(model=model, temperature=0.1, api_key=api_key, max_retries=1)
+
+
+class AllModelsRateLimited(Exception):
+    """Every configured model is cooling down after hitting its quota."""
+
+    def __init__(self, retry_at: float | None):
+        self.retry_at = retry_at
+
+
+async def _stream_with_routing(
+    router: ModelRouter, messages: list[BaseMessage], canary: str | None, on_token: TokenSink | None
+) -> tuple[str, str]:
+    """
+    Stream from the first model with quota left; returns (text, model). A model is skipped only
+    if it fails before any text reached the client, so one answer never mixes two models.
+    """
+    forwarded = False
+
+    async def tracked(text: str) -> None:
+        nonlocal forwarded
+        forwarded = True
+        if on_token:
+            await on_token(text)
+
+    for model in router.candidates():
+        llm = _get_llm(settings.GEMINI_API_KEY, model)
+        try:
+            return await _stream_llm(llm, messages, canary, tracked), model
+        except GoogleRateLimitError as exc:
+            if forwarded:
+                raise
+            router.mark_rate_limited(model, exc)
+        except GoogleModelNotFoundError, GooglePermissionDeniedError:
+            if forwarded:
+                raise
+            router.mark_unavailable(model)
+    raise AllModelsRateLimited(router.next_available_at())
+
+
+def _retry_hint(retry_at: float | None) -> str:
+    if retry_at is None:
+        return "Please try again later."
+    minutes = max(1, round((retry_at - time.time()) / 60))
+    if minutes < 90:
+        return f"Please try again in about {minutes} minute{'s' if minutes != 1 else ''}."
+    return f"Please try again in about {round(minutes / 60)} hours (daily quotas reset at midnight Pacific time)."
 
 
 def _chunk_text(chunk: Any) -> str:
@@ -427,14 +480,23 @@ async def synthesizer_node(state: AgentState, config: RunnableConfig | None = No
         state.error = "Answer generation is not configured on this server."
     else:
         try:
-            llm_chain = _get_llm_chain(settings.GEMINI_API_KEY)
-            state.response = await _stream_llm(
-                llm_chain, build_synthesis_messages(state), state.canary_token, on_token
+            state.response, state.model = await _stream_with_routing(
+                default_model_router,
+                build_synthesis_messages(state),
+                state.canary_token,
+                on_token,
             )
             state.mermaid_diagrams = [
                 f"```mermaid\n{m.group(1).strip()}\n```"
                 for m in re.finditer(r"```mermaid\s*([\s\S]*?)\s*```", state.response)
             ]
+        except AllModelsRateLimited as exc:
+            logger.warning("All Gemini models are rate-limited (session %s)", state.session_id)
+            state.error = (
+                "Every free-tier Gemini model has reached its usage limit. "
+                + _retry_hint(exc.retry_at)
+            )
+            state.response = ""
         except CanaryLeak:
             logger.critical("Canary token leak detected in session %s", state.session_id)
             state.canary_leaked = True
