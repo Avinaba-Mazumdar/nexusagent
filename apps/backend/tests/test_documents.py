@@ -260,58 +260,6 @@ async def test_document_upload_chunks_cap_413(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_document_upload_concurrent_lock_409(monkeypatch, fake_rate_db):
-    """Test that concurrent uploads by the same user return 409 for the second request (SEC-03)."""
-    import asyncio
-    from unittest.mock import AsyncMock
-
-    from app.core.auth import get_current_user
-    from app.db.neon import get_db
-
-    user = User(
-        id=uuid4(),
-        email="lock-test@user.com",
-        name="Lock Test",
-        is_guest=False,
-    )
-    mock_db = AsyncMock()
-    mock_db.count_user_documents.return_value = 0
-    mock_db.get_document_by_hash.return_value = None
-    mock_db.create_document_with_chunks.side_effect = lambda doc, chunks: doc
-
-    app.dependency_overrides[get_current_user] = lambda: user
-    app.dependency_overrides[get_db] = lambda: mock_db
-    monkeypatch.setattr("app.routes.documents.default_embedding_service.api_key", "test-key")
-
-    async def slow_get_embeddings(*args, **kwargs):
-        await asyncio.sleep(0.5)
-        return [[0.1] * 768]
-
-    monkeypatch.setattr(
-        "app.routes.documents.default_embedding_service.get_embeddings",
-        slow_get_embeddings,
-    )
-
-    transport = ASGITransport(app=app)
-    try:
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            files1 = {"file": ("test1.md", b"# Test 1\nLine 1", "text/markdown")}
-            files2 = {"file": ("test2.md", b"# Test 2\nLine 2", "text/markdown")}
-            headers = {"Authorization": "Bearer test-token"}
-
-            res1, res2 = await asyncio.gather(
-                client.post("/api/documents/upload", files=files1, headers=headers),
-                client.post("/api/documents/upload", files=files2, headers=headers),
-            )
-            statuses = [res1.status_code, res2.status_code]
-            assert 409 in statuses
-            detail_409 = res1.json()["detail"] if res1.status_code == 409 else res2.json()["detail"]
-            assert "Upload already in progress" in detail_409
-    finally:
-        app.dependency_overrides.clear()
-
-
-@pytest.mark.asyncio
 async def test_duplicate_upload_does_not_consume_quota_log_09(fake_rate_db, monkeypatch):
     """Regression (LOG-09): duplicate file upload returns 200 with quota unchanged."""
     from datetime import UTC, datetime
@@ -549,3 +497,92 @@ def test_parse_markdown_without_headers_still_chunks():
     assert len(chunks) == 1
     assert chunks[0].metadata["headerPath"] == []
     assert chunks[0].metadata["startLine"] == 1
+
+
+@pytest.mark.asyncio
+async def test_limit_reached_during_insert_returns_409_and_refunds_r2_sec_07(
+    upload_client, fake_rate_db
+):
+    from app.db.neon import DocumentLimitReached
+
+    client, db = upload_client
+    db.create_document_with_chunks.side_effect = DocumentLimitReached
+    async with client:
+        res = await client.post(
+            "/api/documents/upload",
+            files={"file": ("a.md", b"# Title\nbody text", "text/markdown")},
+        )
+    assert res.status_code == 409
+    assert "Document limit reached" in res.json()["detail"]
+    assert list(fake_rate_db.tokens.values()) == [25]
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_concurrent_uploads_cannot_exceed_the_document_limit_r2_sec_07(monkeypatch):
+    import asyncio
+
+    from app.config import settings
+    from app.db.models import Document
+    from app.db.neon import DocumentLimitReached, neon_db
+
+    monkeypatch.setattr(settings, "MAX_DOCUMENTS_PER_USER", 3)
+    user = await neon_db.create_user(
+        User(id=uuid4(), name="Racer", is_guest=True, device_id=uuid4().hex)
+    )
+    try:
+        docs = [
+            Document(
+                id=uuid4(),
+                user_id=user.id,
+                filename=f"f{i}.md",
+                mime_type="text/markdown",
+                sha256_hash=uuid4().hex,
+                total_chunks=0,
+                is_seeded=False,
+            )
+            for i in range(6)
+        ]
+        results = await asyncio.gather(
+            *(neon_db.create_document_with_chunks(d, []) for d in docs), return_exceptions=True
+        )
+        assert sum(isinstance(r, Document) for r in results) == 3
+        assert sum(isinstance(r, DocumentLimitReached) for r in results) == 3
+    finally:
+        pool = neon_db.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_same_file_uploaded_twice_is_stored_once_r2_sec_07():
+    import asyncio
+
+    from app.db.models import Document
+    from app.db.neon import neon_db
+
+    user = await neon_db.create_user(
+        User(id=uuid4(), name="Twin", is_guest=True, device_id=uuid4().hex)
+    )
+    try:
+        same_hash = uuid4().hex
+        docs = [
+            Document(
+                id=uuid4(),
+                user_id=user.id,
+                filename="same.md",
+                mime_type="text/markdown",
+                sha256_hash=same_hash,
+                total_chunks=0,
+                is_seeded=False,
+            )
+            for _ in range(2)
+        ]
+        saved = await asyncio.gather(*(neon_db.create_document_with_chunks(d, []) for d in docs))
+        assert saved[0].id == saved[1].id
+        assert await neon_db.count_user_documents(user.id) == 1
+    finally:
+        pool = neon_db.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM users WHERE id = $1;", user.id)

@@ -28,6 +28,10 @@ class DatabaseUnavailable(RuntimeError):
     """Raised when a request needs the database but the pool is not connected."""
 
 
+class DocumentLimitReached(RuntimeError):
+    """The user already stores ``MAX_DOCUMENTS_PER_USER`` documents."""
+
+
 class NeonDatabase:
     def __init__(self, dsn: str | None = None):
         self.dsn = dsn or settings.NEON_DATABASE_URL
@@ -328,7 +332,13 @@ class NeonDatabase:
     async def create_document_with_chunks(
         self, document: Document, chunks: list[DocumentChunk]
     ) -> Document:
-        """Insert a document and its chunks transactionally."""
+        """
+        Insert a document and its chunks transactionally.
+
+        For user uploads the per-user document limit is enforced here under an advisory lock, so
+        concurrent uploads cannot exceed it. If the user already stores the same file (unique
+        ``(user_id, sha256_hash)`` index) the existing document is returned instead.
+        """
         pool = self.get_pool()
         doc_query = """
             INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, is_seeded, uploaded_at)
@@ -352,21 +362,37 @@ class NeonDatabase:
             )
             for c in chunks
         ]
-        async with pool.acquire() as conn, conn.transaction():
-            row = await conn.fetchrow(
-                doc_query,
-                document.id,
-                document.user_id,
-                document.filename,
-                document.mime_type,
-                document.sha256_hash,
-                document.total_chunks,
-                document.is_seeded,
-                document.uploaded_at,
-            )
-            if records:
-                await conn.executemany(chunk_query, records)
-            return Document(**dict(row))
+        try:
+            async with pool.acquire() as conn, conn.transaction():
+                if document.user_id is not None:
+                    await conn.execute(
+                        "SELECT pg_advisory_xact_lock(hashtext($1::text));", str(document.user_id)
+                    )
+                    stored = await conn.fetchval(
+                        "SELECT COUNT(*) FROM documents WHERE user_id = $1;", document.user_id
+                    )
+                    if stored >= settings.MAX_DOCUMENTS_PER_USER:
+                        raise DocumentLimitReached
+                row = await conn.fetchrow(
+                    doc_query,
+                    document.id,
+                    document.user_id,
+                    document.filename,
+                    document.mime_type,
+                    document.sha256_hash,
+                    document.total_chunks,
+                    document.is_seeded,
+                    document.uploaded_at,
+                )
+                if records:
+                    await conn.executemany(chunk_query, records)
+                return Document(**dict(row))
+        except asyncpg.UniqueViolationError:
+            if document.user_id is not None:
+                existing = await self.get_document_by_hash(document.sha256_hash, document.user_id)
+                if existing:
+                    return existing
+            raise
 
     async def delete_user_document(self, user_id: UUID, document_id: UUID) -> bool:
         """Delete a document the user uploaded (chunks cascade). Seeded documents are never deletable."""
