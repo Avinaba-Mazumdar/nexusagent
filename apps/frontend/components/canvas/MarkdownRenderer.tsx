@@ -173,12 +173,13 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                 const nodes = React.Children.toArray(children);
                 const first = nodes.find((n) => React.isValidElement(n)) as React.ReactElement<{ children?: React.ReactNode }> | undefined;
                 const firstChildren = React.Children.toArray(first?.props.children);
-                const lead = typeof firstChildren[0] === 'string' ? firstChildren[0].match(ALERT_MARKER) : null;
+                const firstText = typeof firstChildren[0] === 'string' ? firstChildren[0] : '';
+                const lead = firstText ? firstText.match(ALERT_MARKER) : null;
                 const alertType = lead ? lead[1].toUpperCase() : null;
 
                 let body: React.ReactNode = children;
                 if (alertType && first && lead) {
-                    const rest = [firstChildren[0].toString().slice(lead[0].length), ...firstChildren.slice(1)].filter((c) => c !== '');
+                    const rest = [firstText.slice(lead[0].length), ...firstChildren.slice(1)].filter((c) => c !== '');
                     const stripped = React.cloneElement(first, undefined, ...rest);
                     body = nodes.map((n) => (n === first ? stripped : n));
                 }
@@ -204,7 +205,9 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
             pre: ({ children }) => <>{children}</>,
             code: ({ className: codeClass, children }) => {
                 const language = /language-(\S+)/.exec(codeClass ?? '')?.[1]?.toLowerCase() ?? '';
-                const code = String(children);
+                const code = React.Children.toArray(children)
+                    .filter((c): c is string | number => typeof c === 'string' || typeof c === 'number')
+                    .join('');
                 const isBlock = Boolean(language) || code.endsWith('\n');
                 if (!isBlock) {
                     return (

@@ -1,22 +1,22 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import Script from "next/script";
-import { Activity, Database, MessageSquare } from "lucide-react";
-import { useAuthStore } from "@/lib/auth-store";
-import { apiClient } from "@/lib/api-client";
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/limits";
-import { HireMeModal } from "@/components/hire-me-modal";
-import { ObservabilityPanel, type LogEntry, type TelemetryMetrics } from "@/components/observability-panel";
-import { AgentStreamError, useAgentStream } from "@/hooks/useAgentStream";
-import { AppHeader } from "@/components/app-header";
-import { SignInDialog } from "@/components/sign-in-dialog";
-import { WorkspaceSidebar, type WorkspaceDoc, type UploadState } from "@/components/workspace-sidebar";
-import { ChatCanvas } from "@/components/chat-canvas";
-import { Composer } from "@/components/composer";
-import { useChatHistory, type ChatItem } from "@/hooks/useChatHistory";
-import type { ChatConversation, Citation, DocumentListResponse, DocumentMetadata, DocumentUploadResponse } from "@nexusagent/contracts";
-import { SourceDialog } from "@/components/canvas";
+import * as React from 'react';
+import Script from 'next/script';
+import { Activity, Database, MessageSquare } from 'lucide-react';
+import { useAuthStore } from '@/lib/auth-store';
+import { apiClient } from '@/lib/api-client';
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from '@/lib/limits';
+import { HireMeModal } from '@/components/hire-me-modal';
+import { ObservabilityPanel, type LogEntry, type TelemetryMetrics } from '@/components/observability-panel';
+import { AgentStreamError, useAgentStream } from '@/hooks/useAgentStream';
+import { AppHeader } from '@/components/app-header';
+import { SignInDialog } from '@/components/sign-in-dialog';
+import { WorkspaceSidebar, type WorkspaceDoc, type UploadState } from '@/components/workspace-sidebar';
+import { ChatCanvas } from '@/components/chat-canvas';
+import { Composer } from '@/components/composer';
+import { useChatHistory, type ChatItem } from '@/hooks/useChatHistory';
+import type { ChatConversation, Citation, DocumentListResponse, DocumentMetadata, DocumentUploadResponse } from '@nexusagent/contracts';
+import { SourceDialog } from '@/components/canvas';
 
 const MAX_LOG_ENTRIES = 200;
 
@@ -25,17 +25,17 @@ function toWorkspaceDoc(doc: DocumentMetadata): WorkspaceDoc {
 }
 
 export default function Home() {
-    const [prompt, setPrompt] = React.useState("");
+    const [prompt, setPrompt] = React.useState('');
     const [dialogOpen, setDialogOpen] = React.useState(false);
     const [isDarkTheme, setIsDarkTheme] = React.useState(false);
     const [gisLoaded, setGisLoaded] = React.useState(false);
     const [hireMeModalOpen, setHireMeModalOpen] = React.useState(false);
     const [docs, setDocs] = React.useState<WorkspaceDoc[]>([]);
     const [docsError, setDocsError] = React.useState<string | null>(null);
-    const [uploadState, setUploadState] = React.useState<UploadState>({ status: "idle" });
+    const [uploadState, setUploadState] = React.useState<UploadState>({ status: 'idle' });
     const [streamingMsgId, setStreamingMsgId] = React.useState<string | null>(null);
-    const [liveStatus, setLiveStatus] = React.useState("");
-    const [mobileActiveTab, setMobileActiveTab] = React.useState<"workspace" | "chat" | "observability">("chat");
+    const [liveStatus, setLiveStatus] = React.useState('');
+    const [mobileActiveTab, setMobileActiveTab] = React.useState<'workspace' | 'chat' | 'observability'>('chat');
     const [activeCitation, setActiveCitation] = React.useState<Citation | null>(null);
     const [isObservabilityOpen, setIsObservabilityOpen] = React.useState(false);
 
@@ -46,13 +46,13 @@ export default function Home() {
     }>({
         documents: false,
         chats: true,
-        mcp: false,
+        mcp: false
     });
 
-    const toggleCategory = React.useCallback((category: "documents" | "chats" | "mcp") => {
+    const toggleCategory = React.useCallback((category: 'documents' | 'chats' | 'mcp') => {
         setOpenCategories((prev) => ({
             ...prev,
-            [category]: !prev[category],
+            [category]: !prev[category]
         }));
     }, []);
 
@@ -73,7 +73,7 @@ export default function Home() {
         loginGoogle,
         logout,
         initAuth,
-        setQuotaRemaining,
+        setQuotaRemaining
     } = useAuthStore();
 
     const isGoogleUser = Boolean(user && !user.isGuest);
@@ -93,23 +93,23 @@ export default function Home() {
         handleSelectConversationItem,
         handleDeleteConversation,
         prefetchMessages,
-        persistConversations,
+        persistConversations
     } = useChatHistory(user);
 
     const agentStream = useAgentStream({
         onLog: (entry) => setLogs((prev) => [...prev, entry].slice(-MAX_LOG_ENTRIES)),
         onMetricUpdate: (updater) => setMetrics(updater),
-        onQuota: (remaining) => setQuotaRemaining(remaining),
+        onQuota: (remaining) => setQuotaRemaining(remaining)
     });
 
-    const streamedResponseRef = React.useRef("");
+    const streamedResponseRef = React.useRef('');
     streamedResponseRef.current = agentStream.streamedResponse;
 
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
     React.useEffect(() => {
-        initAuth();
-        setIsDarkTheme(document.documentElement.classList.contains("dark"));
+        void initAuth();
+        setIsDarkTheme(document.documentElement.classList.contains('dark'));
         if ((window as unknown as { google?: unknown }).google) {
             setGisLoaded(true);
         }
@@ -117,14 +117,14 @@ export default function Home() {
 
     const handleToggleTheme = React.useCallback((checked?: boolean) => {
         setIsDarkTheme((prev) => {
-            const next = typeof checked === "boolean" ? checked : !prev;
-            if (typeof document !== "undefined") {
+            const next = typeof checked === 'boolean' ? checked : !prev;
+            if (typeof document !== 'undefined') {
                 if (next) {
-                    document.documentElement.classList.add("dark");
-                    localStorage.setItem("nexusagent_theme", "dark");
+                    document.documentElement.classList.add('dark');
+                    localStorage.setItem('nexusagent_theme', 'dark');
                 } else {
-                    document.documentElement.classList.remove("dark");
-                    localStorage.setItem("nexusagent_theme", "light");
+                    document.documentElement.classList.remove('dark');
+                    localStorage.setItem('nexusagent_theme', 'light');
                 }
             }
             return next;
@@ -133,7 +133,7 @@ export default function Home() {
 
     const fetchDocs = React.useCallback(async () => {
         try {
-            const data = await apiClient<DocumentListResponse>("/api/documents");
+            const data = await apiClient<DocumentListResponse>('/api/documents');
             setDocs(data.documents.map(toWorkspaceDoc));
             setDocsError(null);
         } catch {
@@ -142,12 +142,12 @@ export default function Home() {
     }, [token]);
 
     React.useEffect(() => {
-        fetchDocs();
+        void fetchDocs();
     }, [fetchDocs]);
 
     const handleDeleteDocument = async (id: string) => {
         try {
-            await apiClient(`/api/documents/${id}`, { method: "DELETE" });
+            await apiClient(`/api/documents/${id}`, { method: 'DELETE' });
             setDocs((prev) => prev.filter((d) => d.id !== id));
             setDocsError(null);
         } catch (err) {
@@ -167,28 +167,28 @@ export default function Home() {
 
     const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        e.target.value = "";
+        e.target.value = '';
         if (!file || !token) return;
         if (file.size > MAX_UPLOAD_BYTES) {
-            setUploadState({ status: "error", message: `File is larger than the ${MAX_UPLOAD_MB} MB limit.` });
+            setUploadState({ status: 'error', message: `File is larger than the ${MAX_UPLOAD_MB} MB limit.` });
             return;
         }
 
-        setUploadState({ status: "uploading", message: `Indexing ${file.name}…` });
+        setUploadState({ status: 'uploading', message: `Indexing ${file.name}…` });
         const body = new FormData();
-        body.append("file", file);
+        body.append('file', file);
         try {
-            const data = await apiClient<DocumentUploadResponse>("/api/documents/upload", { method: "POST", body, timeoutMs: 120_000 });
+            const data = await apiClient<DocumentUploadResponse>('/api/documents/upload', { method: 'POST', body, timeoutMs: 120_000 });
             setUploadState({
-                status: "success",
-                message: `Indexed ${data.document.filename} (${data.chunksCount} chunks).`,
+                status: 'success',
+                message: `Indexed ${data.document.filename} (${data.chunksCount} chunks).`
             });
-            if (typeof data.quotaRemaining === "number") {
+            if (typeof data.quotaRemaining === 'number') {
                 setQuotaRemaining(data.quotaRemaining);
             }
             void fetchDocs();
         } catch (err) {
-            setUploadState({ status: "error", message: err instanceof Error ? err.message : "Upload failed." });
+            setUploadState({ status: 'error', message: err instanceof Error ? err.message : 'Upload failed.' });
         }
     };
 
@@ -214,7 +214,7 @@ export default function Home() {
                     if (response?.credential && handleCredentialRef.current) {
                         void handleCredentialRef.current(response.credential);
                     }
-                },
+                }
             });
             gsiInitializedRef.current = true;
         } catch {
@@ -231,20 +231,20 @@ export default function Home() {
             initGsi();
 
             try {
-                container.innerHTML = "";
+                container.innerHTML = '';
                 google.accounts.id.renderButton(container, {
-                    theme: isDarkTheme ? "filled_black" : "outline",
-                    size: "large",
+                    theme: isDarkTheme ? 'filled_black' : 'outline',
+                    size: 'large',
                     width: Math.round(Math.min(400, Math.max(200, container.offsetWidth || 320))),
-                    text: "continue_with",
-                    shape: "rectangular",
-                    logo_alignment: "center",
+                    text: 'continue_with',
+                    shape: 'rectangular',
+                    logo_alignment: 'center'
                 });
             } catch {
                 // Graceful fallback
             }
         },
-        [googleClientId, gisLoaded, initGsi, isDarkTheme],
+        [googleClientId, gisLoaded, initGsi, isDarkTheme]
     );
 
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -267,7 +267,7 @@ export default function Home() {
         (id: string, patch: Partial<ChatItem>) => {
             setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
         },
-        [setMessages],
+        [setMessages]
     );
 
     const streamInto = async (query: string, assistantMsgId: string) => {
@@ -275,17 +275,17 @@ export default function Home() {
 
         stickToBottomRef.current = true;
         setStreamingMsgId(assistantMsgId);
-        setLiveStatus("Generating response…");
+        setLiveStatus('Generating response…');
 
         try {
             const result = await agentStream.startStream({
                 query,
-                sessionId: activeSessionId || undefined,
+                sessionId: activeSessionId || undefined
             });
 
             if (!result) {
                 updateMessage(assistantMsgId, { content: streamedResponseRef.current, stopped: true });
-                setLiveStatus("Response stopped.");
+                setLiveStatus('Response stopped.');
                 return;
             }
 
@@ -298,23 +298,22 @@ export default function Home() {
                 setConversations((prev) => {
                     const now = new Date().toISOString();
                     const existing = prev.find((c) => c.id === currentSessionId);
-                    const updatedItem: ChatConversation =
-                        existing ?
-                            {
-                                ...existing,
-                                lastSnippet: query,
-                                messageCount: (existing.messageCount || 0) + 2,
-                                updatedAt: now,
-                            }
-                        :   {
-                                id: currentSessionId,
-                                userId: user?.id || "",
-                                title: query.slice(0, 45) + (query.length > 45 ? "..." : ""),
-                                createdAt: now,
-                                updatedAt: now,
-                                messageCount: 2,
-                                lastSnippet: query,
-                            };
+                    const updatedItem: ChatConversation = existing
+                        ? {
+                              ...existing,
+                              lastSnippet: query,
+                              messageCount: (existing.messageCount || 0) + 2,
+                              updatedAt: now
+                          }
+                        : {
+                              id: currentSessionId,
+                              userId: user?.id || '',
+                              title: query.slice(0, 45) + (query.length > 45 ? '...' : ''),
+                              createdAt: now,
+                              updatedAt: now,
+                              messageCount: 2,
+                              lastSnippet: query
+                          };
                     const nextList = [updatedItem, ...prev.filter((c) => c.id !== currentSessionId)];
                     persistConversations(nextList);
                     return nextList;
@@ -323,9 +322,9 @@ export default function Home() {
 
             setMessages((prev) => {
                 const next = prev.map((m) =>
-                    m.id === assistantMsgId ?
-                        { ...m, content: result.response, citations: result.citations, warnings: result.injectionWarnings, error: undefined, stopped: false }
-                    :   m,
+                    m.id === assistantMsgId
+                        ? { ...m, content: result.response, citations: result.citations, warnings: result.injectionWarnings, error: undefined, stopped: false }
+                        : m
                 );
                 if (currentSessionId) {
                     try {
@@ -338,9 +337,9 @@ export default function Home() {
                                     role: m.role,
                                     content: m.content,
                                     reflectionSummary: m.citations ? { citations: m.citations } : undefined,
-                                    createdAt: new Date().toISOString(),
-                                })),
-                            ),
+                                    createdAt: new Date().toISOString()
+                                }))
+                            )
                         );
                     } catch {
                         // Ignore
@@ -348,13 +347,13 @@ export default function Home() {
                 }
                 return next;
             });
-            setLiveStatus("Response ready.");
+            setLiveStatus('Response ready.');
         } catch (err: unknown) {
-            const errorText = err instanceof Error ? err.message : "Failed to execute agent stream.";
+            const errorText = err instanceof Error ? err.message : 'Failed to execute agent stream.';
             if (err instanceof AgentStreamError && err.status === 429) {
                 setQuotaRemaining(0, err.retryAfterSeconds ? new Date(Date.now() + err.retryAfterSeconds * 1000).toISOString() : undefined);
             }
-            updateMessage(assistantMsgId, { content: "", error: errorText });
+            updateMessage(assistantMsgId, { content: '', error: errorText });
             setLiveStatus(`Error: ${errorText}`);
         } finally {
             setStreamingMsgId(null);
@@ -370,22 +369,22 @@ export default function Home() {
         }
 
         if (quotaRemaining <= 0) {
-            setLiveStatus("You have used all your free questions for now.");
+            setLiveStatus('You have used all your free questions for now.');
             return;
         }
 
         const userMsgId = `u-${Date.now()}`;
         const assistantMsgId = `a-${Date.now()}`;
 
-        setMessages((prev) => [...prev, { id: userMsgId, role: "user", content: query }, { id: assistantMsgId, role: "assistant", content: "", query }]);
-        setPrompt("");
+        setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: query }, { id: assistantMsgId, role: 'assistant', content: '', query }]);
+        setPrompt('');
         void streamInto(query, assistantMsgId);
     };
 
     const handleRetry = (msg: ChatItem) => {
         if (!msg.query || agentStream.isStreaming) return;
         if (quotaRemaining <= 0) return;
-        updateMessage(msg.id, { content: "", error: undefined, stopped: false });
+        updateMessage(msg.id, { content: '', error: undefined, stopped: false });
         void streamInto(msg.query, msg.id);
     };
 
@@ -395,21 +394,21 @@ export default function Home() {
     };
 
     const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             sendQuery(prompt.trim());
         }
     };
 
     const mobileTabs = [
-        { id: "workspace" as const, label: "Workspace", icon: Database },
-        { id: "chat" as const, label: "Canvas", icon: MessageSquare },
-        { id: "observability" as const, label: "Observe", icon: Activity },
+        { id: 'workspace' as const, label: 'Workspace', icon: Database },
+        { id: 'chat' as const, label: 'Canvas', icon: MessageSquare },
+        { id: 'observability' as const, label: 'Observe', icon: Activity }
     ];
 
     return (
-        <div className='h-screen flex flex-col bg-background text-foreground font-sans overflow-hidden'>
-            <Script src='https://accounts.google.com/gsi/client' strategy='afterInteractive' onLoad={() => setGisLoaded(true)} />
+        <div className="h-screen flex flex-col bg-background text-foreground font-sans overflow-hidden">
+            <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setGisLoaded(true)} />
 
             {/* 1. Header */}
             <AppHeader
@@ -426,7 +425,7 @@ export default function Home() {
             />
 
             {/* 4-Zone Body: Workspace (left) + Synthesis Canvas (center) + Observability (right) */}
-            <div className='flex-1 flex overflow-hidden'>
+            <div className="flex-1 flex overflow-hidden">
                 {/* 2. Workspace Panel (Left) */}
                 <WorkspaceSidebar
                     mobileActiveTab={mobileActiveTab}
@@ -496,31 +495,26 @@ export default function Home() {
                     grounding={agentStream.grounding}
                     isStreaming={agentStream.isStreaming}
                     onClose={() => setIsObservabilityOpen(false)}
-                    className={
-                        mobileActiveTab === "observability" ? "flex"
-                        : isObservabilityOpen ?
-                            "hidden xl:flex"
-                        :   "hidden"
-                    }
+                    className={mobileActiveTab === 'observability' ? 'flex' : isObservabilityOpen ? 'hidden xl:flex' : 'hidden'}
                 />
             </div>
 
             {/* Mobile Bottom Navigation */}
-            <nav aria-label='Panels' className='xl:hidden flex items-center justify-around bg-card border-t border-border p-2 shrink-0 z-40 pb-safe'>
+            <nav aria-label="Panels" className="xl:hidden flex items-center justify-around bg-card border-t border-border p-2 shrink-0 z-40 pb-safe">
                 {mobileTabs.map(({ id, label, icon: Icon }) => {
                     const isActive = mobileActiveTab === id;
                     return (
                         <button
                             key={id}
-                            type='button'
+                            type="button"
                             onClick={() => setMobileActiveTab(id)}
-                            aria-current={isActive ? "page" : undefined}
+                            aria-current={isActive ? 'page' : undefined}
                             className={`flex flex-col items-center p-2 rounded-lg min-w-[70px] min-h-11 cursor-pointer ${
-                                isActive ? "text-primary bg-primary/10 font-bold" : "text-muted-foreground hover:bg-secondary/50 font-medium"
+                                isActive ? 'text-primary bg-primary/10 font-bold' : 'text-muted-foreground hover:bg-secondary/50 font-medium'
                             }`}
                         >
-                            <Icon className='h-5 w-5' aria-hidden='true' />
-                            <span className='text-xs mt-1'>{label}</span>
+                            <Icon className="h-5 w-5" aria-hidden="true" />
+                            <span className="text-xs mt-1">{label}</span>
                         </button>
                     );
                 })}

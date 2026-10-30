@@ -49,7 +49,8 @@ describe('apiClient', () => {
             });
 
             const fetchCalls = vi.mocked(globalThis.fetch).mock.calls;
-            const url = String(fetchCalls[0][0]);
+            const input = fetchCalls[0][0];
+            const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
             expect(url).toContain('query=benchmarks');
             expect(url).toContain('limit=5');
         });

