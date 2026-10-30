@@ -155,7 +155,9 @@ export function ObservabilityPanel({
                         <Badge
                             variant="outline"
                             className={`text-xs font-bold ${
-                                grounding === 'grounded' ? 'border-success-border text-success bg-success-bg' : 'border-warning-border text-warning bg-warning-bg'
+                                grounding === 'grounded'
+                                    ? 'border-success-border text-success bg-success-bg'
+                                    : 'border-warning-border text-warning bg-warning-bg'
                             }`}
                         >
                             {grounding === 'grounded' ? 'Grounded' : grounding === 'weak' ? 'Weak match' : 'None found'}

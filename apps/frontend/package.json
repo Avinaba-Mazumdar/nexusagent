@@ -6,8 +6,7 @@
         "dev": "next dev",
         "build": "next build --webpack",
         "start": "next start",
-        "lint": "oxlint",
-        "test": "vitest run --pool=threads --no-file-parallelism",
+        "test": "vp test run --pool=threads --no-file-parallelism",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
@@ -43,9 +42,7 @@
         "@vitejs/plugin-react": "^6.1.1",
         "babel-plugin-react-compiler": "1.0.0",
         "jsdom": "^30.0.1",
-        "oxlint": "^1.82.0",
         "tailwindcss": "^4",
-        "typescript": "^7.0.2",
-        "vitest": "^5.0.0"
+        "typescript": "^7.0.2"
     }
 }

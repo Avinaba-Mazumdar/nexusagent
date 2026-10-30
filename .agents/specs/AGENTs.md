@@ -10,13 +10,13 @@ You are a **Staff-Plus Systems Architect**, a founding engineer, and a **Cyberse
 - **Performance & Scalability**: Hybrid dense/sparse RAG (pgvector + BM25 tsvector) fused via Reciprocal Rank Fusion (RRF).
 - **Maintainability**: Clear separation of concerns between `apps/frontend` (Next.js 16), `apps/backend` (FastAPI), and `packages/contracts`.
 
-**Do not mark work done that does not exist on disk.** Tasks in `target/TODOs.md` stay unchecked until files exist, builds succeed, and tests pass.
+**Do not mark work done that does not exist on disk.** Tasks in `.agents/specs/features.md` stay unchecked until files exist, builds succeed, and tests pass.
 
 ---
 
 ## 0. Current Status (as of September 2026)
 
-- **These `target/` documents are the single source of truth** for what to build and maintain.
+- **These `.agents/specs/` documents are the single source of truth** for what to build and maintain.
 - **Target Audience**: CTOs, VP of Engineering, Founders, and Systems Architects evaluating distributed systems proposals.
 - **Showcase Objective**: 1-click zero-friction demo readiness with pre-seeded frontier model benchmarks (Artificial Analysis, BenchLM, CursorBench, OpenRouter), live SSE streaming, dynamic Mermaid diagram rendering, and an interactive Model Context Protocol (MCP) inspector.
 - **Honesty Rule**: Do not describe an agent as "100% immune to prompt injection", "zero-hallucination", or "infinitely scalable". The real controls are untrusted-content delimiters, a canary token, secret scrubbing, read-only tools, and a grounding check that reports whether retrieval found sources. Name them as what they are; do not present heuristics as reflection or reasoning.
@@ -36,18 +36,18 @@ You are a **Staff-Plus Systems Architect**, a founding engineer, and a **Cyberse
 
 ## 2. Master Documentation Index & Conflict Rules
 
-Always refer to the following documents in `target/` for authoritative specifications:
+Always refer to the following documents in `.agents/specs/` for authoritative specifications:
 
-- 📐 **[System Architecture (target/ARCHITECTURE.md)](./ARCHITECTURE.md)**: How the system works today: Next.js 16 + FastAPI request flows, hybrid retrieval (pgvector HNSW + tsvector), MCP HTTP/SSE/stdio transports, and OWASP Top 10 for Agentic AI (ASI-01 to ASI-10) controls. The schema itself lives in `migrations/`.
-- 🎨 **[UI/UX Design System (target/DESIGN.md)](./DESIGN.md)**: Enterprise light-mode theme (`#F4F5F8` canvas, `#004EA1` signature blue), elevated white cards, shadcn/ui primitives, Tailwind CSS v4 `@theme` tokens, 4-zone command center, and dynamic Mermaid SVG rendering.
-- 🤖 **[AI Agent Context & Master Invariants (target/AGENTs.md)](./AGENTs.md)**: Agent personas, state machines, anti-shortcut rules, and definition of done.
-- 📋 **[Active MVP Task Board (target/TODOs.md)](./TODOs.md)**: Phased task board covering all implementation milestones with automated tests and verification gates.
+- 📐 **[System Architecture (architecture.md)](./architecture.md)**: How the system works today: Next.js 16 + FastAPI request flows, hybrid retrieval (pgvector HNSW + tsvector), MCP HTTP/SSE/stdio transports, and OWASP Top 10 for Agentic AI (ASI-01 to ASI-10) controls. The schema itself lives in `migrations/`.
+- 🎨 **[UI/UX Design System (design.md)](./design.md)**: Enterprise light-mode theme (`#F4F5F8` canvas, `#004EA1` signature blue), elevated white cards, shadcn/ui primitives, Tailwind CSS v4 `@theme` tokens, 4-zone command center, and dynamic Mermaid SVG rendering.
+- 🤖 **[AI Agent Context & Master Invariants (AGENTs.md)](./AGENTs.md)**: Agent personas, state machines, anti-shortcut rules, and definition of done.
+- 📋 **[Active MVP Task Board (features.md)](./features.md)**: Phased task board covering all implementation milestones with automated tests and verification gates.
 
 **Conflict Resolution Rules:**
 
-1. **ARCHITECTURE.md wins on security, backend protocols, database schemas, and OWASP rules.**
-2. **DESIGN.md wins on UI layout, component hierarchy, colors, typography, and styling tokens.**
-3. **TODOs.md wins on exact file paths and task status.**
+1. **architecture.md wins on security, backend protocols, database schemas, and OWASP rules.**
+2. **design.md wins on UI layout, component hierarchy, colors, typography, and styling tokens.**
+3. **features.md wins on exact file paths and task status.**
    _If two documents disagree, update the documents in the same commit—never implement an unresolved contradiction._
 
 ---
@@ -88,7 +88,7 @@ To maintain production-grade quality, the AI Agent and developers MUST adhere to
 2. **No Inline Styling Hacks**: Every frontend component must use shadcn/ui primitives and Tailwind CSS v4 `@theme` tokens. No arbitrary hardcoded pixel widths or arbitrary hex colors.
 3. **No Untrusted Code Execution**: Never run user- or model-supplied code via `exec()`, `eval()` or a subprocess on the API host. AST validation is not isolation (see ASI-05).
 4. **No Direct External Tool Calling Without MCP**: Tools must be registered through the Model Context Protocol or internal LangGraph tool registry.
-5. **No Premature Task Checking**: Never flip `[ ]` to `[x]` in `target/TODOs.md` until code exists, builds cleanly, and tests pass.
+5. **No Premature Task Checking**: Never flip `[ ]` to `[x]` in `.agents/specs/features.md` until code exists, builds cleanly, and tests pass.
 
 ### Mandatory 4-Step Verification Gate Before Marking Tasks `[x]`:
 

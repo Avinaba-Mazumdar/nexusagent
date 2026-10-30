@@ -21,8 +21,20 @@ export function apiOriginFromEnv(apiUrl: string | undefined): string {
  * Google button set inline style attributes.
  */
 export function buildCsp({ nonce, isDev, apiOrigin }: CspOptions): string {
-    const connectSrc = ["'self'", apiOrigin, 'https://accounts.google.com', ...(isDev ? ['http://localhost:*', 'http://127.0.0.1:*', 'ws://localhost:*'] : [])].filter(Boolean);
-    const scriptSrc = ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...(isDev ? ["'unsafe-eval'"] : []), 'https://accounts.google.com', 'https://apis.google.com'];
+    const connectSrc = [
+        "'self'",
+        apiOrigin,
+        'https://accounts.google.com',
+        ...(isDev ? ['http://localhost:*', 'http://127.0.0.1:*', 'ws://localhost:*'] : [])
+    ].filter(Boolean);
+    const scriptSrc = [
+        "'self'",
+        `'nonce-${nonce}'`,
+        "'strict-dynamic'",
+        ...(isDev ? ["'unsafe-eval'"] : []),
+        'https://accounts.google.com',
+        'https://apis.google.com'
+    ];
 
     return [
         `default-src 'self'`,

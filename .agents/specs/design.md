@@ -100,7 +100,7 @@ A calm, light-first console for engineers reading long technical answers. Soft g
 ## 2. Implementation
 
 - **Components**: shadcn-style primitives in `apps/frontend/components/ui/` (Radix UI + `class-variance-authority`), styled with Tailwind CSS v4.
-- **Tokens**: defined once in [`apps/frontend/styles/globals.css`](../apps/frontend/styles/globals.css): CSS variables under `:root` and `.dark`, exposed to Tailwind through `@theme` (`bg-primary`, `text-muted-foreground`, `border-border`, `bg-success-bg`, ...). Do not copy hex values into components; add or change a token instead.
+- **Tokens**: defined once in [`apps/frontend/styles/globals.css`](../../apps/frontend/styles/globals.css): CSS variables under `:root` and `.dark`, exposed to Tailwind through `@theme` (`bg-primary`, `text-muted-foreground`, `border-border`, `bg-success-bg`, ...). Do not copy hex values into components; add or change a token instead.
 - **Type scale**: answer body `text-sm` (14 px); code and tables use the `text-code` token (13 px); interface chrome is `text-xs` (12 px) and never smaller. Fonts: Outfit (headings), Instrument Sans (body), JetBrains Mono (code), loaded with `next/font`.
 - **Theme**: `dark` class on `<html>`, set before paint by a nonce-protected inline script in `app/layout.tsx` and persisted in `localStorage`.
 

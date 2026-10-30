@@ -1,7 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import type { ChatConversation, ChatMessageRecord, ChatHistoryResponse, ChatConversationDetailResponse, Citation, InjectionWarning } from '@nexusagent/contracts';
+import type {
+    ChatConversation,
+    ChatMessageRecord,
+    ChatHistoryResponse,
+    ChatConversationDetailResponse,
+    Citation,
+    InjectionWarning
+} from '@nexusagent/contracts';
 import { apiClient } from '@/lib/api-client';
 
 export interface ChatItem {
@@ -143,24 +150,21 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
         }
     }, [isGoogleUser, loadConversations]);
 
-    const handleSelectConversation = React.useCallback(
-        (conversationId: string, _title: string, historyMessages?: ChatMessageRecord[], isLoading?: boolean) => {
-            setActiveSessionId(conversationId);
-            if (historyMessages && historyMessages.length > 0) {
-                setMessages(
-                    historyMessages.map((m) => ({
-                        id: m.id,
-                        role: m.role as 'user' | 'assistant',
-                        content: m.content,
-                        citations: citationsOf(m)
-                    }))
-                );
-            } else if (isLoading) {
-                setMessages([]);
-            }
-        },
-        []
-    );
+    const handleSelectConversation = React.useCallback((conversationId: string, _title: string, historyMessages?: ChatMessageRecord[], isLoading?: boolean) => {
+        setActiveSessionId(conversationId);
+        if (historyMessages && historyMessages.length > 0) {
+            setMessages(
+                historyMessages.map((m) => ({
+                    id: m.id,
+                    role: m.role as 'user' | 'assistant',
+                    content: m.content,
+                    citations: citationsOf(m)
+                }))
+            );
+        } else if (isLoading) {
+            setMessages([]);
+        }
+    }, []);
 
     const handleNewChat = React.useCallback(() => {
         setActiveSessionId(null);
@@ -260,4 +264,3 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
         persistConversations
     };
 }
-

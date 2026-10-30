@@ -2,6 +2,9 @@
     "name": "@nexusagent/contracts",
     "version": "0.1.0-alpha",
     "description": "Shared TypeScript types, interfaces, and schemas for NexusAgent",
+    "files": [
+        "dist"
+    ],
     "main": "./dist/index.js",
     "module": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -17,14 +20,11 @@
             "default": "./dist/auth.js"
         }
     },
-    "files": [
-        "dist"
-    ],
     "scripts": {
         "build": "tsc -p tsconfig.json",
         "typecheck": "tsc -p tsconfig.json --noEmit",
         "clean": "rm -rf dist",
-        "generate": "pnpm dlx --package=openapi-typescript@7.13.0 --package=typescript@5.9.3 openapi-typescript openapi.json --output src/generated.ts --root-types --root-types-no-schema-prefix && prettier --write openapi.json src/generated.ts"
+        "generate": "pnpm dlx --package=openapi-typescript@7.13.0 --package=typescript@5.9.3 openapi-typescript openapi.json --output src/generated.ts --root-types --root-types-no-schema-prefix"
     },
     "devDependencies": {
         "typescript": "^7.0.2"

@@ -125,7 +125,12 @@ export function McpInspector({ onOpenSignIn }: McpInspectorProps) {
                 {/* Action Trigger */}
                 {token ? (
                     <div className="flex items-center gap-2">
-                        <Button size="sm" disabled={isLoading} onClick={handleExecuteTool} className="flex-1 h-8 text-xs font-semibold rounded-lg gap-1.5 shadow-2xs">
+                        <Button
+                            size="sm"
+                            disabled={isLoading}
+                            onClick={handleExecuteTool}
+                            className="flex-1 h-8 text-xs font-semibold rounded-lg gap-1.5 shadow-2xs"
+                        >
                             {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3 fill-current" />}
                             <span>{isLoading ? 'Executing...' : 'Invoke Tool'}</span>
                         </Button>
@@ -180,7 +185,9 @@ export function McpInspector({ onOpenSignIn }: McpInspectorProps) {
 
                 {/* Inline Status & Results Box */}
                 {(lastResponse || errorMsg) && (
-                    <div className={`p-2 rounded-lg border text-xs space-y-1 ${errorMsg ? 'bg-destructive/10 border-destructive/30' : 'bg-success-bg border-success-border'}`}>
+                    <div
+                        className={`p-2 rounded-lg border text-xs space-y-1 ${errorMsg ? 'bg-destructive/10 border-destructive/30' : 'bg-success-bg border-success-border'}`}
+                    >
                         <div className="flex items-center justify-between text-xs font-medium">
                             <span className="flex items-center gap-1">
                                 {errorMsg ? (
@@ -200,7 +207,10 @@ export function McpInspector({ onOpenSignIn }: McpInspectorProps) {
                         <div className="font-mono text-xs max-h-20 overflow-y-auto whitespace-pre-wrap text-foreground/90">
                             {errorMsg ||
                                 (lastResponse?.result && typeof lastResponse.result === 'object' && 'content' in lastResponse.result
-                                    ? String((lastResponse.result as { content?: Array<{ text: string }> }).content?.[0]?.text ?? JSON.stringify(lastResponse.result))
+                                    ? String(
+                                          (lastResponse.result as { content?: Array<{ text: string }> }).content?.[0]?.text ??
+                                              JSON.stringify(lastResponse.result)
+                                      )
                                     : JSON.stringify(lastResponse?.result ?? lastResponse ?? {}, null, 2))}
                         </div>
                     </div>

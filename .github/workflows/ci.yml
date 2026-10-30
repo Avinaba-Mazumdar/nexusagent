@@ -50,7 +50,8 @@ jobs:
             - run: pnpm install --frozen-lockfile
             - run: pnpm --filter @nexusagent/contracts build
             - run: pnpm --filter @nexusagent/frontend typecheck
-            - run: pnpm --filter @nexusagent/frontend lint
+            - run: pnpm lint
+            - run: pnpm format:check
             - run: pnpm --filter @nexusagent/frontend test
             - run: pnpm --filter @nexusagent/frontend build
               env:

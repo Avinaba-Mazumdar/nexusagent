@@ -11,7 +11,7 @@ const sanitizeSvg = (svg: string): string =>
     DOMPurify.sanitize(svg, {
         USE_PROFILES: { svg: true, svgFilters: true, html: true },
         ADD_TAGS: ['foreignObject'],
-        HTML_INTEGRATION_POINTS: { foreignobject: true },
+        HTML_INTEGRATION_POINTS: { foreignobject: true }
     });
 
 // Mermaid (~1 MB) is loaded on first diagram only, keeping it out of the main bundle.

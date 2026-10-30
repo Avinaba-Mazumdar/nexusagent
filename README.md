@@ -12,7 +12,7 @@ NexusAgent is an enterprise-grade autonomous systems analyst that evaluates dist
 - **Three-panel UI** built with **Next.js 16**, **React 19**, **shadcn/ui** primitives and **Tailwind CSS v4**: workspace sidebar, chat canvas, observability panel.
 - **Hybrid RAG Pipeline**: Combines dense vector search with sparse keyword search (**Neon PostgreSQL 18 `pgvector`** + **`tsvector` BM25**) fused via Reciprocal Rank Fusion (RRF), powered by **LlamaIndex** hierarchical parsing.
 - **Model Context Protocol server**: HTTP gateway, SSE transport and stdio (`python -m app.mcp.server`) exposing the `hybrid_rag_search` tool to external agents such as Claude Desktop and Cursor. There is no MCP client.
-- **Security posture** (see [ARCHITECTURE.md](target/ARCHITECTURE.md) §7): untrusted-content delimiters, canary token, read-only tools, no code execution, per-user quotas, revocable sessions, nonce-based CSP, and an append-only tool audit log (30-day retention).
+- **Security posture** (see [architecture.md](.agents/specs/architecture.md) §7): untrusted-content delimiters, canary token, read-only tools, no code execution, per-user quotas, revocable sessions, nonce-based CSP, and an append-only tool audit log (30-day retention).
 - **Free guest access**: one-click guest pass with a per-user hourly quota on Neon PostgreSQL 18.
 
 ---
@@ -26,11 +26,18 @@ nexusagent/
 │   └── backend/          # FastAPI 0.141 + Python 3.14 + LangGraph 1.2 + LlamaIndex + Neon Postgres 18 + MCP server
 ├── packages/
 │   └── contracts/        # Shared TypeScript interfaces & wire schemas
-├── target/
-│   ├── ARCHITECTURE.md   # How the system works today: flows, limits, security
-│   ├── DESIGN.md         # UI layout, tokens, accessibility
-│   ├── AGENTs.md         # AI Agent context, system master, coding invariants
-│   └── TODOs.md          # Phase board (what is done, partial, removed)
+├── .agents/
+│   ├── context/          # Shared agent context and decision log
+│   ├── rules/            # Agent identity, working guide, coding standard
+│   ├── skills/           # Agent skills
+│   ├── specs/
+│   │   ├── architecture.md   # How the system works today: flows, limits, security
+│   │   ├── design.md         # UI layout, tokens, accessibility
+│   │   ├── AGENTs.md         # AI Agent context, system master, coding invariants
+│   │   ├── features.md       # Phase board (what is done, partial, removed)
+│   │   ├── aim.md            # Project aim
+│   │   └── versions.md       # Versions
+│   └── logs.md           # Agent work log
 └── knowledge_base/
     └── benchmarks/       # Pre-seeded corpus (BenchLM, CursorBench, OpenRouter metrics, AA)
 ```
@@ -102,10 +109,10 @@ Then embed the knowledge base once: `uv run --project apps/backend python script
 
 ## 📚 Master Documentation Index
 
-- 📐 **[System Architecture](target/ARCHITECTURE.md)**: How the system works today: request flows, limits, and OWASP security controls (the schema lives in `migrations/`).
-- 🎨 **[UI/UX Design System](target/DESIGN.md)**: 4-zone command center specifications, theme tokens, and component guidelines.
-- 🤖 **[AI Agent Context & Rules](target/AGENTs.md)**: Architectural invariants, definition of done, and verification gates.
-- 📋 **[Active Task Board](target/TODOs.md)**: Phased implementation roadmap and progress tracking.
+- 📐 **[System Architecture](.agents/specs/architecture.md)**: How the system works today: request flows, limits, and OWASP security controls (the schema lives in `migrations/`).
+- 🎨 **[UI/UX Design System](.agents/specs/design.md)**: 4-zone command center specifications, theme tokens, and component guidelines.
+- 🤖 **[AI Agent Context & Rules](.agents/specs/AGENTs.md)**: Architectural invariants, definition of done, and verification gates.
+- 📋 **[Active Task Board](.agents/specs/features.md)**: Phased implementation roadmap and progress tracking.
 
 ---
 
@@ -130,6 +137,8 @@ Run `uv run python scripts/prune_guests.py` daily (cron, Render Cron Job, or a s
 - **Backend tests**: `cd apps/backend && uv run pytest -q`
     - `@pytest.mark.db` tests run only when `TEST_DATABASE_URL` points to a disposable database. They create and delete data. Never point test runs at a production database.
 - **Frontend tests**: `cd apps/frontend && pnpm test`
+- **Lint & format** (Vite+: oxlint and oxfmt, configured in `vite.config.ts`): `pnpm lint`, `pnpm format:check`
+- **Backend lint & format**: `cd apps/backend && uv run ruff check . && uv run ruff format --check .`
 
 ---
 

@@ -200,7 +200,12 @@ export function ChatCanvas({
                                         ) : (
                                             <>
                                                 {msg.content ? (
-                                                    <MarkdownRenderer content={msg.content} citations={msg.citations} isDark={isDarkTheme} onCitationClick={onCitationClick} />
+                                                    <MarkdownRenderer
+                                                        content={msg.content}
+                                                        citations={msg.citations}
+                                                        isDark={isDarkTheme}
+                                                        onCitationClick={onCitationClick}
+                                                    />
                                                 ) : (
                                                     !msg.stopped && <span className="text-muted-foreground italic">No response.</span>
                                                 )}
@@ -208,8 +213,8 @@ export function ChatCanvas({
                                                     <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground" data-testid="injection-warning">
                                                         <Info className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
                                                         <span>
-                                                            {msg.warnings.map((w) => w.filename).join(', ')} contains instruction-like text. It was treated as data, not as
-                                                            instructions.
+                                                            {msg.warnings.map((w) => w.filename).join(', ')} contains instruction-like text. It was treated as
+                                                            data, not as instructions.
                                                         </span>
                                                     </p>
                                                 )}

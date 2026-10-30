@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { CitationPill } from './CitationPill';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { Citation } from '@nexusagent/contracts';

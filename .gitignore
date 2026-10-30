@@ -2,8 +2,7 @@
 node_modules/
 .pnpm-store/
 
-# Turborepo & Build Outputs
-.turbo/
+# Build Outputs
 .next/
 dist/
 build/

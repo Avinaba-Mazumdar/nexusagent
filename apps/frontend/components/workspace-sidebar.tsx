@@ -2,7 +2,20 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Database, FileText, Loader2, MessageSquare, Terminal, Trash2, UploadCloud, X } from 'lucide-react';
+import {
+    AlertCircle,
+    CheckCircle2,
+    ChevronDown,
+    ChevronRight,
+    Database,
+    FileText,
+    Loader2,
+    MessageSquare,
+    Terminal,
+    Trash2,
+    UploadCloud,
+    X
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { McpInspector } from '@/components/mcp';
@@ -90,7 +103,12 @@ function DocumentRow({ doc, onDelete }: { doc: WorkspaceDoc; onDelete: (id: stri
                     >
                         Delete
                     </button>
-                    <button type="button" onClick={() => setConfirming(false)} aria-label="Cancel delete" className="p-1 rounded text-muted-foreground hover:bg-secondary cursor-pointer">
+                    <button
+                        type="button"
+                        onClick={() => setConfirming(false)}
+                        aria-label="Cancel delete"
+                        className="p-1 rounded text-muted-foreground hover:bg-secondary cursor-pointer"
+                    >
                         <X className="h-3 w-3" aria-hidden="true" />
                     </button>
                 </div>

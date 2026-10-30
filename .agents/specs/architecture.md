@@ -1,6 +1,6 @@
 # NexusAgent — System Architecture
 
-This document describes what the code does today. Where something is **not implemented** it says so. The database schema lives only in [`migrations/`](../migrations); this file does not repeat it.
+This document describes what the code does today. Where something is **not implemented** it says so. The database schema lives only in [`migrations/`](../../migrations); this file does not repeat it.
 
 ---
 
@@ -30,7 +30,7 @@ Browser (Next.js 16)                         FastAPI backend                    
 | Backend  | Python 3.14, FastAPI, asyncpg, LangGraph, LangChain Google GenAI, LlamaIndex (markdown parsing)                                                                                                                                                |
 | Data     | Neon PostgreSQL 18: `pgvector` (HNSW, cosine) and `tsvector` (GIN)                                                                                                                                                                             |
 | Models   | Chat: `GEMINI_MODELS` (default: the eight Gemini free-tier text models, `gemini-3.8-flash` first; `ModelRouter` skips a model that returned 429 until its quota resets). Embeddings: `EMBEDDING_MODEL` (default `gemini-embedding-001`, 768-d) |
-| Monorepo | pnpm workspaces + Turborepo; `uv` for Python                                                                                                                                                                                                   |
+| Monorepo | pnpm workspaces + Vite+ (`vp`: oxlint, oxfmt, task runner); `uv` for Python                                                                                                                                                                    |
 
 Authoritative versions are in `apps/backend/pyproject.toml` and `apps/frontend/package.json`.
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { MCP_DEFAULT_QUERY, STARTER_PROMPTS } from './starter-prompts';

@@ -4,25 +4,24 @@
     "private": true,
     "description": "NexusAgent Autonomous Systems Analyst Monorepo",
     "scripts": {
-        "dev": "turbo run dev",
+        "dev": "vp run -r dev",
         "dev:fe": "pnpm --filter @nexusagent/frontend dev",
         "dev:be": "uv run --project apps/backend python -m uvicorn app.main:app --app-dir apps/backend --reload --reload-dir apps/backend/app --port 8000",
-        "build": "turbo run build",
-        "test": "turbo run test",
+        "build": "vp run -r build",
+        "test": "vp run -r test",
         "test:fe": "pnpm --filter @nexusagent/frontend test",
         "test:be": "uv run --project apps/backend python -m pytest apps/backend/tests",
-        "lint": "turbo run lint",
-        "contracts:generate": "uv run --project apps/backend python scripts/export_openapi.py && pnpm --filter @nexusagent/contracts generate",
-        "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
-        "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\""
+        "lint": "vp lint",
+        "contracts:generate": "uv run --project apps/backend python scripts/export_openapi.py && pnpm --filter @nexusagent/contracts generate && vp fmt packages/contracts/openapi.json packages/contracts/src/generated.ts",
+        "format": "vp fmt",
+        "format:check": "vp fmt --check"
     },
     "devDependencies": {
-        "prettier": "^3.5.3",
-        "turbo": "^2.4.4"
+        "vite-plus": "catalog:"
     },
-    "packageManager": "pnpm@12.9.1",
     "engines": {
         "node": ">=24.0.0",
         "pnpm": ">=10.0.0"
-    }
+    },
+    "packageManager": "pnpm@12.9.1"
 }

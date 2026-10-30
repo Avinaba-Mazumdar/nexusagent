@@ -33,9 +33,7 @@ export function SignInDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[480px] p-6 sm:p-7 rounded-3xl gap-4 border border-border/80 shadow-2xl">
                 <DialogHeader className="text-left space-y-1">
-                    <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground font-heading">
-                        Sign In to NexusAgent
-                    </DialogTitle>
+                    <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground font-heading">Sign In to NexusAgent</DialogTitle>
                     <DialogDescription className="text-xs sm:text-[13px] text-muted-foreground leading-relaxed">
                         Choose an option to begin architecture analysis with your complimentary live LLM quota.
                     </DialogDescription>
@@ -55,9 +53,7 @@ export function SignInDialog({
                     {/* Sign In with Google Card */}
                     <div className="border-2 border-featured-border rounded-2xl p-4 sm:p-5 bg-featured-bg relative">
                         <h3 className="text-sm font-bold text-foreground">Sign in with Google</h3>
-                        <p className="text-xs text-muted-foreground mt-1 mb-4 leading-relaxed">
-                            Keeps your chat history across sessions and devices.
-                        </p>
+                        <p className="text-xs text-muted-foreground mt-1 mb-4 leading-relaxed">Keeps your chat history across sessions and devices.</p>
 
                         {googleClientId ? (
                             isGoogleLoading ? (
@@ -81,9 +77,7 @@ export function SignInDialog({
                         <div className="absolute inset-0 flex items-center">
                             <div className="w-full border-t border-border/70" />
                         </div>
-                        <div className="relative bg-card px-3 text-xs uppercase tracking-widest font-bold text-muted-foreground">
-                            OR
-                        </div>
+                        <div className="relative bg-card px-3 text-xs uppercase tracking-widest font-bold text-muted-foreground">OR</div>
                     </div>
 
                     {/* Continue as Guest Card */}
@@ -125,4 +119,3 @@ export function SignInDialog({
         </Dialog>
     );
 }
-

@@ -141,7 +141,12 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
             hr: () => <hr className="my-4 border-t border-border" />,
             a: ({ href, children }) =>
                 href && SAFE_HREF.test(href) ? (
-                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary font-medium underline underline-offset-2 hover:no-underline">
+                    <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary font-medium underline underline-offset-2 hover:no-underline"
+                    >
                         {children}
                     </a>
                 ) : (
@@ -202,7 +207,11 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                 const code = String(children);
                 const isBlock = Boolean(language) || code.endsWith('\n');
                 if (!isBlock) {
-                    return <code className="px-1 py-0.5 mx-0.5 rounded bg-secondary font-mono text-code text-primary font-semibold border border-border">{children}</code>;
+                    return (
+                        <code className="px-1 py-0.5 mx-0.5 rounded bg-secondary font-mono text-code text-primary font-semibold border border-border">
+                            {children}
+                        </code>
+                    );
                 }
                 const trimmed = code.replace(/\n$/, '');
                 if (language === 'mermaid') {
