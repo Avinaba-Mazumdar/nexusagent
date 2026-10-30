@@ -8,6 +8,8 @@ catalog:
     vite-plus: 1.4.0
 overrides:
     vite@*: 'catalog:'
+    'dompurify@<3.4.17': 3.4.17
+    'katex@<0.18.2': 0.18.2
 peerDependencyRules:
     allowAny:
         - vite
