@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
 from app.core.rate_limiter import default_rate_limiter
-from app.db.models import User
+from app.db.models import User, WireModel
 from app.db.neon import NeonDatabase, get_db
 from app.rag.hybrid_search import (
     DEFAULT_DENSE_WEIGHT,
@@ -61,20 +61,20 @@ class HybridSearchRequestWire(BaseModel):
     )
 
 
-class HybridSearchResultWire(BaseModel):
+class HybridSearchResultWire(WireModel):
     id: str
-    documentId: str
-    chunkIndex: int
+    document_id: str
+    chunk_index: int
     content: str
     filename: str
-    similarityScore: float
-    denseRank: int | None = None
-    sparseRank: int | None = None
-    denseScore: float | None = None
-    sparseScore: float | None = None
-    startLine: int | None = None
-    endLine: int | None = None
-    headerPath: list[str] = Field(default_factory=list)
+    similarity_score: float
+    dense_rank: int | None = None
+    sparse_rank: int | None = None
+    dense_score: float | None = None
+    sparse_score: float | None = None
+    start_line: int | None = None
+    end_line: int | None = None
+    header_path: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -129,25 +129,7 @@ async def hybrid_search_documents(
         mcp_server="http-api",
     )
 
-    wire_results = [
-        HybridSearchResultWire(
-            id=r.id,
-            documentId=r.document_id,
-            chunkIndex=r.chunk_index,
-            content=r.content,
-            filename=r.filename,
-            similarityScore=r.similarity_score,
-            denseRank=r.dense_rank,
-            sparseRank=r.sparse_rank,
-            denseScore=r.dense_score,
-            sparseScore=r.sparse_score,
-            startLine=r.start_line,
-            endLine=r.end_line,
-            headerPath=r.header_path,
-            metadata=r.metadata,
-        )
-        for r in results
-    ]
+    wire_results = [HybridSearchResultWire.model_validate(r) for r in results]
 
     return HybridSearchResponseWire(
         query=payload.query,

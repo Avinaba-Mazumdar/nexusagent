@@ -3,6 +3,7 @@ from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic.alias_generators import to_camel
 
 
 def utc_now() -> datetime:
@@ -69,6 +70,12 @@ class DocumentChunk(BaseModel):
             return [float(x) for x in v]
         except TypeError, ValueError:
             return v
+
+
+class WireModel(BaseModel):
+    """Wire schema with snake_case fields that serialise as camelCase (read from objects of the same shape)."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
 
 
 # Wire Schemas matching packages/contracts/src/auth.ts
@@ -197,28 +204,28 @@ class ChatConversationDetailWire(BaseModel):
 # Wire Schemas matching packages/contracts/src/agent.ts (SSE payloads, not routes)
 
 
-class PlanStepWire(BaseModel):
-    stepNumber: int
+class PlanStepWire(WireModel):
+    step_number: int
     description: str
     status: Literal["pending", "in_progress", "completed", "failed"]
     tool: str | None = None
 
 
-class CitationWire(BaseModel):
+class CitationWire(WireModel):
     """A source shown to the model. The answer cites it inline as `[label]`, e.g. `[S1]`."""
 
     id: str
     label: str
-    chunkId: str
-    documentId: str
+    chunk_id: str
+    document_id: str
     filename: str
-    startLine: int | None = None
-    endLine: int | None = None
-    headerPath: list[str]
+    start_line: int | None = None
+    end_line: int | None = None
+    header_path: list[str]
     preview: str
 
 
-class InjectionWarningWire(BaseModel):
+class InjectionWarningWire(WireModel):
     """Retrieved text that looks like instructions (kept inside untrusted delimiters, but reported)."""
 
     filename: str

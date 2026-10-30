@@ -13,7 +13,7 @@ from app.agent.graph import (
     default_agent_graph,
     next_node,
 )
-from app.agent.state import AgentState, Citation, InjectionWarning, Intent, PlanStep
+from app.agent.state import AgentState, Intent
 from app.config import settings
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
@@ -62,36 +62,7 @@ class AgentStreamRequestWire(BaseModel):
 
 def format_sse(event_type: str, payload: BaseModel) -> str:
     """Format a typed payload (see ``SSE_WIRE_MODELS``) as one Server-Sent Event frame."""
-    return f"event: {event_type}\ndata: {payload.model_dump_json()}\n\n"
-
-
-def plan_step_to_wire(s: PlanStep) -> PlanStepWire:
-    return PlanStepWire.model_validate(
-        {
-            "stepNumber": s.step_number,
-            "description": s.description,
-            "status": s.status,
-            "tool": s.tool,
-        }
-    )
-
-
-def citation_to_wire(c: Citation) -> CitationWire:
-    return CitationWire(
-        id=c.id,
-        label=c.label,
-        chunkId=c.chunk_id,
-        documentId=c.document_id,
-        filename=c.filename,
-        startLine=c.start_line,
-        endLine=c.end_line,
-        headerPath=c.header_path,
-        preview=c.preview,
-    )
-
-
-def warning_to_wire(w: InjectionWarning) -> InjectionWarningWire:
-    return InjectionWarningWire(filename=w.filename, reason=w.reason)
+    return f"event: {event_type}\ndata: {payload.model_dump_json(by_alias=True)}\n\n"
 
 
 async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentState) -> str | None:
@@ -108,10 +79,15 @@ async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentS
             conv["id"],
             query,
             state.response,
-            plan_trace=[plan_step_to_wire(s).model_dump() for s in state.plan],
+            plan_trace=[
+                PlanStepWire.model_validate(s).model_dump(by_alias=True) for s in state.plan
+            ],
             reflection_summary={
                 "grounding": state.grounding,
-                "citations": [citation_to_wire(c).model_dump() for c in state.citations],
+                "citations": [
+                    CitationWire.model_validate(c).model_dump(by_alias=True)
+                    for c in state.citations
+                ],
                 "mermaidDiagrams": state.mermaid_diagrams,
             },
         )
@@ -189,7 +165,7 @@ async def generate_agent_stream(
                             "plan",
                             SsePlanEvent(
                                 sessionId=session_id,
-                                plan=[plan_step_to_wire(s) for s in step_state.plan],
+                                plan=[PlanStepWire.model_validate(s) for s in step_state.plan],
                             ),
                         )
                     )
@@ -200,9 +176,12 @@ async def generate_agent_stream(
                             SseToolResultEvent(
                                 tool="hybrid_rag_search",
                                 chunksRetrieved=len(step_state.retrieved_chunks),
-                                citations=[citation_to_wire(c) for c in step_state.citations],
+                                citations=[
+                                    CitationWire.model_validate(c) for c in step_state.citations
+                                ],
                                 injectionWarnings=[
-                                    warning_to_wire(w) for w in step_state.injection_warnings
+                                    InjectionWarningWire.model_validate(w)
+                                    for w in step_state.injection_warnings
                                 ],
                             ),
                         )
@@ -270,10 +249,11 @@ async def generate_agent_stream(
                         conversationId=conversation_id_out,
                         query=query,
                         nodeHistory=final_state.node_history,
-                        plan=[plan_step_to_wire(s) for s in final_state.plan],
-                        citations=[citation_to_wire(c) for c in final_state.citations],
+                        plan=[PlanStepWire.model_validate(s) for s in final_state.plan],
+                        citations=[CitationWire.model_validate(c) for c in final_state.citations],
                         injectionWarnings=[
-                            warning_to_wire(w) for w in final_state.injection_warnings
+                            InjectionWarningWire.model_validate(w)
+                            for w in final_state.injection_warnings
                         ],
                         mermaidDiagrams=final_state.mermaid_diagrams,
                         grounding=final_state.grounding,
