@@ -154,6 +154,12 @@ Detailed analysis here.
         expect(container.querySelector('script')).toBeNull();
     });
 
+    it('never renders markdown images, even from an allowed-looking URL (R2-SEC-12)', () => {
+        const { container } = render(<MarkdownRenderer content="![chart](https://example.com/x.png?d=secret)" />);
+
+        expect(container.querySelector('img')).toBeNull();
+    });
+
     it('shows a placeholder instead of rendering a mermaid block that is still streaming', () => {
         render(<MarkdownRenderer content={'Intro\n\n```mermaid\nflowchart TD\n  A --> B'} isStreaming />);
 

