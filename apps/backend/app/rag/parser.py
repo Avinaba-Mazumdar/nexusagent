@@ -1,18 +1,62 @@
 import hashlib
-import logging
+import re
 from typing import Any
 from uuid import UUID
-
-from llama_index.core import Document as LlamaDocument
-from llama_index.core.node_parser import MarkdownNodeParser
 
 from app.core.security_guardrails import scrub_sensitive_information
 from app.db.models import DocumentChunk
 
-logger = logging.getLogger("nexusagent.rag.parser")
-
 MAX_CHUNK_CHARS = 800
 CHUNK_OVERLAP = 100
+
+ATX_HEADER = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
+CODE_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+
+
+def split_by_headers(text: str) -> list[tuple[list[str], str]]:
+    """Split markdown at ATX headers (``#`` to ``######``), ignoring ``#`` lines inside code fences.
+
+    Returns ``(header_path, section_text)`` pairs in document order. ``header_path`` lists the
+    enclosing headers including the section's own; text before the first header gets ``[]``.
+    """
+    sections: list[tuple[list[str], str]] = []
+    stack: list[tuple[int, str]] = []
+    path: list[str] = []
+    current: list[str] = []
+    fence: tuple[str, int] | None = None
+
+    def flush() -> None:
+        body = "".join(current).strip()
+        if body:
+            sections.append((path, body))
+
+    for line in text.splitlines(keepends=True):
+        stripped = line.rstrip("\r\n")
+        fence_match = CODE_FENCE.match(stripped)
+        if fence_match:
+            marker = fence_match.group(1)
+            if fence is None:
+                fence = (marker[0], len(marker))
+            elif (
+                marker[0] == fence[0]
+                and len(marker) >= fence[1]
+                and not fence_match.group(2).strip()
+            ):
+                fence = None
+        elif fence is None:
+            header = ATX_HEADER.match(stripped)
+            if header:
+                flush()
+                level = len(header.group(1))
+                while stack and stack[-1][0] >= level:
+                    stack.pop()
+                stack.append((level, header.group(2).strip()))
+                path = [title for _, title in stack if title]
+                current = [line]
+                continue
+        current.append(line)
+    flush()
+    return sections
 
 
 def find_chunk_start(full_text: str, chunk_content: str, search_from: int = 0) -> int:
@@ -95,12 +139,11 @@ def split_large_section(
 
 
 class MarkdownHierarchicalParser:
-    """LlamaIndex-powered markdown hierarchical parser creating chunk records with line metadata."""
+    """Markdown parser: splits at headers, then size-limits each section into chunk records."""
 
     def __init__(self, max_chunk_chars: int = MAX_CHUNK_CHARS, overlap: int = CHUNK_OVERLAP):
         self.max_chunk_chars = max_chunk_chars
         self.overlap = overlap
-        self.node_parser = MarkdownNodeParser()
 
     @staticmethod
     def _locate(full_text: str, sub_text: str, cursor: int) -> tuple[int, int, int]:
@@ -126,65 +169,16 @@ class MarkdownHierarchicalParser:
         if not clean_text.strip():
             return []
 
-        llama_doc = LlamaDocument(text=clean_text)
-        try:
-            nodes = self.node_parser.get_nodes_from_documents([llama_doc])
-        except (ValueError, TypeError, KeyError, AttributeError, IndexError) as exc:
-            logger.warning("MarkdownNodeParser failed (%s); falling back to direct split.", exc)
-            nodes = []
-
         chunks: list[DocumentChunk] = []
-        chunk_index = 0
         cursor = 0  # chunks arrive in document order; never match a line before the last chunk
 
-        if nodes:
-            for node in nodes:
-                node_text = node.text.strip()
-                if not node_text:
-                    continue
-
-                header_path_raw = node.metadata.get("header_path", "/")
-                # Normalize header_path: "/Header 1/Subheader/" -> ["Header 1", "Subheader"]
-                headers = [h.strip() for h in header_path_raw.split("/") if h.strip()]
-
-                # If node itself starts with a markdown header, append it to headerPath
-                first_line = node_text.splitlines()[0].strip() if node_text.splitlines() else ""
-                if first_line.startswith("#"):
-                    curr_header = first_line.lstrip("#").strip()
-                    if curr_header and (not headers or headers[-1] != curr_header):
-                        headers = [*headers, curr_header]
-
-                sub_chunks = split_large_section(
-                    node_text, max_chars=self.max_chunk_chars, overlap=self.overlap
-                )
-                for sub_text in sub_chunks:
-                    start_l, end_l, cursor = self._locate(clean_text, sub_text, cursor)
-                    meta = {
-                        "headerPath": headers,
-                        "startLine": start_l,
-                        "endLine": end_l,
-                        "charCount": len(sub_text),
-                        "tokenCount": max(1, len(sub_text.split())),
-                        "sha256": hashlib.sha256(sub_text.encode("utf-8")).hexdigest(),
-                        **extra_metadata,
-                    }
-                    chunk = DocumentChunk(
-                        document_id=document_id,
-                        chunk_index=chunk_index,
-                        content=sub_text,
-                        metadata=meta,
-                    )
-                    chunks.append(chunk)
-                    chunk_index += 1
-        else:
-            # Fallback if no markdown nodes returned
-            sub_chunks = split_large_section(
-                clean_text, max_chars=self.max_chunk_chars, overlap=self.overlap
-            )
-            for sub_text in sub_chunks:
+        for headers, section_text in split_by_headers(clean_text):
+            for sub_text in split_large_section(
+                section_text, max_chars=self.max_chunk_chars, overlap=self.overlap
+            ):
                 start_l, end_l, cursor = self._locate(clean_text, sub_text, cursor)
                 meta = {
-                    "headerPath": [],
+                    "headerPath": headers,
                     "startLine": start_l,
                     "endLine": end_l,
                     "charCount": len(sub_text),
@@ -192,14 +186,14 @@ class MarkdownHierarchicalParser:
                     "sha256": hashlib.sha256(sub_text.encode("utf-8")).hexdigest(),
                     **extra_metadata,
                 }
-                chunk = DocumentChunk(
-                    document_id=document_id,
-                    chunk_index=chunk_index,
-                    content=sub_text,
-                    metadata=meta,
+                chunks.append(
+                    DocumentChunk(
+                        document_id=document_id,
+                        chunk_index=len(chunks),
+                        content=sub_text,
+                        metadata=meta,
+                    )
                 )
-                chunks.append(chunk)
-                chunk_index += 1
 
         return chunks
 

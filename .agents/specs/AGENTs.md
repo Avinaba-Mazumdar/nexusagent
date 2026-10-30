@@ -29,7 +29,7 @@ You are a **Staff-Plus Systems Architect**, a founding engineer, and a **Cyberse
 **NexusAgent** is an enterprise autonomous systems analyst and architecture intelligence platform.
 
 - **The Problem**: Tech leads and distributed systems engineers drown in massive, opaque RFCs and architecture whitepapers. Validating concurrency guarantees, cache invalidation schemes, and hardware latency models requires cross-referencing dozens of sections.
-- **The Solution**: NexusAgent ingests RFCs with LlamaIndex, indexes them into Neon PostgreSQL 18 (`pgvector` + `tsvector`), runs a linear LangGraph pipeline (plan, hybrid retrieval, grounding check, synthesis), and emits streaming markdown verdicts with interactive citation pills and dynamic Mermaid architecture diagrams.
+- **The Solution**: NexusAgent ingests RFCs with a header-aware markdown parser, indexes them into Neon PostgreSQL 18 (`pgvector` + `tsvector`), runs a linear LangGraph pipeline (plan, hybrid retrieval, grounding check, synthesis), and emits streaming markdown verdicts with interactive citation pills and dynamic Mermaid architecture diagrams.
 - **Interoperability**: A Model Context Protocol server (HTTP gateway, SSE transport, stdio) that lets external AI agents (Claude Desktop, Cursor) call the `hybrid_rag_search` tool. There is no MCP client.
 
 ---
@@ -58,7 +58,7 @@ When writing code or proposing changes for NexusAgent, you MUST strictly follow 
 
 1. **Monorepo Directory Invariants**:
     - `apps/frontend`: Next.js 16 App Router (`^16.0.0`) + React 19 + TypeScript 7 + shadcn/ui + Tailwind CSS v4 + Zustand + Lucide React + Mermaid.js. Light-mode enterprise theme by default. _Never reintroduce Nuxt or ad-hoc CSS frameworks._
-    - `apps/backend`: FastAPI (`>=0.115`) + Python 3.14 + LangGraph (`>=1.2.12`) + LangChain Google GenAI (`GEMINI_MODELS`: every free-tier text model, routed by `app/agent/model_router.py` when one hits its quota) + a hand-written JSON-RPC MCP server + LlamaIndex (`llama-index-core >=0.14.25`) + Neon PostgreSQL 18 (`asyncpg`) + `pgvector`. Versions are authoritative in `pyproject.toml` / `package.json`.
+    - `apps/backend`: FastAPI (`>=0.115`) + Python 3.14 + LangGraph (`>=1.2.12`) + LangChain Google GenAI (`GEMINI_MODELS`: every free-tier text model, routed by `app/agent/model_router.py` when one hits its quota) + a hand-written JSON-RPC MCP server + Neon PostgreSQL 18 (`asyncpg`) + `pgvector`. Versions are authoritative in `pyproject.toml` / `package.json`.
     - `packages/contracts`: Shared TypeScript schemas and JSON-RPC 2.0 wire definitions.
 2. **Neon PostgreSQL 18 Data Tier & Python Backend Auth Guarantee**:
     - Single Unified Data Tier: Neon Serverless PostgreSQL 18 with `pgvector` (HNSW indexing), full-text `tsvector` BM25 search, connection pooling, and FastAPI-managed authentication (Guest JWTs + Password/OAuth sessions) is used across local development and production. Locally, no separate database is maintained.
@@ -103,7 +103,6 @@ To maintain production-grade quality, the AI Agent and developers MUST adhere to
 
 - **RFC**: Request for Comments; deep technical specification document (e.g., distributed consensus, storage engines).
 - **LangGraph**: State-machine framework used here for a linear planner → retriever → grounding → synthesizer pipeline.
-- **LlamaIndex**: Data framework for parsing hierarchical document structures and generating semantic chunk nodes.
 - **Hybrid RAG**: Retrieval fusing dense vector cosine similarity (`pgvector`) with sparse lexical BM25 (`tsvector`).
 - **Reciprocal Rank Fusion (RRF)**: Rank-based mathematical fusion combining vector search and lexical search results.
 - **MCP (Model Context Protocol)**: Anthropic/OpenAI open standard enabling agents to call tools and access resources via JSON-RPC 2.0.

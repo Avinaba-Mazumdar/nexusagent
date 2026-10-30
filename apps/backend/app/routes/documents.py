@@ -163,7 +163,7 @@ async def upload_document(
 ):
     """
     Upload and parse markdown or RFC documents.
-    Enforces file size ceiling (1MB), computes SHA-256 hash, runs LlamaIndex hierarchical parser,
+    Enforces file size ceiling (1MB), computes SHA-256 hash, runs the markdown header parser,
     and batch persists document record and chunk rows into Neon PostgreSQL.
     """
     user_lock = _get_upload_lock(current_user.id)

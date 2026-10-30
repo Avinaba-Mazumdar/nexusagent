@@ -514,3 +514,38 @@ async def test_unexpected_upload_failure_refunds_quota_r2_log_01(upload_client, 
                 files={"file": ("a.md", b"# Title\nbody text", "text/markdown")},
             )
     assert list(fake_rate_db.tokens.values()) == [25]
+
+
+def test_split_by_headers_tracks_nesting_and_ignores_code_fences():
+    from app.rag.parser import split_by_headers
+
+    md = (
+        "Intro line\n\n"
+        "# Raft\n"
+        "Overview\n"
+        "## Election\n"
+        "```python\n"
+        "# not a header\n"
+        "```\n"
+        "## Log replication\n"
+        "Details\n"
+        "# Paxos\n"
+        "Other\n"
+    )
+    sections = split_by_headers(md)
+    assert [path for path, _ in sections] == [
+        [],
+        ["Raft"],
+        ["Raft", "Election"],
+        ["Raft", "Log replication"],
+        ["Paxos"],
+    ]
+    assert "# not a header" in sections[2][1]
+    assert sections[0][1] == "Intro line"
+
+
+def test_parse_markdown_without_headers_still_chunks():
+    chunks = default_markdown_parser.parse_markdown("just a paragraph", document_id=uuid4())
+    assert len(chunks) == 1
+    assert chunks[0].metadata["headerPath"] == []
+    assert chunks[0].metadata["startLine"] == 1

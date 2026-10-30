@@ -10,7 +10,7 @@ NexusAgent is an enterprise-grade autonomous systems analyst that evaluates dist
 
 - **Agent pipeline**: planner → retriever → grounding check → synthesizer on **LangGraph**, streaming the model's answer token by token with `[S1]`-style source citations.
 - **Three-panel UI** built with **Next.js 16**, **React 19**, **shadcn/ui** primitives and **Tailwind CSS v4**: workspace sidebar, chat canvas, observability panel.
-- **Hybrid RAG Pipeline**: Combines dense vector search with sparse keyword search (**Neon PostgreSQL 18 `pgvector`** + **`tsvector` BM25**) fused via Reciprocal Rank Fusion (RRF), powered by **LlamaIndex** hierarchical parsing.
+- **Hybrid RAG Pipeline**: Combines dense vector search with sparse keyword search (**Neon PostgreSQL 18 `pgvector`** + **`tsvector` BM25**) fused via Reciprocal Rank Fusion (RRF), with a built-in header-aware markdown parser.
 - **Model Context Protocol server**: HTTP gateway, SSE transport and stdio (`python -m app.mcp.server`) exposing the `hybrid_rag_search` tool to external agents such as Claude Desktop and Cursor. There is no MCP client.
 - **Security posture** (see [architecture.md](.agents/specs/architecture.md) §7): untrusted-content delimiters, canary token, read-only tools, no code execution, per-user quotas, revocable sessions, nonce-based CSP, and an append-only tool audit log (30-day retention).
 - **Free guest access**: one-click guest pass with a per-user hourly quota on Neon PostgreSQL 18.
@@ -23,7 +23,7 @@ NexusAgent is an enterprise-grade autonomous systems analyst that evaluates dist
 nexusagent/
 ├── apps/
 │   ├── frontend/         # Next.js 16 + React 19 + TypeScript 7 + shadcn/ui + Tailwind v4 + Zustand + Mermaid.js
-│   └── backend/          # FastAPI 0.141 + Python 3.14 + LangGraph 1.2 + LlamaIndex + Neon Postgres 18 + MCP server
+│   └── backend/          # FastAPI 0.141 + Python 3.14 + LangGraph 1.2 + Neon Postgres 18 + MCP server
 ├── packages/
 │   └── contracts/        # Shared TypeScript interfaces & wire schemas
 ├── .agents/

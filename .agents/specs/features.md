@@ -38,7 +38,7 @@
 ### Phase 4: Document Ingestion [Done]
 
 - [x] `POST /api/documents/upload` (1 MB, strict UTF-8, extension-based type, chunk cap, one upload at a time per user)
-- [x] LlamaIndex markdown parser, ~800-char chunks with line metadata (`rag/parser.py`)
+- [x] Header-aware markdown parser (own implementation), ~800-char chunks with line metadata (`rag/parser.py`)
 - [x] Persist documents and chunks transactionally; `DELETE /api/documents/{id}`
 
 ### Phase 5: Hybrid Search [Done]
