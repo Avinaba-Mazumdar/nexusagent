@@ -110,51 +110,42 @@ def hash_device_id(device_id: str) -> str:
     return hashlib.sha256(device_id.encode("utf-8")).hexdigest()
 
 
+def _unauthorized(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+async def _resolve_user(credentials: HTTPAuthorizationCredentials, db: NeonDatabase) -> User:
+    """Decode the bearer token and load its user; raises 401 for a bad, stale or signed-out token."""
+    payload = decode_access_token(credentials.credentials)
+    user_id_str = payload.get("sub")
+    if not user_id_str:
+        raise _unauthorized("Invalid token subject")
+
+    try:
+        user_uuid = UUID(user_id_str)
+    except ValueError:
+        raise _unauthorized("Malformed token user ID")
+
+    user = await db.get_user_by_id(user_uuid)
+    if not user:
+        raise _unauthorized("User not found")
+    if payload.get("tv", 0) != user.token_version:
+        raise _unauthorized("Session has been signed out")
+    return user
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Security(security_bearer),
     db: NeonDatabase = Depends(get_db),
 ) -> User:
     """FastAPI dependency to extract and verify authenticated user."""
     if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication credentials were not provided",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = credentials.credentials
-    payload = decode_access_token(token)
-    user_id_str = payload.get("sub")
-    if not user_id_str:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token subject",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    try:
-        user_uuid = UUID(user_id_str)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Malformed token user ID",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user = await db.get_user_by_id(user_uuid)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if payload.get("tv", 0) != user.token_version:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session has been signed out",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
+        raise _unauthorized("Authentication credentials were not provided")
+    user = await _resolve_user(credentials, db)
     await db.update_user_last_seen(user.id)
     return user
 
@@ -167,12 +158,8 @@ async def get_current_user_optional(
     if not credentials:
         return None
     try:
-        payload = decode_access_token(credentials.credentials)
-        user_id_str = payload.get("sub")
-        if not user_id_str:
-            return None
-        return await db.get_user_by_id(UUID(user_id_str))
-    except jwt.PyJWTError, ValueError, HTTPException:
+        return await _resolve_user(credentials, db)
+    except HTTPException:
         return None
 
 

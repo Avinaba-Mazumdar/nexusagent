@@ -400,3 +400,26 @@ async def test_google_auth_is_throttled_per_ip_sec_14(monkeypatch):
         ]
     assert codes[:-1] == [401] * settings.GOOGLE_AUTH_PER_IP_PER_HOUR
     assert codes[-1] == 429
+
+
+@pytest.mark.asyncio
+async def test_optional_user_ignores_a_signed_out_token_r2_sec_04():
+    """A token from before logout must not identify the user on optional-auth endpoints."""
+    from unittest.mock import AsyncMock
+
+    from fastapi.security import HTTPAuthorizationCredentials
+
+    from app.core.auth import get_current_user_optional, session_claims
+
+    user = _user(token_version=0)
+    token, _ = create_access_token(session_claims(user))
+    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+    db = AsyncMock()
+    db.get_user_by_id.return_value = user
+
+    resolved = await get_current_user_optional(creds, db)
+    assert resolved is not None and resolved.id == user.id
+
+    user.token_version = 1  # user logged out
+    assert await get_current_user_optional(creds, db) is None
+    assert await get_current_user_optional(None, db) is None
