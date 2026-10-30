@@ -19,11 +19,10 @@ async def get_health():
     if neon_db.pool is not None:
         try:
             async with neon_db.pool.acquire() as conn:
-                val = await conn.fetchval("SELECT 1;")
-                db_connected = val == 1
-                if db_connected:
-                    version = await conn.fetchval("SHOW server_version;")
-                    engine_str = f"PostgreSQL {version}"
+                db_connected = await conn.fetchval("SELECT 1;") == 1
+                if db_connected and settings.is_dev:
+                    # Version/extension fingerprints are dev-only; production does one query.
+                    engine_str = f"PostgreSQL {await conn.fetchval('SHOW server_version;')}"
                     ext_rows = await conn.fetch(
                         "SELECT extname FROM pg_extension ORDER BY extname;"
                     )
