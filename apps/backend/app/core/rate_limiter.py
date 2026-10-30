@@ -136,10 +136,10 @@ class TokenBucketLimiter:
         """Fetch current quota without consuming."""
         return (await self.get_bucket(user_id, is_guest)).tokens_remaining
 
-    async def refund(self, user_id: UUID, is_guest: bool = True) -> None:
-        """Refund 1 token (capped at capacity) after a failed run. Best effort."""
+    async def refund(self, user_id: UUID, amount: int = 1) -> None:
+        """Refund ``amount`` tokens (capped at capacity) after a failed run. Best effort."""
         try:
-            await self.db.refund_rate_limit(user_id)
+            await self.db.refund_rate_limit(user_id, amount)
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Database rate limit refund failed: {e}")
 

@@ -11,6 +11,7 @@ from app.config import settings
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.db.migrations import apply_migrations
 from app.db.neon import DatabaseUnavailable, neon_db
+from app.rag.embeddings import default_embedding_service
 from app.routes.agent import router as agent_router
 from app.routes.auth import router as auth_router
 from app.routes.chat import router as chat_router
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
             raise
 
     yield
+    await default_embedding_service.aclose()
     await neon_db.disconnect()
 
 

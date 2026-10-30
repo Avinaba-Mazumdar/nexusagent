@@ -167,7 +167,7 @@ async def generate_agent_stream(
     async def refund_if_charged() -> None:
         if user_id and quota_charged:
             try:
-                await default_rate_limiter.refund(user_id=user_id, is_guest=is_guest)
+                await default_rate_limiter.refund(user_id=user_id)
             except Exception as refund_err:  # noqa: BLE001
                 logger.warning(f"Could not refund rate limit token: {refund_err}")
 

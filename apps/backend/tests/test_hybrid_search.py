@@ -366,3 +366,55 @@ async def test_mcp_search_output_is_wrapped_as_untrusted(monkeypatch):
     )
     res = await registry.McpRegistry._exec_hybrid_search(registry.HybridRagSearchArgs(query="raft"))
     assert "<untrusted_document_context" in res.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_embedding_retries_rate_limits_then_succeeds(monkeypatch):
+    """R2-LOG-01: two 429s are retried; the third response is used."""
+    import httpx
+
+    from app.rag import embeddings
+
+    monkeypatch.setattr(embeddings, "RETRY_DELAYS", (0, 0))
+    statuses = iter([429, 503, 200])
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        status = next(statuses)
+        calls.append(status)
+        if status != 200:
+            return httpx.Response(status)
+        return httpx.Response(200, json={"embeddings": [{"values": [0.1] * EMBEDDING_DIMENSION}]})
+
+    service = EmbeddingService(api_key="k")
+    service._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        result = await service.get_embeddings(["x"])
+    finally:
+        await service.aclose()
+    assert len(result) == 1
+    assert calls == [429, 503, 200]
+
+
+@pytest.mark.asyncio
+async def test_embedding_gives_up_after_retries_with_unavailable(monkeypatch):
+    import httpx
+
+    from app.rag import embeddings
+    from app.rag.embeddings import EmbeddingUnavailable
+
+    monkeypatch.setattr(embeddings, "RETRY_DELAYS", (0, 0))
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(429)
+
+    service = EmbeddingService(api_key="k")
+    service._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(EmbeddingUnavailable):
+            await service.get_embeddings(["x"])
+    finally:
+        await service.aclose()
+    assert len(calls) == 3

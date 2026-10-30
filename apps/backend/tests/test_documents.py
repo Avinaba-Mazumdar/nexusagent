@@ -476,3 +476,41 @@ async def test_delete_document_owner_ok_and_others_404_log_13(upload_client):
     assert ok.status_code == 200 and ok.json() == {"success": True, "id": str(doc_id)}
     assert missing.status_code == 404
     assert bad.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_embedding_outage_returns_503_and_refunds_quota_r2_log_01(
+    upload_client, fake_rate_db, monkeypatch
+):
+    from app.rag.embeddings import EmbeddingUnavailable
+
+    async def failing_embed(texts, **kwargs):
+        raise EmbeddingUnavailable("Gemini embedding provider unavailable")
+
+    monkeypatch.setattr(
+        "app.routes.documents.default_embedding_service.get_embeddings", failing_embed
+    )
+    client, db = upload_client
+    async with client:
+        res = await client.post(
+            "/api/documents/upload",
+            files={"file": ("a.md", b"# Title\nbody text", "text/markdown")},
+        )
+    assert res.status_code == 503
+    assert "Nothing was charged" in res.json()["detail"]
+    assert res.headers["retry-after"] == "30"
+    assert list(fake_rate_db.tokens.values()) == [25]  # charged, then refunded in full
+    db.create_document_with_chunks.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_unexpected_upload_failure_refunds_quota_r2_log_01(upload_client, fake_rate_db):
+    client, db = upload_client
+    db.create_document_with_chunks.side_effect = RuntimeError("db down")
+    async with client:
+        with pytest.raises(RuntimeError):
+            await client.post(
+                "/api/documents/upload",
+                files={"file": ("a.md", b"# Title\nbody text", "text/markdown")},
+            )
+    assert list(fake_rate_db.tokens.values()) == [25]

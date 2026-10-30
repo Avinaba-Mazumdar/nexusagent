@@ -60,8 +60,8 @@ class FakeBucketDb:
             last_replenished_at=datetime.now(UTC),
         )
 
-    async def refund_rate_limit(self, user_id):
-        self.tokens[user_id] = self.tokens.get(user_id, 0) + 1
+    async def refund_rate_limit(self, user_id, amount=1):
+        self.tokens[user_id] = self.tokens.get(user_id, 0) + amount
 
 
 class FakeChain:

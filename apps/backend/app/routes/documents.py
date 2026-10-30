@@ -23,7 +23,7 @@ from app.db.models import (
     User,
 )
 from app.db.neon import NeonDatabase, get_db
-from app.rag.embeddings import default_embedding_service
+from app.rag.embeddings import EmbeddingUnavailable, default_embedding_service
 from app.rag.parser import default_markdown_parser
 
 logger = logging.getLogger("nexusagent.documents")
@@ -263,24 +263,35 @@ async def upload_document(
             cost=cost,
         )
 
-        # 2. Generate dense vector embeddings for all chunks
-        if chunks:
-            texts = [c.content for c in chunks]
-            embeddings = await default_embedding_service.get_embeddings(texts)
-            for chunk, emb in zip(chunks, embeddings):
-                chunk.embedding = emb
+        try:
+            # 2. Generate dense vector embeddings for all chunks
+            if chunks:
+                texts = [c.content for c in chunks]
+                embeddings = await default_embedding_service.get_embeddings(texts)
+                for chunk, emb in zip(chunks, embeddings):
+                    chunk.embedding = emb
 
-        # 3. Persist Document record and chunks transactionally
-        doc_record = Document(
-            id=new_doc_id,
-            user_id=current_user.id,
-            filename=filename,
-            mime_type=ALLOWED_EXTENSIONS[ext],
-            sha256_hash=sha256_hash,
-            total_chunks=len(chunks),
-            is_seeded=False,
-        )
-        saved_doc = await db.create_document_with_chunks(doc_record, chunks)
+            # 3. Persist Document record and chunks transactionally
+            doc_record = Document(
+                id=new_doc_id,
+                user_id=current_user.id,
+                filename=filename,
+                mime_type=ALLOWED_EXTENSIONS[ext],
+                sha256_hash=sha256_hash,
+                total_chunks=len(chunks),
+                is_seeded=False,
+            )
+            saved_doc = await db.create_document_with_chunks(doc_record, chunks)
+        except EmbeddingUnavailable:
+            await default_rate_limiter.refund(current_user.id, cost)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Embedding service is busy. Nothing was charged; try again in a minute.",
+                headers={"Retry-After": "30"},
+            )
+        except Exception:
+            await default_rate_limiter.refund(current_user.id, cost)
+            raise
 
         await default_audit_logger.log_tool_audit(
             tool_name="document_upload",

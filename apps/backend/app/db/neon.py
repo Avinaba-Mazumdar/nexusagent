@@ -305,14 +305,16 @@ class NeonDatabase:
             )
             return RateLimitBucket(**dict(row))
 
-    async def refund_rate_limit(self, user_id: UUID) -> None:
-        """Return one token (capped at capacity) after a failed run."""
+    async def refund_rate_limit(self, user_id: UUID, amount: int = 1) -> None:
+        """Return ``amount`` tokens (capped at capacity) after a failed run."""
         pool = self.get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE rate_limit_buckets SET tokens_remaining = LEAST(tokens_remaining + 1, bucket_capacity) "
+                "UPDATE rate_limit_buckets "
+                "SET tokens_remaining = LEAST(tokens_remaining + $2, bucket_capacity) "
                 "WHERE user_id = $1;",
                 user_id,
+                amount,
             )
 
     async def count_user_documents(self, user_id: UUID) -> int:
