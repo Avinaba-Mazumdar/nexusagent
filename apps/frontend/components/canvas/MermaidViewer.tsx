@@ -267,7 +267,7 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
                             <RotateCcw className="h-3.5 w-3.5" />
                         </Button>
 
-                        <div className="h-4 w-[1px] bg-border mx-0.5" />
+                        <div className="h-4 w-px bg-border mx-0.5" />
 
                         {/* Toggle Code / Diagram View */}
                         <Button
@@ -320,7 +320,7 @@ export function MermaidViewer({ chart, isDark = false, title = 'Architecture Seq
                     onKeyDown={handleViewportKeyDown}
                     className={`relative overflow-hidden flex items-center justify-center p-4 bg-card cursor-grab active:cursor-grabbing select-none ${
                         isZoomedOrExpanded ? 'touch-none' : 'touch-pan-y'
-                    } ${isExpanded ? 'flex-1 min-h-[300px]' : 'min-h-[220px] max-h-[480px]'}`}
+                    } ${isExpanded ? 'flex-1 min-h-75' : 'min-h-55 max-h-120'}`}
                 >
                     {isLoading && (
                         <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground py-8">

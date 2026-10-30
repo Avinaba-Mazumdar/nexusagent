@@ -141,7 +141,7 @@ export function McpInspector({ onOpenSignIn }: McpInspectorProps) {
                                     Raw messages
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-xl max-h-[80vh] flex flex-col p-4">
+                            <DialogContent className="max-w-xl max-h-4/5 flex flex-col p-4">
                                 <DialogHeader>
                                     <DialogTitle className="text-sm font-heading flex items-center gap-1.5">
                                         <Terminal className="h-4 w-4 text-primary" />

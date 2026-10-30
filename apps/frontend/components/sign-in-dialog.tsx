@@ -34,10 +34,10 @@ export function SignInDialog({
 }: SignInDialogProps) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[480px] p-6 sm:p-7 rounded-3xl gap-4 border border-border/80 shadow-2xl">
+            <DialogContent className="sm:max-w-120 p-6 sm:p-7 rounded-3xl gap-4 border border-border/80 shadow-2xl">
                 <DialogHeader className="text-left space-y-1">
                     <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground font-heading">Sign In to NexusAgent</DialogTitle>
-                    <DialogDescription className="text-xs sm:text-[13px] text-muted-foreground leading-relaxed">
+                    <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
                         Choose an option to begin architecture analysis with your complimentary live LLM quota.
                     </DialogDescription>
                 </DialogHeader>
@@ -92,7 +92,7 @@ export function SignInDialog({
                     <div className="bg-secondary/40 dark:bg-secondary/20 border border-border/70 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4">
                         <div className="space-y-1">
                             <h3 className="text-sm font-bold text-foreground">Continue as Guest</h3>
-                            <p className="text-xs text-muted-foreground leading-relaxed max-w-[220px] sm:max-w-[260px]">
+                            <p className="text-xs text-muted-foreground leading-relaxed max-w-55 sm:max-w-65">
                                 Start right away with a free hourly allowance. No registration required.
                             </p>
                         </div>

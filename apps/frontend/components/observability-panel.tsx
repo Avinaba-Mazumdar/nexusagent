@@ -116,7 +116,7 @@ export function ObservabilityPanel({
                         return (
                             <React.Fragment key={node.id}>
                                 <div
-                                    className={`flex flex-col items-center px-1 py-0.5 rounded text-center min-w-[52px] shrink-0 transition-all ${
+                                    className={`flex flex-col items-center px-1 py-0.5 rounded text-center min-w-13 shrink-0 transition-all ${
                                         isCurrent
                                             ? 'bg-primary text-primary-foreground font-bold shadow-xs'
                                             : isPast
@@ -209,7 +209,7 @@ export function ObservabilityPanel({
                         {isStreaming ? 'Streaming' : 'Idle'}
                     </Badge>
                 </CardHeader>
-                <CardContent className="p-2 flex-1 overflow-y-auto max-h-[340px] font-mono text-xs space-y-1.5 bg-secondary/40 text-foreground">
+                <CardContent className="p-2 flex-1 overflow-y-auto max-h-85 font-mono text-xs space-y-1.5 bg-secondary/40 text-foreground">
                     {logs.length === 0 ? (
                         <div className="text-muted-foreground py-4 text-center text-xs">Awaiting agent trigger. Stream logs will appear here.</div>
                     ) : (

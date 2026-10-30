@@ -519,7 +519,7 @@ export default function Home() {
                             type="button"
                             onClick={() => setMobileActiveTab(id)}
                             aria-current={isActive ? 'page' : undefined}
-                            className={`flex flex-col items-center p-2 rounded-lg min-w-[70px] min-h-11 cursor-pointer ${
+                            className={`flex flex-col items-center p-2 rounded-lg min-w-18 min-h-11 cursor-pointer ${
                                 isActive ? 'text-primary bg-primary/10 font-bold' : 'text-muted-foreground hover:bg-secondary/50 font-medium'
                             }`}
                         >

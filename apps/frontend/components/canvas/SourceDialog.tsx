@@ -50,7 +50,7 @@ export function SourceDialog({ citation, onClose }: SourceDialogProps) {
 
     return (
         <Dialog open={citation !== null} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col gap-3">
+            <DialogContent className="sm:max-w-2xl max-h-4/5 flex flex-col gap-3">
                 <DialogHeader>
                     <DialogTitle className="text-base font-mono break-all">{citation?.filename}</DialogTitle>
                     <DialogDescription>
