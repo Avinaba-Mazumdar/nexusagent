@@ -68,17 +68,23 @@ def find_chunk_start(full_text: str, chunk_content: str, search_from: int = 0) -
     return idx if idx != -1 else full_text.find(first_line)
 
 
+def _line_span(full_text: str, chunk_content: str, idx: int) -> tuple[int, int]:
+    """1-indexed (start, end) lines of ``chunk_content`` found at char offset ``idx`` (-1 if not found)."""
+    if idx == -1:
+        return 1, max(1, chunk_content.count("\n") + 1)
+    start_line = full_text.count("\n", 0, idx) + 1
+    return start_line, start_line + chunk_content.count("\n")
+
+
 def compute_line_positions(
     full_text: str, chunk_content: str, search_from: int = 0
 ) -> tuple[int, int]:
     """Find 1-indexed start and end line numbers of chunk_content inside full_text."""
     if not chunk_content or not full_text:
         return 1, 1
-    idx = find_chunk_start(full_text, chunk_content, search_from)
-    if idx == -1:
-        return 1, max(1, chunk_content.count("\n") + 1)
-    start_line = full_text.count("\n", 0, idx) + 1
-    return start_line, start_line + chunk_content.count("\n")
+    return _line_span(
+        full_text, chunk_content, find_chunk_start(full_text, chunk_content, search_from)
+    )
 
 
 def split_large_section(
@@ -147,11 +153,9 @@ class MarkdownHierarchicalParser:
 
     @staticmethod
     def _locate(full_text: str, sub_text: str, cursor: int) -> tuple[int, int, int]:
-        """Return (start_line, end_line, next_cursor) for a chunk, searching from cursor."""
+        """Return (start_line, end_line, next_cursor) for a chunk, searching once from cursor."""
         idx = find_chunk_start(full_text, sub_text, cursor)
-        start_line, end_line = compute_line_positions(
-            full_text, sub_text, idx if idx != -1 else cursor
-        )
+        start_line, end_line = _line_span(full_text, sub_text, idx)
         return start_line, end_line, idx + 1 if idx != -1 else cursor
 
     def parse_markdown(
