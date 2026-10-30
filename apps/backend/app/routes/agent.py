@@ -11,7 +11,7 @@ from app.agent.graph import (
     AgentGraph,
     classify_query_intent,
     default_agent_graph,
-    route_after_planner,
+    next_node,
 )
 from app.agent.state import AgentState, Citation, InjectionWarning, Intent, PlanStep
 from app.config import settings
@@ -92,13 +92,6 @@ def citation_to_wire(c: Citation) -> CitationWire:
 
 def warning_to_wire(w: InjectionWarning) -> InjectionWarningWire:
     return InjectionWarningWire(filename=w.filename, reason=w.reason)
-
-
-def next_node(finished: str, state: AgentState) -> str | None:
-    """The node LangGraph runs after ``finished`` (the graph is a fixed pipeline)."""
-    if finished == "planner":
-        return route_after_planner(state)
-    return {"retriever": "grounding", "grounding": "synthesizer"}.get(finished)
 
 
 async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentState) -> str | None:

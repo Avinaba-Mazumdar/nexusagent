@@ -558,6 +558,17 @@ def route_after_planner(state: AgentState) -> str:
     return "retriever"
 
 
+# Fixed edges after the planner's conditional edge; routes/agent.py uses this for its node_start events.
+PIPELINE_NEXT = {"retriever": "grounding", "grounding": "synthesizer"}
+
+
+def next_node(finished: str, state: AgentState) -> str | None:
+    """The node LangGraph runs after ``finished`` (the graph is a fixed pipeline)."""
+    if finished == "planner":
+        return route_after_planner(state)
+    return PIPELINE_NEXT.get(finished)
+
+
 class AgentGraph:
     """LangGraph ``StateGraph``: planner -> retriever -> grounding -> synthesizer."""
 
@@ -581,8 +592,8 @@ class AgentGraph:
             route_after_planner,
             {"synthesizer": "synthesizer", "retriever": "retriever"},
         )
-        builder.add_edge("retriever", "grounding")
-        builder.add_edge("grounding", "synthesizer")
+        for source, target in PIPELINE_NEXT.items():
+            builder.add_edge(source, target)
         builder.add_edge("synthesizer", END)
         return builder.compile()
 
