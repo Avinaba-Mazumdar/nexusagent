@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import type { UserSession, GuestPassResponse, TokenResponse } from '@nexusagent/contracts';
 import { apiClient, setAuthTokenGetter, setOnUnauthorizedCallback } from './api-client';
+import { clearChatCache } from './chat-cache';
 
 const STORAGE_KEY_TOKEN = 'nexusagent_token';
 const STORAGE_KEY_USER = 'nexusagent_user';
 const STORAGE_KEY_QUOTA = 'nexusagent_quota';
 const STORAGE_KEY_DEVICE_ID = 'nexusagent_device_id';
-const CHAT_CACHE_PREFIXES = ['nexusagent_chat_history_', 'nexusagent_msgs_'];
 /** Renew the token when less than this is left (tokens last 24 h), and re-check this often while the tab is open. */
 const SESSION_EXPIRED_NOTICE = 'Your session expired. Please sign in again.';
 const REFRESH_WHEN_LEFT_SECONDS = 12 * 60 * 60;
@@ -103,13 +103,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
                 localStorage.removeItem(STORAGE_KEY_TOKEN);
                 localStorage.removeItem(STORAGE_KEY_USER);
                 localStorage.removeItem(STORAGE_KEY_QUOTA);
-                // Cached chat lists and transcripts must not outlive the session on a shared device.
-                Object.keys(localStorage)
-                    .filter((key) => CHAT_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)))
-                    .forEach((key) => localStorage.removeItem(key));
             } catch {
                 // Storage unavailable
             }
+            clearChatCache();
         }
         set({
             user: null,

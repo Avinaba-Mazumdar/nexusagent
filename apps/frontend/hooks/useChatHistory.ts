@@ -10,6 +10,7 @@ import type {
     InjectionWarning
 } from '@nexusagent/contracts';
 import { apiClient } from '@/lib/api-client';
+import { readConversations, readMessages, removeMessages, writeConversations, writeMessages } from '@/lib/chat-cache';
 
 export interface ChatItem {
     id: string;
@@ -34,17 +35,9 @@ function byRecency(a: ChatConversation, b: ChatConversation): number {
 
 export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
     const isGoogleUser = Boolean(user && !user.isGuest);
-    const storageKey = React.useMemo(() => `nexusagent_chat_history_${user?.id || 'anonymous'}`, [user?.id]);
+    const userId = user?.id;
 
-    const [conversations, setConversations] = React.useState<ChatConversation[]>(() => {
-        if (typeof window === 'undefined') return [];
-        try {
-            const cached = localStorage.getItem(`nexusagent_chat_history_${user?.id || 'anonymous'}`);
-            return cached ? JSON.parse(cached) : [];
-        } catch {
-            return [];
-        }
-    });
+    const [conversations, setConversations] = React.useState<ChatConversation[]>(() => (typeof window === 'undefined' ? [] : readConversations(userId)));
 
     const [isLoadingConversations, setIsLoadingConversations] = React.useState(false);
     const [chatSearchQuery, setChatSearchQuery] = React.useState('');
@@ -67,44 +60,42 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
         setActiveSessionId(null);
     }, [user?.id]);
 
-    const persistConversations = React.useCallback(
-        (list: ChatConversation[]) => {
-            try {
-                localStorage.setItem(storageKey, JSON.stringify(list));
-            } catch {
-                // Ignore quota
-            }
-        },
-        [storageKey]
-    );
+    const persistConversations = React.useCallback((list: ChatConversation[]) => writeConversations(userId, list), [userId]);
 
-    const prefetchMessages = React.useCallback((convId: string) => {
-        if (memoryMessageCache.current.has(convId)) return;
-        try {
-            const cached = localStorage.getItem(`nexusagent_msgs_${convId}`);
-            if (cached) {
-                memoryMessageCache.current.set(convId, JSON.parse(cached));
-                return;
-            }
-        } catch {
-            // Ignore
-        }
-
-        apiClient<ChatConversationDetailResponse>(`/api/chat/history/${convId}`)
-            .then((detail) => {
-                if (detail?.messages) {
-                    memoryMessageCache.current.set(convId, detail.messages);
-                    try {
-                        localStorage.setItem(`nexusagent_msgs_${convId}`, JSON.stringify(detail.messages));
-                    } catch {
-                        // Ignore
-                    }
-                }
-            })
-            .catch(() => {
-                // Silently ignore
-            });
+    /** Memory first, then localStorage; null when this conversation has not been cached yet. */
+    const cachedMessages = React.useCallback((convId: string): ChatMessageRecord[] | null => {
+        const inMemory = memoryMessageCache.current.get(convId);
+        if (inMemory) return inMemory;
+        const stored = readMessages(convId);
+        if (stored) memoryMessageCache.current.set(convId, stored);
+        return stored;
     }, []);
+
+    const storeMessages = React.useCallback((convId: string, records: ChatMessageRecord[]) => {
+        memoryMessageCache.current.set(convId, records);
+        writeMessages(convId, records);
+    }, []);
+
+    /** Forget the cached transcript so the next open fetches the server copy (call after a new answer is saved). */
+    const invalidateMessages = React.useCallback((convId: string) => {
+        memoryMessageCache.current.delete(convId);
+        removeMessages(convId);
+    }, []);
+
+    const prefetchMessages = React.useCallback(
+        (convId: string) => {
+            if (cachedMessages(convId)) return;
+
+            apiClient<ChatConversationDetailResponse>(`/api/chat/history/${convId}`)
+                .then((detail) => {
+                    if (detail?.messages) storeMessages(convId, detail.messages);
+                })
+                .catch(() => {
+                    // Silently ignore
+                });
+        },
+        [cachedMessages, storeMessages]
+    );
 
     const loadConversations = React.useCallback(
         async (force = false) => {
@@ -114,13 +105,9 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
 
             inFlightConversationsRef.current = true;
             setIsLoadingConversations(true);
-            try {
-                const cached = localStorage.getItem(storageKey);
-                if (cached) {
-                    setConversations((prev) => (prev.length === 0 ? JSON.parse(cached) : prev));
-                }
-            } catch {
-                // Ignore
+            const cached = readConversations(userId);
+            if (cached.length > 0) {
+                setConversations((prev) => (prev.length === 0 ? cached : prev));
             }
 
             try {
@@ -141,7 +128,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
                 setIsLoadingConversations(false);
             }
         },
-        [isGoogleUser, storageKey, prefetchMessages, persistConversations]
+        [isGoogleUser, userId, prefetchMessages, persistConversations]
     );
 
     React.useEffect(() => {
@@ -177,18 +164,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
     const handleSelectConversationItem = React.useCallback(
         (conv: ChatConversation) => {
             selectionRef.current = conv.id;
-            let initialMessages: ChatMessageRecord[] | undefined = memoryMessageCache.current.get(conv.id);
-            if (!initialMessages) {
-                try {
-                    const cached = localStorage.getItem(`nexusagent_msgs_${conv.id}`);
-                    if (cached) {
-                        initialMessages = JSON.parse(cached);
-                        if (initialMessages) memoryMessageCache.current.set(conv.id, initialMessages);
-                    }
-                } catch {
-                    // Ignore
-                }
-            }
+            const initialMessages = cachedMessages(conv.id) ?? undefined;
 
             const hasCached = Boolean(initialMessages && initialMessages.length > 0);
             handleSelectConversation(conv.id, initialMessages, !hasCached);
@@ -196,12 +172,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
             apiClient<ChatConversationDetailResponse>(`/api/chat/history/${conv.id}`)
                 .then((detail) => {
                     if (detail?.messages) {
-                        memoryMessageCache.current.set(conv.id, detail.messages);
-                        try {
-                            localStorage.setItem(`nexusagent_msgs_${conv.id}`, JSON.stringify(detail.messages));
-                        } catch {
-                            // Ignore
-                        }
+                        storeMessages(conv.id, detail.messages);
                         if (selectionRef.current !== conv.id) return;
                         handleSelectConversation(conv.id, detail.messages, false);
                     }
@@ -210,7 +181,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
                     // Ignore
                 });
         },
-        [handleSelectConversation]
+        [handleSelectConversation, cachedMessages, storeMessages]
     );
 
     const handleDeleteConversation = React.useCallback(
@@ -228,14 +199,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
             }
 
             apiClient(`/api/chat/history/${convId}`, { method: 'DELETE' })
-                .then(() => {
-                    memoryMessageCache.current.delete(convId);
-                    try {
-                        localStorage.removeItem(`nexusagent_msgs_${convId}`);
-                    } catch {
-                        // Ignore
-                    }
-                })
+                .then(() => invalidateMessages(convId))
                 .catch(() => {
                     setConversations((prev) => {
                         if (prev.some((c) => c.id === convId)) return prev;
@@ -246,7 +210,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
                     setChatNotice(`Couldn't delete "${removed.title}". It has been restored.`);
                 });
         },
-        [conversations, persistConversations, activeSessionId, handleNewChat]
+        [conversations, persistConversations, activeSessionId, handleNewChat, invalidateMessages]
     );
 
     return {
@@ -265,6 +229,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
         handleSelectConversationItem,
         handleDeleteConversation,
         prefetchMessages,
-        persistConversations
+        persistConversations,
+        invalidateMessages
     };
 }

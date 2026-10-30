@@ -95,7 +95,8 @@ export default function Home() {
         handleSelectConversationItem,
         handleDeleteConversation,
         prefetchMessages,
-        persistConversations
+        persistConversations,
+        invalidateMessages
     } = useChatHistory(user);
 
     const agentStream = useAgentStream({
@@ -333,33 +334,15 @@ export default function Home() {
                 });
             }
 
-            setMessages((prev) => {
-                const next = prev.map((m) =>
+            setMessages((prev) =>
+                prev.map((m) =>
                     m.id === assistantMsgId
                         ? { ...m, content: result.response, citations: result.citations, warnings: result.injectionWarnings, error: undefined, stopped: false }
                         : m
-                );
-                if (currentSessionId) {
-                    try {
-                        localStorage.setItem(
-                            `nexusagent_msgs_${currentSessionId}`,
-                            JSON.stringify(
-                                next.map((m) => ({
-                                    id: m.id,
-                                    conversationId: currentSessionId,
-                                    role: m.role,
-                                    content: m.content,
-                                    reflectionSummary: m.citations ? { citations: m.citations } : undefined,
-                                    createdAt: new Date().toISOString()
-                                }))
-                            )
-                        );
-                    } catch {
-                        // Ignore
-                    }
-                }
-                return next;
-            });
+                )
+            );
+            // The server saved the turn: drop the cached transcript so the next open loads the real copy.
+            if (currentSessionId && saved) invalidateMessages(currentSessionId);
             setLiveStatus('Response ready.');
         } catch (err: unknown) {
             const errorText = err instanceof Error ? err.message : 'Failed to execute agent stream.';
