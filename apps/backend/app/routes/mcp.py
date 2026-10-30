@@ -140,6 +140,17 @@ async def mcp_sse_endpoint(
     )
 
 
+def _enqueue(queue: asyncio.Queue[str], response: JsonRpcResponse) -> None:
+    """Push a response frame to the session's SSE stream, or 429 when the client is not reading."""
+    try:
+        queue.put_nowait(response.model_dump_json(exclude_none=True))
+    except asyncio.QueueFull:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="MCP session queue full",
+        )
+
+
 @router.post("/messages")
 async def mcp_messages_endpoint(
     request: Request,
@@ -162,44 +173,25 @@ async def mcp_messages_endpoint(
         body = await request.json()
         req = JsonRpcRequest.model_validate(body)
     except json.JSONDecodeError, ValidationError, ValueError, TypeError:
-        err_res = JsonRpcResponse(
-            id=None,
-            error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request"),
+        _enqueue(
+            queue,
+            JsonRpcResponse(
+                id=None, error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request")
+            ),
         )
-        try:
-            queue.put_nowait(err_res.model_dump_json(exclude_none=True))
-        except asyncio.QueueFull:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="MCP session queue full",
-            )
         return JSONResponse(status_code=202, content={"status": "accepted"})
 
     client_ip = get_client_ip(request)
 
     try:
         res = await dispatch_mcp_method(req, user=current_user, client_ip=client_ip)
-        if req.id is not None:
-            try:
-                queue.put_nowait(res.model_dump_json(exclude_none=True))
-            except asyncio.QueueFull:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="MCP session queue full",
-                )
-        return JSONResponse(status_code=202, content={"status": "accepted"})
     except Exception:
         logger.exception("Error processing SSE message")
-        err_res = JsonRpcResponse(
-            id=req.id,
-            error=JsonRpcError(code=INTERNAL_ERROR, message="Internal error"),
+        res = JsonRpcResponse(
+            id=req.id, error=JsonRpcError(code=INTERNAL_ERROR, message="Internal error")
         )
-        if req.id is not None:
-            try:
-                queue.put_nowait(err_res.model_dump_json(exclude_none=True))
-            except asyncio.QueueFull:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="MCP session queue full",
-                )
-        return JSONResponse(status_code=202, content={"status": "accepted"})
+
+    # Notifications (no id) get no response frame. Enqueued outside the try so a full queue is a 429.
+    if req.id is not None:
+        _enqueue(queue, res)
+    return JSONResponse(status_code=202, content={"status": "accepted"})

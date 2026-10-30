@@ -40,14 +40,14 @@ async def dispatch_mcp_method(
             },
         )
 
-    elif method == "notifications/initialized" or method == "ping":
+    if method == "notifications/initialized" or method == "ping":
         return JsonRpcResponse(id=req.id, result={})
 
-    elif method == "tools/list":
+    if method == "tools/list":
         tools = default_mcp_registry.get_tools()
         return JsonRpcResponse(id=req.id, result={"tools": tools})
 
-    elif method == "tools/call":
+    if method == "tools/call":
         tool_name = params.get("name")
         tool_args = params.get("arguments", {})
         if not isinstance(tool_name, str) or not 0 < len(tool_name) <= MAX_TOOL_NAME_CHARS:
@@ -93,11 +93,11 @@ async def dispatch_mcp_method(
         )
         return JsonRpcResponse(id=req.id, result=call_res.model_dump())
 
-    elif method == "resources/list":
+    if method == "resources/list":
         resources = default_mcp_registry.get_resources()
         return JsonRpcResponse(id=req.id, result={"resources": resources})
 
-    elif method == "resources/read":
+    if method == "resources/read":
         uri = params.get("uri")
         if not uri:
             return JsonRpcResponse(
@@ -114,8 +114,7 @@ async def dispatch_mcp_method(
                 error=JsonRpcError(code=INVALID_PARAMS, message="Unknown resource"),
             )
 
-    else:
-        return JsonRpcResponse(
-            id=req.id,
-            error=JsonRpcError(code=METHOD_NOT_FOUND, message=f"Method '{method}' not found."),
-        )
+    return JsonRpcResponse(
+        id=req.id,
+        error=JsonRpcError(code=METHOD_NOT_FOUND, message=f"Method '{method}' not found."),
+    )
