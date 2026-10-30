@@ -556,6 +556,7 @@
                     "documentId": {
                         "anyOf": [
                             {
+                                "format": "uuid",
                                 "type": "string"
                             },
                             {

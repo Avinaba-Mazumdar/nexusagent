@@ -484,3 +484,28 @@ async def test_dense_search_finds_user_chunks_behind_many_seeded_chunks_r2_log_0
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM documents WHERE id = ANY($1::uuid[]);", [seeded_doc.id])
             await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
+
+
+@pytest.mark.asyncio
+async def test_invalid_document_id_is_a_422_and_costs_nothing_r2_log_10(fake_rate_db):
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from httpx import ASGITransport, AsyncClient
+
+    from app.core.auth import get_current_user
+    from app.db.models import User
+    from app.main import app
+
+    now = datetime.now(UTC)
+    user = User(id=uuid4(), name="Searcher", is_guest=True, created_at=now, last_seen_at=now)
+    app.dependency_overrides[get_current_user] = lambda: user
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                "/api/rag/search", json={"query": "raft", "documentId": "not-a-uuid"}
+            )
+        assert res.status_code == 422
+        assert fake_rate_db.tokens == {}  # no bucket was even created
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)

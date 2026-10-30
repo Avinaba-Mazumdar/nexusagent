@@ -3,7 +3,7 @@ import time
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from app.core.audit_log import default_audit_logger
@@ -26,7 +26,7 @@ class HybridSearchRequestWire(BaseModel):
         max_length=1000,
         description="Search query string for hybrid vector and lexical retrieval",
     )
-    documentId: str | None = Field(
+    documentId: UUID | None = Field(
         None,
         description="Optional document UUID filter to restrict search to a single file",
     )
@@ -92,23 +92,16 @@ async def hybrid_search_documents(
     """
     client_ip = get_client_ip(request)
 
+    # Validate input and tenancy before charging the quota.
+    doc_uuid = payload.documentId
+    if doc_uuid:
+        await require_document_access(db, doc_uuid, current_user)
+
     await default_rate_limiter.check_and_consume(
         user_id=current_user.id,
         client_ip=client_ip,
         is_guest=current_user.is_guest,
     )
-    doc_uuid: UUID | None = None
-    if payload.documentId:
-        try:
-            doc_uuid = UUID(payload.documentId)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid documentId format",
-            )
-
-        # Validate tenancy if documentId is provided
-        await require_document_access(db, doc_uuid, current_user)
 
     engine = HybridSearchEngine(db=db)
     start_time = time.perf_counter()
