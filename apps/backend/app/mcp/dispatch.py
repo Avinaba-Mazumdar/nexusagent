@@ -9,7 +9,10 @@ from app.mcp.protocol import (
     JsonRpcRequest,
     JsonRpcResponse,
 )
-from app.mcp.registry import InvalidToolArguments, default_mcp_registry
+from app.mcp.registry import ARGUMENT_MODELS, InvalidToolArguments, default_mcp_registry
+
+# tool_audit_logs.tool_name is VARCHAR(100)
+MAX_TOOL_NAME_CHARS = 100
 
 
 async def dispatch_mcp_method(
@@ -47,14 +50,21 @@ async def dispatch_mcp_method(
     elif method == "tools/call":
         tool_name = params.get("name")
         tool_args = params.get("arguments", {})
-        if not tool_name:
+        if not isinstance(tool_name, str) or not 0 < len(tool_name) <= MAX_TOOL_NAME_CHARS:
             return JsonRpcResponse(
                 id=req.id,
-                error=JsonRpcError(code=INVALID_PARAMS, message="Missing parameter 'name'."),
+                error=JsonRpcError(
+                    code=INVALID_PARAMS, message="Missing or invalid parameter 'name'."
+                ),
+            )
+        if tool_name not in ARGUMENT_MODELS:
+            # Rejected before metering: an unknown tool does no work.
+            return JsonRpcResponse(
+                id=req.id, error=JsonRpcError(code=INVALID_PARAMS, message="Unknown tool")
             )
 
         try:
-            default_mcp_registry.validate_arguments(tool_name, tool_args)
+            parsed_args = default_mcp_registry.validate_arguments(tool_name, tool_args)
         except InvalidToolArguments as exc:
             return JsonRpcResponse(
                 id=req.id, error=JsonRpcError(code=INVALID_PARAMS, message=str(exc))
@@ -79,7 +89,7 @@ async def dispatch_mcp_method(
                 raise
 
         call_res = await default_mcp_registry.call_tool(
-            tool_name, tool_args, user_id=user.id if user else None
+            tool_name, parsed_args, user_id=user.id if user else None
         )
         return JsonRpcResponse(id=req.id, result=call_res.model_dump())
 

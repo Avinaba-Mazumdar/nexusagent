@@ -120,8 +120,8 @@ async def test_code_execution_is_not_exposed():
             "params": {"name": "python_sandbox", "arguments": {"code": "print(1)"}},
         }
     )
-    assert call["result"]["isError"] is True
-    assert "Unknown tool" in call["result"]["content"][0]["text"]
+    assert call["error"]["code"] == -32602
+    assert call["error"]["message"] == "Unknown tool"
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -142,7 +142,28 @@ async def test_sql_audit_tool_is_not_exposed():
             "params": {"name": "mcp_sql_audit", "arguments": {"query": "SELECT 1"}},
         }
     )
-    assert call["result"]["isError"] is True
+    assert call["error"]["code"] == -32602
+
+
+@pytest.mark.asyncio
+async def test_malformed_tool_names_are_invalid_params_and_not_metered_r2_log_12(fake_rate_db):
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from app.db.models import User
+    from app.mcp.dispatch import dispatch_mcp_method
+    from app.mcp.protocol import JsonRpcRequest
+
+    now = datetime.now(UTC)
+    user = User(id=uuid4(), name="Caller", is_guest=True, created_at=now, last_seen_at=now)
+    for name in ({"nested": "object"}, ["list"], "x" * 500, "", None, 7, "nope"):
+        res = await dispatch_mcp_method(
+            JsonRpcRequest(id=1, method="tools/call", params={"name": name, "arguments": {}}),
+            user=user,
+            client_ip="1.2.3.4",
+        )
+        assert res.error is not None and res.error.code == -32602, name
+    assert fake_rate_db.tokens == {}  # nothing was charged
 
 
 @pytest.mark.db

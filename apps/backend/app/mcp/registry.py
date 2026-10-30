@@ -94,15 +94,12 @@ class McpRegistry:
         return [tool.model_dump() for tool in TOOLS]
 
     @staticmethod
-    def validate_arguments(name: str, arguments: Any) -> BaseModel | None:
-        """Validate arguments against the tool's schema. Unknown tools return None."""
-        model = ARGUMENT_MODELS.get(name)
-        if model is None:
-            return None
+    def validate_arguments(name: str, arguments: Any) -> BaseModel:
+        """Validate arguments against the tool's schema (``name`` must be a known tool)."""
         if not isinstance(arguments, dict):
             raise InvalidToolArguments("'arguments' must be an object.")
         try:
-            return model.model_validate(arguments)
+            return ARGUMENT_MODELS[name].model_validate(arguments)
         except ValidationError as exc:
             problems = "; ".join(
                 f"{'.'.join(str(p) for p in err['loc']) or 'arguments'}: {err['msg']}"
@@ -142,29 +139,16 @@ class McpRegistry:
 
     @classmethod
     async def call_tool(
-        cls, name: str, arguments: dict[str, Any], user_id: UUID | None = None
+        cls, name: str, parsed: BaseModel, user_id: UUID | None = None
     ) -> ToolCallResult:
-        """Validate arguments, run the tool, and write an audit row."""
+        """Run an already-validated tool call and write an audit row."""
         start_time = time.perf_counter()
-        parsed = cls.validate_arguments(name, arguments)
-        if parsed is None:
-            result = ToolCallResult(
-                content=[
-                    ToolCallContent(
-                        text=f"Unknown tool '{name}'. Available: {', '.join(t.name for t in TOOLS)}"
-                    )
-                ],
-                isError=True,
-            )
-            audited_args: dict[str, Any] = {}
-        else:
-            result = await cls._exec_hybrid_search(parsed)  # type: ignore[arg-type]
-            audited_args = parsed.model_dump()
+        result = await cls._exec_hybrid_search(parsed)  # type: ignore[arg-type]
 
         duration_ms = max(int((time.perf_counter() - start_time) * 1000), 0)
         await default_audit_logger.log_tool_audit(
             tool_name=name,
-            input_args=audited_args,
+            input_args=parsed.model_dump(),
             output_summary={"isError": result.isError},
             duration_ms=duration_ms,
             user_id=user_id,
