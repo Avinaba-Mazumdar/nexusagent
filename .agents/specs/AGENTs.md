@@ -40,7 +40,6 @@ Always refer to the following documents in `.agents/specs/` for authoritative sp
 
 - 📐 **[System Architecture (architecture.md)](./architecture.md)**: How the system works today: Next.js 16 + FastAPI request flows, hybrid retrieval (pgvector HNSW + tsvector), MCP HTTP/SSE/stdio transports, and OWASP Top 10 for Agentic AI (ASI-01 to ASI-10) controls. The schema itself lives in `migrations/`.
 - 🎨 **[UI/UX Design System (design.md)](./design.md)**: Enterprise light-mode theme (`#F4F5F8` canvas, `#004EA1` signature blue), elevated white cards, shadcn/ui primitives, Tailwind CSS v4 `@theme` tokens, 4-zone command center, and dynamic Mermaid SVG rendering.
-- 🤖 **[AI Agent Context & Master Invariants (AGENTs.md)](./AGENTs.md)**: Agent personas, state machines, anti-shortcut rules, and definition of done.
 - 📋 **[Active MVP Task Board (features.md)](./features.md)**: Phased task board covering all implementation milestones with automated tests and verification gates.
 
 **Conflict Resolution Rules:**

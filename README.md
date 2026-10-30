@@ -45,7 +45,7 @@ nexusagent/
 ### Prerequisites
 
 - **Node.js**: `v24.x LTS`
-- **pnpm**: `^10.x`
+- **pnpm**: `>=10` (the repo pins `pnpm@12.9.1` in `packageManager`)
 - **Python**: `3.14.x` with `uv` package manager
 
 ### 1. Clone & Install Dependencies

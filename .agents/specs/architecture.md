@@ -85,7 +85,7 @@ The embedding + dense query run concurrently with the lexical query. Lexical sea
 
 ### 4.4 MCP
 
-Transports: `POST /api/mcp/v1` (HTTP JSON-RPC), `GET /api/mcp/sse` + `POST /api/mcp/messages` (SSE sessions), and `python -m app.mcp.server` (stdio, local and unmetered). Methods: `initialize`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/read`. One tool, `hybrid_rag_search`, whose argument schema is generated from its Pydantic model. HTTP transports require a Bearer token and meter `tools/call`. **Not implemented:** an MCP client, and the official `fastmcp` SDK.
+Transports: `POST /api/mcp/v1` (HTTP JSON-RPC), `GET /api/mcp/sse` + `POST /api/mcp/messages` (SSE sessions), and `python -m app.mcp.server` (stdio, local and unmetered). Methods: `initialize`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/read`. One tool, `hybrid_rag_search`, whose argument schema is generated from its Pydantic model. The SSE + `POST /messages` transport follows protocol revision `2024-11-05`; newer MCP revisions replace it with Streamable HTTP, so verify your client (for example Claude Desktop or Cursor) before relying on it. HTTP transports require a Bearer token and meter `tools/call`. **Not implemented:** an MCP client, and the official `fastmcp` SDK.
 
 ---
 
@@ -101,6 +101,10 @@ Transports: `POST /api/mcp/v1` (HTTP JSON-RPC), `GET /api/mcp/sse` + `POST /api/
 - **Sessions**: JWTs carry `tv` (token version) and `auth_time`. Logout bumps `token_version`, revoking all tokens. Refresh cannot extend a login beyond `MAX_SESSION_AGE_DAYS`.
 - **Failure mode**: if Postgres is unreachable, requests get `503` with `Retry-After`; production refuses to start without a database.
 - **MCP SSE sessions** (max 3 per user, 200 total) live in memory.
+- **Per-process state**: the guest and auth per-IP counters (`SlidingWindowCounter`), the MCP SSE sessions and the model router's cool-downs live in process memory. They reset on every restart or cold start and are not shared between instances, so the API refuses to start in production when `WEB_CONCURRENCY` is above 1 (a free Render instance is a single instance).
+- **Request bodies** are capped before parsing and authentication: 1 MB + 16 KB on `/api/documents/upload`, 64 KB elsewhere (`MAX_UPLOAD_REQUEST_BYTES`, `MAX_JSON_REQUEST_BYTES`). Cap them at the reverse proxy as well.
+- **Client IP**: per-IP limits use the socket address unless `TRUSTED_PROXY_HOPS` is set; then the `X-Forwarded-For` entry added by the nth trusted proxy from the right is used (the left-most entries are client-controlled and ignored).
+- **Dense search** sets `hnsw.iterative_scan = relaxed_order` on pgvector 0.8+ (otherwise `hnsw.ef_search = 200`), so the document filter cannot starve the HNSW candidates.
 
 ---
 
@@ -125,10 +129,10 @@ Known limits: tokens live in `localStorage` (an XSS would expose them; the CSP i
 
 ## 8. Operations
 
-- Run one process: `uvicorn app.main:app --workers 1`.
+- Run one process: `uvicorn app.main:app --workers 1` (enforced via `WEB_CONCURRENCY`).
 - Environment: see `apps/backend/.env.example` and `apps/frontend/.env.example`. `NEXT_PUBLIC_API_URL` is required at frontend build time in production.
 - After changing `EMBEDDING_MODEL`, run `uv run python scripts/seed_kb.py`; seeded document IDs are stable across runs. Re-upload your own documents so they are embedded with the new model.
-- Schedule `uv run python scripts/prune_guests.py` daily (guests older than 24 h, audit rows older than 30 days).
+- `.github/workflows/maintenance.yml` runs `scripts/prune_guests.py` every 6 hours (guests older than 24 h, audit rows older than 30 days); it needs the repository secret `NEON_DATABASE_URL`.
 
 ---
 

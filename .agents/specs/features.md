@@ -16,7 +16,7 @@
 
 ### Phase 1: Scaffold [Done]
 
-- [x] pnpm + Turborepo monorepo
+- [x] pnpm workspace + Vite+ task runner
 - [x] Next.js 16 App Router frontend (`apps/frontend`)
 - [x] Python 3.14 FastAPI backend (`apps/backend`)
 - [x] Neon PostgreSQL connection, migrations applied at startup (`migrations/`)

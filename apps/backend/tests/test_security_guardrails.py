@@ -1,6 +1,6 @@
 """
-Tests for Phase 11: Security Guardrails, Prompt Injection Delimiters,
-Canary Tokens, Token-Bucket Rate Limiter, and HITL Approvals.
+Tests for security guardrails: secret scrubbing, prompt-injection delimiters, canary tokens,
+the token-bucket rate limiter and the tool audit log.
 """
 
 from uuid import UUID, uuid4
