@@ -18,27 +18,29 @@ const citation: Citation = {
 describe('SourceDialog', () => {
     afterEach(() => vi.restoreAllMocks());
 
-    it('shows the cited passage fetched from the document chunks endpoint', async () => {
-        global.fetch = vi.fn().mockResolvedValue({
+    it('shows the cited passage fetched from the single-chunk endpoint', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
             ok: true,
             status: 200,
-            json: async () => ({
-                chunks: [
-                    { id: 'chunk-1', content: 'other passage' },
-                    { id: 'chunk-2', content: 'The full cited passage.' }
-                ]
-            })
+            json: async () => ({ id: 'chunk-2', content: 'The full cited passage.' })
         } as unknown as Response);
+        global.fetch = fetchMock;
 
         render(<SourceDialog citation={citation} onClose={() => {}} />);
 
         expect(await screen.findByTestId('source-passage')).toHaveTextContent('The full cited passage.');
         expect(screen.getByText('benchlm_evals.md')).toBeInTheDocument();
         expect(screen.getByText(/lines 10-14/)).toBeInTheDocument();
+        expect(String(fetchMock.mock.calls[0][0])).toContain('/api/documents/doc-1/chunks/chunk-2');
     });
 
     it('explains when the passage is gone', async () => {
-        global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ chunks: [] }) } as unknown as Response);
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 404,
+            statusText: 'Not Found',
+            json: async () => ({ detail: 'Chunk not found' })
+        } as unknown as Response);
 
         render(<SourceDialog citation={citation} onClose={() => {}} />);
 

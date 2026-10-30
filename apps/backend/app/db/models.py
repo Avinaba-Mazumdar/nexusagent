@@ -154,10 +154,6 @@ class DocumentListResponseWire(BaseModel):
     documents: list[DocumentMetadataWire]
 
 
-class DocumentChunksResponseWire(BaseModel):
-    chunks: list[DocumentChunkWire]
-
-
 class MeResponse(BaseModel):
     user: UserSession
     quota: QuotaStatus

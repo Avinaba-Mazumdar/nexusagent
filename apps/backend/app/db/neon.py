@@ -435,29 +435,43 @@ class NeonDatabase:
             row = await conn.fetchrow(query, sha256_hash, user_id)
             return Document(**dict(row)) if row else None
 
-    async def get_document_chunks(self, document_id: UUID) -> list[DocumentChunk]:
-        """Fetch all chunks for a document ordered by chunk_index."""
+    @staticmethod
+    def _chunk_from_row(row: asyncpg.Record) -> DocumentChunk:
+        data = dict(row)
+        if isinstance(data.get("metadata"), str):
+            data["metadata"] = json.loads(data["metadata"])
+        return DocumentChunk(**data)
+
+    async def get_document_chunks(
+        self, document_id: UUID, limit: int | None = None
+    ) -> list[DocumentChunk]:
+        """Fetch a document's chunks ordered by chunk_index (without their embeddings)."""
         pool = self.get_pool()
         query = """
-            SELECT id, document_id, chunk_index, content, embedding, metadata, created_at
+            SELECT id, document_id, chunk_index, content, metadata, created_at
             FROM document_chunks
             WHERE document_id = $1
-            ORDER BY chunk_index ASC;
+            ORDER BY chunk_index ASC
         """
+        params: list[Any] = [document_id]
+        if limit is not None:
+            query += " LIMIT $2"
+            params.append(limit)
         async with pool.acquire() as conn:
-            rows = await conn.fetch(query, document_id)
-            chunks: list[DocumentChunk] = []
-            for r in rows:
-                data = dict(r)
-                if isinstance(data.get("metadata"), str):
-                    data["metadata"] = json.loads(data["metadata"])
-                if data.get("embedding") is not None and not isinstance(data["embedding"], list):
-                    try:
-                        data["embedding"] = [float(x) for x in data["embedding"]]
-                    except TypeError, ValueError:
-                        pass
-                chunks.append(DocumentChunk(**data))
-            return chunks
+            rows = await conn.fetch(query + ";", *params)
+            return [self._chunk_from_row(r) for r in rows]
+
+    async def get_document_chunk(self, document_id: UUID, chunk_id: UUID) -> DocumentChunk | None:
+        """Fetch one chunk of a document (without its embedding)."""
+        pool = self.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id, document_id, chunk_index, content, metadata, created_at "
+                "FROM document_chunks WHERE document_id = $1 AND id = $2;",
+                document_id,
+                chunk_id,
+            )
+            return self._chunk_from_row(row) if row else None
 
     async def list_all_documents(self, user_id: UUID | None = None) -> list[Document]:
         """List documents visible to the user (all seeded documents + user's uploaded documents)."""

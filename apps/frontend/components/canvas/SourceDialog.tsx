@@ -11,6 +11,9 @@ export interface SourceDialogProps {
     onClose: () => void;
 }
 
+/** Server answers for a chunk or document that was re-seeded or deleted after the citation was saved. */
+const GONE_MESSAGES = new Set(['Chunk not found', 'Document not found']);
+
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; chunk: DocumentChunkResponse };
 
 /** Shows the full passage a citation points at, without leaving the answer. */
@@ -21,14 +24,17 @@ export function SourceDialog({ citation, onClose }: SourceDialogProps) {
         if (!citation) return;
         let cancelled = false;
         setState({ status: 'loading' });
-        apiClient<{ chunks: DocumentChunkResponse[] }>(`/api/documents/${citation.documentId}/chunks`)
-            .then(({ chunks }) => {
-                if (cancelled) return;
-                const chunk = chunks.find((c) => c.id === citation.chunkId);
-                setState(chunk ? { status: 'ready', chunk } : { status: 'error', message: 'This passage is no longer available.' });
+        apiClient<DocumentChunkResponse>(`/api/documents/${citation.documentId}/chunks/${citation.chunkId}`)
+            .then((chunk) => {
+                if (!cancelled) setState({ status: 'ready', chunk });
             })
             .catch((err: unknown) => {
-                if (!cancelled) setState({ status: 'error', message: err instanceof Error ? err.message : 'Could not load the source.' });
+                if (cancelled) return;
+                const message = err instanceof Error ? err.message : '';
+                setState({
+                    status: 'error',
+                    message: GONE_MESSAGES.has(message) ? 'This passage is no longer available.' : message || 'Could not load the source.'
+                });
             });
         return () => {
             cancelled = true;

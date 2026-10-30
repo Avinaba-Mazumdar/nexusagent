@@ -387,20 +387,6 @@
                 "title": "DocumentChunkWire",
                 "type": "object"
             },
-            "DocumentChunksResponseWire": {
-                "properties": {
-                    "chunks": {
-                        "items": {
-                            "$ref": "#/components/schemas/DocumentChunkWire"
-                        },
-                        "title": "Chunks",
-                        "type": "array"
-                    }
-                },
-                "required": ["chunks"],
-                "title": "DocumentChunksResponseWire",
-                "type": "object"
-            },
             "DocumentListResponseWire": {
                 "properties": {
                     "documents": {
@@ -1605,7 +1591,7 @@
         },
         "/api/documents/upload": {
             "post": {
-                "description": "Upload and parse markdown or RFC documents.\nEnforces file size ceiling (1MB), computes SHA-256 hash, runs LlamaIndex hierarchical parser,\nand batch persists document record and chunk rows into Neon PostgreSQL.",
+                "description": "Upload and parse markdown or RFC documents.\nEnforces file size ceiling (1MB), computes SHA-256 hash, runs the markdown header parser,\nand batch persists document record and chunk rows into Neon PostgreSQL.",
                 "operationId": "upload_document_api_documents_upload_post",
                 "requestBody": {
                     "content": {
@@ -1695,17 +1681,28 @@
                 "tags": ["Document Ingestion & Vault"]
             }
         },
-        "/api/documents/{document_id}/chunks": {
+        "/api/documents/{document_id}/chunks/{chunk_id}": {
             "get": {
-                "description": "Fetch chunks for a specific document with line-level section metadata.",
-                "operationId": "get_document_chunks_api_documents__document_id__chunks_get",
+                "description": "Fetch one chunk (the passage a citation points at) with its line-level section metadata.",
+                "operationId": "get_document_chunk_api_documents__document_id__chunks__chunk_id__get",
                 "parameters": [
                     {
                         "in": "path",
                         "name": "document_id",
                         "required": true,
                         "schema": {
+                            "format": "uuid",
                             "title": "Document Id",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "path",
+                        "name": "chunk_id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "title": "Chunk Id",
                             "type": "string"
                         }
                     }
@@ -1715,7 +1712,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DocumentChunksResponseWire"
+                                    "$ref": "#/components/schemas/DocumentChunkWire"
                                 }
                             }
                         },
@@ -1737,7 +1734,7 @@
                         "HTTPBearer": []
                     }
                 ],
-                "summary": "Get Document Chunks",
+                "summary": "Get Document Chunk",
                 "tags": ["Document Ingestion & Vault"]
             }
         },

@@ -14,7 +14,6 @@ from app.core.rate_limiter import default_rate_limiter
 from app.db.models import (
     Document,
     DocumentChunk,
-    DocumentChunksResponseWire,
     DocumentChunkWire,
     DocumentListResponseWire,
     DocumentMetadataWire,
@@ -95,27 +94,19 @@ async def require_document_access(db: NeonDatabase, document_id: UUID, user: Use
     return doc
 
 
-@router.get("/{document_id}/chunks", response_model=DocumentChunksResponseWire)
-async def get_document_chunks(
-    document_id: str,
+@router.get("/{document_id}/chunks/{chunk_id}", response_model=DocumentChunkWire)
+async def get_document_chunk(
+    document_id: UUID,
+    chunk_id: UUID,
     current_user: User = Depends(get_current_user),
     db: NeonDatabase = Depends(get_db),
 ):
-    """
-    Fetch chunks for a specific document with line-level section metadata.
-    """
-    try:
-        doc_uuid = UUID(document_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid document UUID format",
-        )
-
-    await require_document_access(db, doc_uuid, current_user)
-
-    chunks = await db.get_document_chunks(doc_uuid)
-    return {"chunks": [chunk_to_wire(c) for c in chunks]}
+    """Fetch one chunk (the passage a citation points at) with its line-level section metadata."""
+    await require_document_access(db, document_id, current_user)
+    chunk = await db.get_document_chunk(document_id, chunk_id)
+    if not chunk:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found")
+    return chunk_to_wire(chunk)
 
 
 @router.delete("/{document_id}", response_model=SuccessResponse)
@@ -196,14 +187,14 @@ async def upload_document(
     # Deduplication check: If same content was already uploaded by user
     existing_doc = await db.get_document_by_hash(sha256_hash, user_id=current_user.id)
     if existing_doc:
-        existing_chunks = await db.get_document_chunks(existing_doc.id)
+        existing_chunks = await db.get_document_chunks(existing_doc.id, limit=5)
         current_quota = await default_rate_limiter.get_quota(
             user_id=current_user.id, is_guest=current_user.is_guest
         )
         return DocumentUploadResponseWire(
             document=document_to_wire(existing_doc),
             chunksCount=existing_doc.total_chunks,
-            previewChunks=[chunk_to_wire(c) for c in existing_chunks[:5]],
+            previewChunks=[chunk_to_wire(c) for c in existing_chunks],
             quotaRemaining=current_quota,
         )
 

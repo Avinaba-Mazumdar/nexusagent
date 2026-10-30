@@ -238,7 +238,7 @@ export interface paths {
         /**
          * Upload Document
          * @description Upload and parse markdown or RFC documents.
-         *     Enforces file size ceiling (1MB), computes SHA-256 hash, runs LlamaIndex hierarchical parser,
+         *     Enforces file size ceiling (1MB), computes SHA-256 hash, runs the markdown header parser,
          *     and batch persists document record and chunk rows into Neon PostgreSQL.
          */
         post: operations['upload_document_api_documents_upload_post'];
@@ -268,7 +268,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    '/api/documents/{document_id}/chunks': {
+    '/api/documents/{document_id}/chunks/{chunk_id}': {
         parameters: {
             query?: never;
             header?: never;
@@ -276,10 +276,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Document Chunks
-         * @description Fetch chunks for a specific document with line-level section metadata.
+         * Get Document Chunk
+         * @description Fetch one chunk (the passage a citation points at) with its line-level section metadata.
          */
-        get: operations['get_document_chunks_api_documents__document_id__chunks_get'];
+        get: operations['get_document_chunk_api_documents__document_id__chunks__chunk_id__get'];
         put?: never;
         post?: never;
         delete?: never;
@@ -570,11 +570,6 @@ export interface components {
             metadata: {
                 [key: string]: unknown;
             };
-        };
-        /** DocumentChunksResponseWire */
-        DocumentChunksResponseWire: {
-            /** Chunks */
-            chunks: components['schemas']['DocumentChunkWire'][];
         };
         /** DocumentListResponseWire */
         DocumentListResponseWire: {
@@ -912,7 +907,6 @@ export type ChatHistoryResponseWire = components['schemas']['ChatHistoryResponse
 export type ChatMessageWire = components['schemas']['ChatMessageWire'];
 export type CitationWire = components['schemas']['CitationWire'];
 export type DocumentChunkWire = components['schemas']['DocumentChunkWire'];
-export type DocumentChunksResponseWire = components['schemas']['DocumentChunksResponseWire'];
 export type DocumentListResponseWire = components['schemas']['DocumentListResponseWire'];
 export type DocumentMetadataWire = components['schemas']['DocumentMetadataWire'];
 export type DocumentUploadResponseWire = components['schemas']['DocumentUploadResponseWire'];
@@ -1330,12 +1324,13 @@ export interface operations {
             };
         };
     };
-    get_document_chunks_api_documents__document_id__chunks_get: {
+    get_document_chunk_api_documents__document_id__chunks__chunk_id__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 document_id: string;
+                chunk_id: string;
             };
             cookie?: never;
         };
@@ -1347,7 +1342,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    'application/json': components['schemas']['DocumentChunksResponseWire'];
+                    'application/json': components['schemas']['DocumentChunkWire'];
                 };
             };
             /** @description Validation Error */

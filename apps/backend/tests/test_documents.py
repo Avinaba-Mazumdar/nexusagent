@@ -162,15 +162,18 @@ async def test_upload_and_list_documents():
 
         doc_id = data["document"]["id"]
 
-        # 2. Fetch document chunks
-        chunk_response = await client.get(f"/api/documents/{doc_id}/chunks", headers=headers)
+        # 2. Fetch one chunk
+        first_id = data["previewChunks"][0]["id"]
+        chunk_response = await client.get(
+            f"/api/documents/{doc_id}/chunks/{first_id}", headers=headers
+        )
         assert chunk_response.status_code == 200
-        chunk_data = chunk_response.json()
-        assert "chunks" in chunk_data
-        assert len(chunk_data["chunks"]) == data["chunksCount"]
-        first_chunk = chunk_data["chunks"][0]
+        first_chunk = chunk_response.json()
+        assert first_chunk["id"] == first_id
         assert "startLine" in first_chunk["metadata"]
         assert "endLine" in first_chunk["metadata"]
+        missing = await client.get(f"/api/documents/{doc_id}/chunks/{uuid4()}", headers=headers)
+        assert missing.status_code == 404
 
         # 3. List documents for user
         list_response = await client.get("/api/documents", headers=headers)
@@ -586,3 +589,49 @@ async def test_same_file_uploaded_twice_is_stored_once_r2_sec_07():
         pool = neon_db.get_pool()
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
+
+
+@pytest.mark.asyncio
+async def test_chunk_endpoint_hides_foreign_documents_r2_log_04(upload_client):
+    from app.db.models import Document, DocumentChunk
+
+    client, db = upload_client
+    foreign_doc = Document(
+        id=uuid4(),
+        user_id=uuid4(),  # someone else's upload
+        filename="theirs.md",
+        mime_type="text/markdown",
+        sha256_hash="x",
+        total_chunks=1,
+        is_seeded=False,
+    )
+    chunk = DocumentChunk(document_id=foreign_doc.id, chunk_index=0, content="secret")
+    db.get_document_by_id.return_value = foreign_doc
+    db.get_document_chunk.return_value = chunk
+    async with client:
+        res = await client.get(f"/api/documents/{foreign_doc.id}/chunks/{chunk.id}")
+    assert res.status_code == 404
+    db.get_document_chunk.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_chunk_endpoint_returns_own_chunk_r2_log_04(upload_client):
+    from app.db.models import Document, DocumentChunk
+
+    client, db = upload_client
+    seeded = Document(
+        id=uuid4(),
+        user_id=None,
+        filename="seed.md",
+        mime_type="text/markdown",
+        sha256_hash="y",
+        total_chunks=1,
+        is_seeded=True,
+    )
+    chunk = DocumentChunk(document_id=seeded.id, chunk_index=0, content="public passage")
+    db.get_document_by_id.return_value = seeded
+    db.get_document_chunk.return_value = chunk
+    async with client:
+        res = await client.get(f"/api/documents/{seeded.id}/chunks/{chunk.id}")
+    assert res.status_code == 200
+    assert res.json()["content"] == "public passage"
