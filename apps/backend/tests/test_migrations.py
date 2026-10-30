@@ -9,6 +9,7 @@ def test_migrations_directory_exists():
     assert files == [
         "20260901000000_core_schema.sql",
         "20261103000000_document_constraints.sql",
+        "20261103000100_constraints_and_cleanup.sql",
     ]
 
 

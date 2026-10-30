@@ -127,7 +127,6 @@ async def test_audit_logs_endpoint_reads_db_rows():
             input_args={"query": "Raft consensus"},
             output_summary={"rows": 1},
             duration_ms=3,
-            hitl_approved=True,
             user_id=user_id,
         )
         res = await client.get(

@@ -12,13 +12,13 @@ logger = logging.getLogger("nexusagent.core.audit")
 INSERT_QUERY = """
     INSERT INTO tool_audit_logs (
         id, conversation_id, user_id, tool_name, mcp_server,
-        input_args, output_summary, duration_ms, hitl_approved
-    ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9);
+        input_args, output_summary, duration_ms
+    ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8);
 """
 
 SELECT_COLUMNS = """
     id, conversation_id, user_id, tool_name, mcp_server,
-    input_args, output_summary, duration_ms, hitl_approved, executed_at
+    input_args, output_summary, duration_ms, executed_at
 """
 
 
@@ -30,7 +30,6 @@ def _row_to_entry(r: Any) -> dict[str, Any]:
         "input_args": r["input_args"],
         "output_summary": r["output_summary"],
         "duration_ms": r["duration_ms"],
-        "hitl_approved": r["hitl_approved"],
         "user_id": str(r["user_id"]) if r["user_id"] else None,
         "conversation_id": str(r["conversation_id"]) if r["conversation_id"] else None,
         "executed_at": r["executed_at"].isoformat() if r["executed_at"] else None,
@@ -49,7 +48,6 @@ class ToolAuditLogger:
         input_args: dict[str, Any],
         output_summary: dict[str, Any] | None,
         duration_ms: int,
-        hitl_approved: bool = True,
         user_id: UUID | None = None,
         conversation_id: UUID | None = None,
         mcp_server: str = "nexusagent-internal",
@@ -73,7 +71,6 @@ class ToolAuditLogger:
                         json.dumps(input_args, default=str),
                         json.dumps(output_summary or {}, default=str),
                         duration_ms,
-                        hitl_approved,
                     )
                 return record_id
             except Exception as exc:  # noqa: BLE001

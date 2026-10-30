@@ -342,7 +342,6 @@ async def test_immutable_audit_logging_and_endpoint():
             input_args={"query": "Raft consensus"},
             output_summary={"count": 3},
             duration_ms=12,
-            hitl_approved=True,
             user_id=user_id,
         )
 
@@ -357,7 +356,6 @@ async def test_immutable_audit_logging_and_endpoint():
         assert data["count"] >= 1
         latest = data["logs"][0]
         assert latest["tool_name"] == "hybrid_rag_search"
-        assert latest["hitl_approved"] is True
 
 
 @pytest.mark.asyncio
