@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Send, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { MAX_QUERY_CHARS, QUERY_COUNTER_FROM } from '@/lib/limits';
 
 const MAX_HEIGHT_PX = 160;
 
@@ -28,6 +29,8 @@ export function Composer({ prompt, onPromptChange, onSubmit, onKeyDown, isStream
         el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT_PX)}px`;
     }, [prompt]);
 
+    const showCounter = prompt.length > QUERY_COUNTER_FROM;
+
     return (
         <form onSubmit={onSubmit} aria-label="Ask NexusAgent" className="p-4 bg-card border-t border-border shrink-0">
             <div className="relative flex items-end">
@@ -38,6 +41,8 @@ export function Composer({ prompt, onPromptChange, onSubmit, onKeyDown, isStream
                     onKeyDown={onKeyDown}
                     rows={1}
                     aria-label="Architecture question"
+                    maxLength={MAX_QUERY_CHARS}
+                    aria-describedby={showCounter ? 'query-counter' : undefined}
                     placeholder={quotaExhausted ? 'Out of free questions for now' : 'Ask an architecture question or query the benchmark knowledge base...'}
                     className="w-full resize-none min-h-11 max-h-40 py-3 pl-3 pr-24 text-sm leading-relaxed rounded-xl bg-secondary/40 border border-border text-foreground placeholder:text-muted-foreground focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
@@ -67,6 +72,11 @@ export function Composer({ prompt, onPromptChange, onSubmit, onKeyDown, isStream
                     </Button>
                 )}
             </div>
+            {showCounter && (
+                <p id="query-counter" className={`mt-1.5 text-xs ${prompt.length >= MAX_QUERY_CHARS ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {prompt.length}/{MAX_QUERY_CHARS}
+                </p>
+            )}
             <p className="hidden sm:block mt-1.5 text-xs text-muted-foreground">Enter to send • Shift+Enter for a new line</p>
         </form>
     );
