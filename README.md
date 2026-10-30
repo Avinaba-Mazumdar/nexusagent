@@ -27,17 +27,13 @@ nexusagent/
 ├── packages/
 │   └── contracts/        # Shared TypeScript interfaces & wire schemas
 ├── .agents/
-│   ├── context/          # Shared agent context and decision log
 │   ├── rules/            # Agent identity, working guide, coding standard
-│   ├── skills/           # Agent skills
-│   ├── specs/
-│   │   ├── architecture.md   # How the system works today: flows, limits, security
-│   │   ├── design.md         # UI layout, tokens, accessibility
-│   │   ├── AGENTs.md         # AI Agent context, system master, coding invariants
-│   │   ├── features.md       # Phase board (what is done, partial, removed)
-│   │   ├── aim.md            # Project aim
-│   │   └── versions.md       # Versions
-│   └── logs.md           # Agent work log
+│   └── specs/
+│       ├── architecture.md   # How the system works today: flows, limits, security
+│       ├── design.md         # UI layout, tokens, accessibility
+│       ├── AGENTs.md         # AI Agent context, system master, coding invariants
+│       ├── features.md       # Phase board (what is done, partial, removed)
+│       └── versions.md       # Versioned milestones
 └── knowledge_base/
     └── benchmarks/       # Pre-seeded corpus (BenchLM, CursorBench, OpenRouter metrics, AA)
 ```
