@@ -85,6 +85,7 @@ export default function Home() {
         chatSearchQuery,
         setChatSearchQuery,
         chatNotice,
+        setChatNotice,
         messages,
         setMessages,
         activeSessionId,
@@ -294,7 +295,13 @@ export default function Home() {
                 setActiveSessionId(result.sessionId);
             }
 
-            if (currentSessionId && isGoogleUser) {
+            // The server reports conversationId = null when it could not save the turn.
+            const saved = !isGoogleUser || Boolean(result.conversationId);
+            if (!saved) {
+                setChatNotice('This answer could not be saved to your history.');
+            }
+
+            if (currentSessionId && isGoogleUser && saved) {
                 setConversations((prev) => {
                     const now = new Date().toISOString();
                     const existing = prev.find((c) => c.id === currentSessionId);
