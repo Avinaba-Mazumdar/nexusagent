@@ -234,7 +234,9 @@ async def generate_agent_stream(
                     )
 
             if final_state.error:
-                await refund_if_charged()
+                # Failures such as "no model configured" happen before any output and stay refundable.
+                if not tokens_sent:
+                    await refund_if_charged()
                 await event_queue.put(
                     format_sse(
                         "error", SseErrorEvent(error=final_state.error, sessionId=session_id)
@@ -291,14 +293,14 @@ async def generate_agent_stream(
             )
 
         except asyncio.CancelledError:
+            # No refund: retrieval (embedding call, searches) and the model request may already
+            # have run, so refunding on abort would let a client get the work for free.
             logger.info("Agent pipeline cancelled (client disconnect or abort)")
-            # Once the model has produced output the cost is incurred; refund only earlier aborts.
-            if not tokens_sent:
-                await refund_if_charged()
             raise
         except Exception:
             logger.exception("Error during agent SSE streaming")
-            await refund_if_charged()
+            if not tokens_sent:
+                await refund_if_charged()
             masked_error = "Internal error. Reference: " + session_id[:8]
             await event_queue.put(
                 format_sse("error", SseErrorEvent(error=masked_error, sessionId=session_id))

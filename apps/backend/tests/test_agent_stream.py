@@ -4,6 +4,7 @@ from typing import Any, cast
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.core.rate_limiter import default_rate_limiter
 from app.main import app
 
 
@@ -235,3 +236,40 @@ async def test_canary_leak_redacts_streamed_text(stream_client, fake_llm, monkey
     redacts = [d for n, d in events if n == "redact"]
     assert [r["response"] for r in redacts] == [CANARY_ALERT]
     assert events[-1][0] == "done"
+
+
+@pytest.mark.asyncio
+async def test_abort_after_retrieval_keeps_the_quota_charge(stream_client):
+    """R2-SEC-03: closing the stream once retrieval ran must not hand the token back."""
+    import asyncio
+    from uuid import uuid4
+
+    from app.routes.agent import generate_agent_stream
+
+    _client, user, db = stream_client
+    await default_rate_limiter.check_and_consume(
+        user_id=user.id, client_ip="1.2.3.4", is_guest=True
+    )
+    assert list(db.tokens.values()) == [4]
+
+    class _StallingGraph:
+        async def stream_steps(self, state, on_token=None):
+            yield "planner", state
+            yield "retriever", state
+            await asyncio.sleep(30)
+
+    stream = generate_agent_stream(
+        query="Explain Raft quorum",
+        user_id=user.id,
+        document_id=None,
+        session_id=uuid4().hex,
+        graph=cast(Any, _StallingGraph()),
+        is_guest=True,
+    )
+    async for frame in stream:
+        if frame.startswith("event: tool_result"):
+            break
+    await stream.aclose()
+    await asyncio.sleep(0.1)  # let the cancelled pipeline task unwind
+
+    assert list(db.tokens.values()) == [4]
