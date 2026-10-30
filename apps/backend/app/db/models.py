@@ -232,13 +232,61 @@ class InjectionWarningWire(BaseModel):
     reason: str
 
 
+class SseStartEvent(BaseModel):
+    sessionId: str
+    query: str
+    timestamp: str
+    quotaRemaining: int | None = None
+
+
+class SseNodeStartEvent(BaseModel):
+    sessionId: str
+    node: str
+
+
+class SsePlanEvent(BaseModel):
+    sessionId: str
+    plan: list[PlanStepWire]
+
+
+class SseToolResultEvent(BaseModel):
+    tool: str
+    chunksRetrieved: int
+    citations: list[CitationWire]
+    injectionWarnings: list[InjectionWarningWire]
+
+
+class SseGroundingEvent(BaseModel):
+    sessionId: str
+    grounding: Literal["grounded", "weak", "none"]
+    feedback: str | None = None
+
+
+class SseTokenEvent(BaseModel):
+    """One chunk of model output (or the fixed out-of-scope refusal, sent as a single chunk)."""
+
+    sessionId: str
+    token: str
+
+
+class SseRedactEvent(BaseModel):
+    """Replace everything streamed so far with ``response`` (sent after a canary-token leak)."""
+
+    sessionId: str
+    response: str
+
+
+class SseErrorEvent(BaseModel):
+    sessionId: str
+    error: str
+
+
 class AgentDoneEventWire(BaseModel):
-    """Payload of the final `done` SSE event."""
+    """Payload of the final `done` SSE event. The answer text itself arrives as `token` events."""
 
     sessionId: str
     conversationId: str | None = None
     query: str
-    response: str
     nodeHistory: list[str]
     plan: list[PlanStepWire]
     citations: list[CitationWire]
@@ -250,4 +298,14 @@ class AgentDoneEventWire(BaseModel):
 
 
 # Models that never appear in a route signature but are part of the wire contract.
-SSE_WIRE_MODELS: list[type[BaseModel]] = [AgentDoneEventWire]
+SSE_WIRE_MODELS: list[type[BaseModel]] = [
+    SseStartEvent,
+    SseNodeStartEvent,
+    SsePlanEvent,
+    SseToolResultEvent,
+    SseGroundingEvent,
+    SseTokenEvent,
+    SseRedactEvent,
+    SseErrorEvent,
+    AgentDoneEventWire,
+]

@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
@@ -19,7 +18,21 @@ from app.config import settings
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
 from app.core.rate_limiter import default_rate_limiter
-from app.db.models import AgentDoneEventWire, User
+from app.db.models import (
+    AgentDoneEventWire,
+    CitationWire,
+    InjectionWarningWire,
+    PlanStepWire,
+    SseErrorEvent,
+    SseGroundingEvent,
+    SseNodeStartEvent,
+    SsePlanEvent,
+    SseRedactEvent,
+    SseStartEvent,
+    SseTokenEvent,
+    SseToolResultEvent,
+    User,
+)
 from app.db.neon import neon_db
 from app.routes.documents import require_document_access
 
@@ -47,37 +60,38 @@ class AgentStreamRequestWire(BaseModel):
     )
 
 
-def format_sse(event_type: str, data: dict) -> str:
-    """Format structured payload into valid Server-Sent Event frame."""
-    json_str = json.dumps(data, default=str)
-    return f"event: {event_type}\ndata: {json_str}\n\n"
+def format_sse(event_type: str, payload: BaseModel) -> str:
+    """Format a typed payload (see ``SSE_WIRE_MODELS``) as one Server-Sent Event frame."""
+    return f"event: {event_type}\ndata: {payload.model_dump_json()}\n\n"
 
 
-def plan_step_to_wire(s: PlanStep) -> dict:
-    return {
-        "stepNumber": s.step_number,
-        "description": s.description,
-        "status": s.status,
-        "tool": s.tool,
-    }
+def plan_step_to_wire(s: PlanStep) -> PlanStepWire:
+    return PlanStepWire.model_validate(
+        {
+            "stepNumber": s.step_number,
+            "description": s.description,
+            "status": s.status,
+            "tool": s.tool,
+        }
+    )
 
 
-def citation_to_wire(c: Citation) -> dict:
-    return {
-        "id": c.id,
-        "label": c.label,
-        "chunkId": c.chunk_id,
-        "documentId": c.document_id,
-        "filename": c.filename,
-        "startLine": c.start_line,
-        "endLine": c.end_line,
-        "headerPath": c.header_path,
-        "preview": c.preview,
-    }
+def citation_to_wire(c: Citation) -> CitationWire:
+    return CitationWire(
+        id=c.id,
+        label=c.label,
+        chunkId=c.chunk_id,
+        documentId=c.document_id,
+        filename=c.filename,
+        startLine=c.start_line,
+        endLine=c.end_line,
+        headerPath=c.header_path,
+        preview=c.preview,
+    )
 
 
-def warning_to_wire(w: InjectionWarning) -> dict:
-    return {"filename": w.filename, "reason": w.reason}
+def warning_to_wire(w: InjectionWarning) -> InjectionWarningWire:
+    return InjectionWarningWire(filename=w.filename, reason=w.reason)
 
 
 def next_node(finished: str, state: AgentState) -> str | None:
@@ -101,10 +115,10 @@ async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentS
             conv["id"],
             query,
             state.response,
-            plan_trace=[plan_step_to_wire(s) for s in state.plan],
+            plan_trace=[plan_step_to_wire(s).model_dump() for s in state.plan],
             reflection_summary={
                 "grounding": state.grounding,
-                "citations": [citation_to_wire(c) for c in state.citations],
+                "citations": [citation_to_wire(c).model_dump() for c in state.citations],
                 "mermaidDiagrams": state.mermaid_diagrams,
             },
         )
@@ -142,13 +156,12 @@ async def generate_agent_stream(
 
     event_queue: asyncio.Queue[str | None] = asyncio.Queue()
 
-    start_payload: dict[str, str | int] = {
-        "sessionId": session_id,
-        "query": query,
-        "timestamp": initial_state.created_at.isoformat(),
-    }
-    if quota_remaining is not None:
-        start_payload["quotaRemaining"] = quota_remaining
+    start_payload = SseStartEvent(
+        sessionId=session_id,
+        query=query,
+        timestamp=initial_state.created_at.isoformat(),
+        quotaRemaining=quota_remaining,
+    )
     await event_queue.put(format_sse("start", start_payload))
 
     async def refund_if_charged() -> None:
@@ -164,12 +177,14 @@ async def generate_agent_stream(
         async def on_token(text: str) -> None:
             nonlocal tokens_sent
             tokens_sent = True
-            await event_queue.put(format_sse("token", {"sessionId": session_id, "token": text}))
+            await event_queue.put(
+                format_sse("token", SseTokenEvent(sessionId=session_id, token=text))
+            )
 
         try:
             final_state = initial_state
             await event_queue.put(
-                format_sse("node_start", {"node": "planner", "sessionId": session_id})
+                format_sse("node_start", SseNodeStartEvent(node="planner", sessionId=session_id))
             )
             async for node_name, step_state in graph.stream_steps(initial_state, on_token=on_token):
                 final_state = step_state
@@ -178,55 +193,69 @@ async def generate_agent_stream(
                     await event_queue.put(
                         format_sse(
                             "plan",
-                            {
-                                "sessionId": session_id,
-                                "plan": [plan_step_to_wire(s) for s in step_state.plan],
-                            },
+                            SsePlanEvent(
+                                sessionId=session_id,
+                                plan=[plan_step_to_wire(s) for s in step_state.plan],
+                            ),
                         )
                     )
                 elif node_name == "retriever":
                     await event_queue.put(
                         format_sse(
                             "tool_result",
-                            {
-                                "tool": "hybrid_rag_search",
-                                "chunksRetrieved": len(step_state.retrieved_chunks),
-                                "citations": [citation_to_wire(c) for c in step_state.citations],
-                                "injectionWarnings": [
+                            SseToolResultEvent(
+                                tool="hybrid_rag_search",
+                                chunksRetrieved=len(step_state.retrieved_chunks),
+                                citations=[citation_to_wire(c) for c in step_state.citations],
+                                injectionWarnings=[
                                     warning_to_wire(w) for w in step_state.injection_warnings
                                 ],
-                            },
+                            ),
                         )
                     )
                 elif node_name == "grounding":
                     await event_queue.put(
                         format_sse(
                             "grounding",
-                            {
-                                "sessionId": session_id,
-                                "grounding": step_state.grounding,
-                                "feedback": step_state.grounding_feedback,
-                            },
+                            SseGroundingEvent(
+                                sessionId=session_id,
+                                grounding=step_state.grounding,
+                                feedback=step_state.grounding_feedback,
+                            ),
                         )
                     )
 
                 upcoming = next_node(node_name, step_state)
                 if upcoming:
                     await event_queue.put(
-                        format_sse("node_start", {"node": upcoming, "sessionId": session_id})
+                        format_sse(
+                            "node_start", SseNodeStartEvent(node=upcoming, sessionId=session_id)
+                        )
                     )
 
             if final_state.error:
                 await refund_if_charged()
                 await event_queue.put(
-                    format_sse("error", {"error": final_state.error, "sessionId": session_id})
+                    format_sse(
+                        "error", SseErrorEvent(error=final_state.error, sessionId=session_id)
+                    )
                 )
                 return
 
             # Planner refusals are fixed text, not model output: send them as one chunk.
             if not tokens_sent and final_state.response:
                 await event_queue.put(
-                    format_sse("token", {"sessionId": session_id, "token": final_state.response})
+                    format_sse(
+                        "token", SseTokenEvent(sessionId=session_id, token=final_state.response)
+                    )
+                )
+            # After a canary leak the streamed text is withdrawn and replaced by the alert.
+            elif final_state.canary_leaked:
+                await event_queue.put(
+                    format_sse(
+                        "redact",
+                        SseRedactEvent(sessionId=session_id, response=final_state.response),
+                    )
                 )
 
             # Persist before `done` so a client refetch sees the conversation; shield it so a
@@ -240,26 +269,23 @@ async def generate_agent_stream(
             await event_queue.put(
                 format_sse(
                     "done",
-                    AgentDoneEventWire.model_validate(
-                        {
-                            "sessionId": session_id,
-                            "conversationId": conversation_id_out,
-                            "query": query,
-                            "response": final_state.response,
-                            "nodeHistory": final_state.node_history,
-                            "plan": [plan_step_to_wire(s) for s in final_state.plan],
-                            "citations": [citation_to_wire(c) for c in final_state.citations],
-                            "injectionWarnings": [
-                                warning_to_wire(w) for w in final_state.injection_warnings
-                            ],
-                            "mermaidDiagrams": final_state.mermaid_diagrams,
-                            "grounding": final_state.grounding,
-                            "isComplete": True,
-                            "completedAt": final_state.completed_at.isoformat()
-                            if final_state.completed_at
-                            else None,
-                        }
-                    ).model_dump(),
+                    AgentDoneEventWire(
+                        sessionId=session_id,
+                        conversationId=conversation_id_out,
+                        query=query,
+                        nodeHistory=final_state.node_history,
+                        plan=[plan_step_to_wire(s) for s in final_state.plan],
+                        citations=[citation_to_wire(c) for c in final_state.citations],
+                        injectionWarnings=[
+                            warning_to_wire(w) for w in final_state.injection_warnings
+                        ],
+                        mermaidDiagrams=final_state.mermaid_diagrams,
+                        grounding=final_state.grounding,
+                        isComplete=True,
+                        completedAt=final_state.completed_at.isoformat()
+                        if final_state.completed_at
+                        else None,
+                    ),
                 )
             )
 
@@ -274,7 +300,7 @@ async def generate_agent_stream(
             await refund_if_charged()
             masked_error = "Internal error. Reference: " + session_id[:8]
             await event_queue.put(
-                format_sse("error", {"error": masked_error, "sessionId": session_id})
+                format_sse("error", SseErrorEvent(error=masked_error, sessionId=session_id))
             )
         finally:
             await event_queue.put(None)

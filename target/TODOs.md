@@ -101,5 +101,5 @@ The AST-denylist sandbox was escapable and ran on the API host. Removed together
 
 - [x] Offline backend suite and frontend suite green; CI workflow in `.github/workflows/ci.yml`
 - [x] Upgraded to Gemini 2.5 models (`GEMINI_MODELS`) with fallback cascade
-- [ ] Generate `packages/contracts` types from the backend OpenAPI schema (contracts are hand-written today)
+- [x] Generate `packages/contracts` types from the backend OpenAPI schema (`pnpm contracts:generate`; CI fails on drift)
 - [Removed] LangSmith tracing (data privacy)

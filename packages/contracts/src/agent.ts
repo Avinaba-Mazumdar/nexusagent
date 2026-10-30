@@ -12,3 +12,15 @@ export type InjectionWarning = InjectionWarningWire;
 
 /** Payload of the final `done` SSE event. */
 export type AgentInvokeResponse = AgentDoneEventWire;
+
+/** Payloads of the other `/api/agent/stream` SSE events, keyed by event name. */
+export type {
+    SseErrorEvent,
+    SseGroundingEvent,
+    SseNodeStartEvent,
+    SsePlanEvent,
+    SseRedactEvent,
+    SseStartEvent,
+    SseTokenEvent,
+    SseToolResultEvent
+} from './generated';

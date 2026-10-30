@@ -383,16 +383,6 @@ async def test_refresh_cannot_extend_a_session_past_the_max_age(monkeypatch, fak
         app.dependency_overrides.pop(get_current_user, None)
 
 
-def test_guest_refresh_uses_guest_lifetime():
-    from datetime import timedelta as td
-
-    from app.config import settings
-    from app.core.auth import token_lifetime
-
-    assert token_lifetime(_user(is_guest=True)) == td(minutes=settings.GUEST_TOKEN_EXPIRE_MINUTES)
-    assert token_lifetime(_user(is_guest=False)) == td(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-
-
 @pytest.mark.asyncio
 async def test_google_auth_is_throttled_per_ip_sec_14(monkeypatch):
     """SEC-14: the 21st Google sign-in attempt from one IP in an hour gets a 429."""

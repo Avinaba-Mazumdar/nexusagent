@@ -2,7 +2,7 @@
 
 > **Autonomous Technical Research & Systems Design Intelligence Engine**
 
-NexusAgent is an enterprise-grade autonomous systems analyst that evaluates distributed systems RFCs, cross-references infrastructure whitepapers, self-reflects on consensus trade-offs, and synthesizes structured verdicts with dynamic Mermaid architecture diagrams.
+NexusAgent is an enterprise-grade autonomous systems analyst that evaluates distributed systems RFCs, cross-references infrastructure whitepapers, reports whether its answer is grounded in retrieved sources, and synthesizes structured verdicts with dynamic Mermaid architecture diagrams.
 
 ---
 
@@ -102,7 +102,7 @@ Then embed the knowledge base once: `uv run --project apps/backend python script
 
 ## 📚 Master Documentation Index
 
-- 📐 **[System Architecture](target/ARCHITECTURE.md)**: Deep technical spec, topology, database DDL, and OWASP security matrix.
+- 📐 **[System Architecture](target/ARCHITECTURE.md)**: How the system works today: request flows, limits, and OWASP security controls (the schema lives in `migrations/`).
 - 🎨 **[UI/UX Design System](target/DESIGN.md)**: 4-zone command center specifications, theme tokens, and component guidelines.
 - 🤖 **[AI Agent Context & Rules](target/AGENTs.md)**: Architectural invariants, definition of done, and verification gates.
 - 📋 **[Active Task Board](target/TODOs.md)**: Phased implementation roadmap and progress tracking.

@@ -399,7 +399,7 @@ export interface components {
     schemas: {
         /**
          * AgentDoneEventWire
-         * @description Payload of the final `done` SSE event.
+         * @description Payload of the final `done` SSE event. The answer text itself arrives as `token` events.
          */
         AgentDoneEventWire: {
             /** Citations */
@@ -431,8 +431,6 @@ export interface components {
             plan: components['schemas']['PlanStepWire'][];
             /** Query */
             query: string;
-            /** Response */
-            response: string;
             /** Sessionid */
             sessionId: string;
         };
@@ -751,6 +749,87 @@ export interface components {
             /** Tokensremaining */
             tokensRemaining: number;
         };
+        /** SseErrorEvent */
+        SseErrorEvent: {
+            /** Error */
+            error: string;
+            /** Sessionid */
+            sessionId: string;
+        };
+        /** SseGroundingEvent */
+        SseGroundingEvent: {
+            /**
+             * Feedback
+             * @default null
+             */
+            feedback: string | null;
+            /**
+             * Grounding
+             * @enum {string}
+             */
+            grounding: 'grounded' | 'weak' | 'none';
+            /** Sessionid */
+            sessionId: string;
+        };
+        /** SseNodeStartEvent */
+        SseNodeStartEvent: {
+            /** Node */
+            node: string;
+            /** Sessionid */
+            sessionId: string;
+        };
+        /** SsePlanEvent */
+        SsePlanEvent: {
+            /** Plan */
+            plan: components['schemas']['PlanStepWire'][];
+            /** Sessionid */
+            sessionId: string;
+        };
+        /**
+         * SseRedactEvent
+         * @description Replace everything streamed so far with ``response`` (sent after a canary-token leak).
+         */
+        SseRedactEvent: {
+            /** Response */
+            response: string;
+            /** Sessionid */
+            sessionId: string;
+        };
+        /** SseStartEvent */
+        SseStartEvent: {
+            /** Query */
+            query: string;
+            /**
+             * Quotaremaining
+             * @default null
+             */
+            quotaRemaining: number | null;
+            /** Sessionid */
+            sessionId: string;
+            /** Timestamp */
+            timestamp: string;
+        };
+        /**
+         * SseTokenEvent
+         * @description One chunk of model output (or the fixed out-of-scope refusal, sent as a single chunk).
+         */
+        SseTokenEvent: {
+            /** Sessionid */
+            sessionId: string;
+            /** Token */
+            token: string;
+        };
+        /** SseToolResultEvent */
+        SseToolResultEvent: {
+            /** Chunksretrieved */
+            chunksRetrieved: number;
+            /** Citations */
+            citations: components['schemas']['CitationWire'][];
+            /** Injectionwarnings */
+            injectionWarnings: components['schemas']['InjectionWarningWire'][];
+            /** Tool */
+            tool: string;
+        };
         /** SuccessResponse */
         SuccessResponse: {
             /** Id */
@@ -843,6 +922,14 @@ export type InjectionWarningWire = components['schemas']['InjectionWarningWire']
 export type MeResponse = components['schemas']['MeResponse'];
 export type PlanStepWire = components['schemas']['PlanStepWire'];
 export type QuotaStatus = components['schemas']['QuotaStatus'];
+export type SseErrorEvent = components['schemas']['SseErrorEvent'];
+export type SseGroundingEvent = components['schemas']['SseGroundingEvent'];
+export type SseNodeStartEvent = components['schemas']['SseNodeStartEvent'];
+export type SsePlanEvent = components['schemas']['SsePlanEvent'];
+export type SseRedactEvent = components['schemas']['SseRedactEvent'];
+export type SseStartEvent = components['schemas']['SseStartEvent'];
+export type SseTokenEvent = components['schemas']['SseTokenEvent'];
+export type SseToolResultEvent = components['schemas']['SseToolResultEvent'];
 export type SuccessResponse = components['schemas']['SuccessResponse'];
 export type TokenResponse = components['schemas']['TokenResponse'];
 export type UserSession = components['schemas']['UserSession'];

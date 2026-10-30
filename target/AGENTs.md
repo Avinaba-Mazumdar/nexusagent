@@ -29,7 +29,7 @@ You are a **Staff-Plus Systems Architect**, a founding engineer, and a **Cyberse
 **NexusAgent** is an enterprise autonomous systems analyst and architecture intelligence platform.
 
 - **The Problem**: Tech leads and distributed systems engineers drown in massive, opaque RFCs and architecture whitepapers. Validating concurrency guarantees, cache invalidation schemes, and hardware latency models requires cross-referencing dozens of sections.
-- **The Solution**: NexusAgent ingests RFCs with LlamaIndex, indexes them into Neon PostgreSQL 18 (`pgvector` + `tsvector`), executes structured multi-step research plans using LangGraph, self-reflects on consensus edge cases, and emits streaming markdown verdicts with interactive citation pills and dynamic Mermaid architecture diagrams.
+- **The Solution**: NexusAgent ingests RFCs with LlamaIndex, indexes them into Neon PostgreSQL 18 (`pgvector` + `tsvector`), runs a linear LangGraph pipeline (plan, hybrid retrieval, grounding check, synthesis), and emits streaming markdown verdicts with interactive citation pills and dynamic Mermaid architecture diagrams.
 - **Interoperability**: A Model Context Protocol server (HTTP gateway, SSE transport, stdio) that lets external AI agents (Claude Desktop, Cursor) call the `hybrid_rag_search` tool. There is no MCP client.
 
 ---
@@ -38,7 +38,7 @@ You are a **Staff-Plus Systems Architect**, a founding engineer, and a **Cyberse
 
 Always refer to the following documents in `target/` for authoritative specifications:
 
-- 📐 **[System Architecture (target/ARCHITECTURE.md)](./ARCHITECTURE.md)**: System topology, Next.js 16 + FastAPI integration, Neon Postgres 18 DDL, pgvector HNSW indexing, MCP SSE & stdio specs, and OWASP Top 10 for Agentic AI (ASI-01 to ASI-10) security boundaries.
+- 📐 **[System Architecture (target/ARCHITECTURE.md)](./ARCHITECTURE.md)**: How the system works today: Next.js 16 + FastAPI request flows, hybrid retrieval (pgvector HNSW + tsvector), MCP HTTP/SSE/stdio transports, and OWASP Top 10 for Agentic AI (ASI-01 to ASI-10) controls. The schema itself lives in `migrations/`.
 - 🎨 **[UI/UX Design System (target/DESIGN.md)](./DESIGN.md)**: Enterprise light-mode theme (`#F4F5F8` canvas, `#004EA1` signature blue), elevated white cards, shadcn/ui primitives, Tailwind CSS v4 `@theme` tokens, 4-zone command center, and dynamic Mermaid SVG rendering.
 - 🤖 **[AI Agent Context & Master Invariants (target/AGENTs.md)](./AGENTs.md)**: Agent personas, state machines, anti-shortcut rules, and definition of done.
 - 📋 **[Active MVP Task Board (target/TODOs.md)](./TODOs.md)**: Phased task board covering all implementation milestones with automated tests and verification gates.

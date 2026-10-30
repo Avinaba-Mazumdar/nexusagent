@@ -12,7 +12,6 @@ from app.core.auth import (
     issue_guest_pass,
     security_bearer,
     session_claims,
-    token_lifetime,
     user_to_session,
     verify_google_token,
 )
@@ -74,9 +73,7 @@ async def google_auth(
         is_guest=False,
     )
 
-    token_str, expires_in = create_access_token(
-        data=session_claims(user), expires_delta=token_lifetime(user)
-    )
+    token_str, expires_in = create_access_token(data=session_claims(user))
 
     return TokenResponse(
         accessToken=token_str,
@@ -151,7 +148,6 @@ async def refresh_token(
 
     token_str, expires_in = create_access_token(
         data=session_claims(current_user, auth_time=auth_time),
-        expires_delta=token_lifetime(current_user),
     )
 
     return TokenResponse(

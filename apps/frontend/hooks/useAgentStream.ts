@@ -44,6 +44,9 @@ function describeHttpError(status: number, body: string): string {
     return `Server returned status ${status}: ${detail}`;
 }
 
+/** The `done` payload plus the answer text, which arrives only as `token` (and `redact`) events. */
+export type AgentRunResult = AgentInvokeResponse & { response: string };
+
 /** Parse one SSE block: `event:` name plus all `data:` lines joined with a newline, per the SSE spec. */
 export function parseSseBlock(block: string): { eventType: string; data: string } {
     let eventType = 'message';
@@ -78,7 +81,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
     }, []);
 
     const startStream = React.useCallback(
-        async (params: StreamParams): Promise<AgentInvokeResponse | null> => {
+        async (params: StreamParams): Promise<AgentRunResult | null> => {
             const { query, documentId, sessionId: existingSessionId } = params;
 
             cancelStream();
@@ -148,6 +151,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                 let receivedFirstToken = false;
                 let serverError: string | null = null;
                 let finalDonePayload: AgentInvokeResponse | null = null;
+                let answer = '';
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -203,7 +207,8 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
 
                                 case 'token':
                                     if (data.token) {
-                                        setStreamedResponse((prev) => prev + data.token);
+                                        answer += data.token;
+                                        setStreamedResponse(answer);
                                         if (!receivedFirstToken) {
                                             receivedFirstToken = true;
                                             const firstTokenMs = Math.round(performance.now() - startTime);
@@ -214,7 +219,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
 
                                 case 'done': {
                                     finalDonePayload = data as AgentInvokeResponse;
-                                    if (data.response !== undefined) setStreamedResponse(data.response);
                                     if (data.plan !== undefined) setPlan(data.plan);
                                     if (data.citations !== undefined) setCitations(data.citations);
                                     if (data.grounding) setGrounding(data.grounding);
@@ -223,6 +227,12 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     emitLog('STREAM', `Run finished in ${totalLatencyMs}ms`);
                                     break;
                                 }
+
+                                case 'redact':
+                                    answer = data.response;
+                                    setStreamedResponse(answer);
+                                    emitLog('STREAM', 'Answer withdrawn by the canary-token check');
+                                    break;
 
                                 case 'error':
                                     serverError = data.error || 'Unknown SSE stream error';
@@ -241,7 +251,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                 }
 
                 setIsStreaming(false);
-                return finalDonePayload;
+                return { ...finalDonePayload, response: answer };
             } catch (err: unknown) {
                 if (err instanceof Error && err.name === 'AbortError') {
                     emitLog('STREAM', 'Run cancelled');

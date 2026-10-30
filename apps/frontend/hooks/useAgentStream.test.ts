@@ -29,7 +29,7 @@ describe('useAgentStream Hook', () => {
             'event: token\ndata: {"token": "Hello "}\n\n',
             'event: token\ndata: {"token": "World!"}\n\n',
             'event: grounding\ndata: {"grounding": "grounded", "feedback": "Grounded in 1 retrieved sources."}\n\n',
-            'event: done\ndata: {"sessionId": "test-session-123", "response": "Hello World!", "citations": [{"id": "c1", "chunkId": "chk1", "documentId": "d1", "filename": "doc.md", "headerPath": ["Architecture"], "preview": "Text"}]}\n\n'
+            'event: done\ndata: {"sessionId": "test-session-123", "citations": [{"id": "c1", "chunkId": "chk1", "documentId": "d1", "filename": "doc.md", "headerPath": ["Architecture"], "preview": "Text"}]}\n\n'
         ];
 
         let index = 0;
@@ -52,10 +52,12 @@ describe('useAgentStream Hook', () => {
 
         const { result } = renderHook(() => useAgentStream({ onQuota: onQuotaMock }));
 
+        let run: Awaited<ReturnType<typeof result.current.startStream>> = null;
         await act(async () => {
-            await result.current.startStream({ query: 'What is the nexusagent architecture?' });
+            run = await result.current.startStream({ query: 'What is the nexusagent architecture?' });
         });
 
+        expect(run).toMatchObject({ response: 'Hello World!' });
         expect(result.current.isStreaming).toBe(false);
         expect(onQuotaMock).toHaveBeenCalledWith(3);
         expect(result.current.plan.length).toBe(1);
@@ -63,6 +65,32 @@ describe('useAgentStream Hook', () => {
         expect(result.current.grounding).toBe('grounded');
         expect(result.current.citations.length).toBe(1);
         expect(result.current.citations[0].filename).toBe('doc.md');
+    });
+
+    it('replaces the streamed text when the server sends redact', async () => {
+        const encoder = new TextEncoder();
+        const body = [
+            'event: token\ndata: {"sessionId": "s", "token": "Partial answer "}\n\n',
+            'event: redact\ndata: {"sessionId": "s", "response": "Security Alert"}\n\n',
+            'event: done\ndata: {"sessionId": "s", "citations": []}\n\n'
+        ].join('');
+        const mockStream = new ReadableStream({
+            pull(controller) {
+                controller.enqueue(encoder.encode(body));
+                controller.close();
+            }
+        });
+        global.fetch = vi.fn().mockResolvedValue({ ok: true, body: mockStream, status: 200 } as unknown as Response);
+
+        const { result } = renderHook(() => useAgentStream());
+
+        let run: Awaited<ReturnType<typeof result.current.startStream>> = null;
+        await act(async () => {
+            run = await result.current.startStream({ query: 'Hello' });
+        });
+
+        expect(result.current.streamedResponse).toBe('Security Alert');
+        expect(run).toMatchObject({ response: 'Security Alert' });
     });
 
     it('handles stream HTTP error responses', async () => {

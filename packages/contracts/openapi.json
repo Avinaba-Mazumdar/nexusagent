@@ -2,7 +2,7 @@
     "components": {
         "schemas": {
             "AgentDoneEventWire": {
-                "description": "Payload of the final `done` SSE event.",
+                "description": "Payload of the final `done` SSE event. The answer text itself arrives as `token` events.",
                 "properties": {
                     "citations": {
                         "items": {
@@ -76,27 +76,12 @@
                         "title": "Query",
                         "type": "string"
                     },
-                    "response": {
-                        "title": "Response",
-                        "type": "string"
-                    },
                     "sessionId": {
                         "title": "Sessionid",
                         "type": "string"
                     }
                 },
-                "required": [
-                    "sessionId",
-                    "query",
-                    "response",
-                    "nodeHistory",
-                    "plan",
-                    "citations",
-                    "injectionWarnings",
-                    "mermaidDiagrams",
-                    "grounding",
-                    "isComplete"
-                ],
+                "required": ["sessionId", "query", "nodeHistory", "plan", "citations", "injectionWarnings", "mermaidDiagrams", "grounding", "isComplete"],
                 "title": "AgentDoneEventWire",
                 "type": "object"
             },
@@ -827,6 +812,174 @@
                 },
                 "required": ["tokensRemaining", "bucketCapacity", "resetsAt"],
                 "title": "QuotaStatus",
+                "type": "object"
+            },
+            "SseErrorEvent": {
+                "properties": {
+                    "error": {
+                        "title": "Error",
+                        "type": "string"
+                    },
+                    "sessionId": {
+                        "title": "Sessionid",
+                        "type": "string"
+                    }
+                },
+                "required": ["sessionId", "error"],
+                "title": "SseErrorEvent",
+                "type": "object"
+            },
+            "SseGroundingEvent": {
+                "properties": {
+                    "feedback": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": null,
+                        "title": "Feedback"
+                    },
+                    "grounding": {
+                        "enum": ["grounded", "weak", "none"],
+                        "title": "Grounding",
+                        "type": "string"
+                    },
+                    "sessionId": {
+                        "title": "Sessionid",
+                        "type": "string"
+                    }
+                },
+                "required": ["sessionId", "grounding"],
+                "title": "SseGroundingEvent",
+                "type": "object"
+            },
+            "SseNodeStartEvent": {
+                "properties": {
+                    "node": {
+                        "title": "Node",
+                        "type": "string"
+                    },
+                    "sessionId": {
+                        "title": "Sessionid",
+                        "type": "string"
+                    }
+                },
+                "required": ["sessionId", "node"],
+                "title": "SseNodeStartEvent",
+                "type": "object"
+            },
+            "SsePlanEvent": {
+                "properties": {
+                    "plan": {
+                        "items": {
+                            "$ref": "#/components/schemas/PlanStepWire"
+                        },
+                        "title": "Plan",
+                        "type": "array"
+                    },
+                    "sessionId": {
+                        "title": "Sessionid",
+                        "type": "string"
+                    }
+                },
+                "required": ["sessionId", "plan"],
+                "title": "SsePlanEvent",
+                "type": "object"
+            },
+            "SseRedactEvent": {
+                "description": "Replace everything streamed so far with ``response`` (sent after a canary-token leak).",
+                "properties": {
+                    "response": {
+                        "title": "Response",
+                        "type": "string"
+                    },
+                    "sessionId": {
+                        "title": "Sessionid",
+                        "type": "string"
+                    }
+                },
+                "required": ["sessionId", "response"],
+                "title": "SseRedactEvent",
+                "type": "object"
+            },
+            "SseStartEvent": {
+                "properties": {
+                    "query": {
+                        "title": "Query",
+                        "type": "string"
+                    },
+                    "quotaRemaining": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": null,
+                        "title": "Quotaremaining"
+                    },
+                    "sessionId": {
+                        "title": "Sessionid",
+                        "type": "string"
+                    },
+                    "timestamp": {
+                        "title": "Timestamp",
+                        "type": "string"
+                    }
+                },
+                "required": ["sessionId", "query", "timestamp"],
+                "title": "SseStartEvent",
+                "type": "object"
+            },
+            "SseTokenEvent": {
+                "description": "One chunk of model output (or the fixed out-of-scope refusal, sent as a single chunk).",
+                "properties": {
+                    "sessionId": {
+                        "title": "Sessionid",
+                        "type": "string"
+                    },
+                    "token": {
+                        "title": "Token",
+                        "type": "string"
+                    }
+                },
+                "required": ["sessionId", "token"],
+                "title": "SseTokenEvent",
+                "type": "object"
+            },
+            "SseToolResultEvent": {
+                "properties": {
+                    "chunksRetrieved": {
+                        "title": "Chunksretrieved",
+                        "type": "integer"
+                    },
+                    "citations": {
+                        "items": {
+                            "$ref": "#/components/schemas/CitationWire"
+                        },
+                        "title": "Citations",
+                        "type": "array"
+                    },
+                    "injectionWarnings": {
+                        "items": {
+                            "$ref": "#/components/schemas/InjectionWarningWire"
+                        },
+                        "title": "Injectionwarnings",
+                        "type": "array"
+                    },
+                    "tool": {
+                        "title": "Tool",
+                        "type": "string"
+                    }
+                },
+                "required": ["tool", "chunksRetrieved", "citations", "injectionWarnings"],
+                "title": "SseToolResultEvent",
                 "type": "object"
             },
             "SuccessResponse": {

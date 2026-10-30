@@ -49,7 +49,8 @@ async def test_agent_sse_streaming_endpoint(fake_llm):
 
         done_data = json.loads(data_line[5:].strip())
         assert done_data["isComplete"] is True
-        assert "## Architectural Analysis" in done_data["response"]
+        streamed = "".join(d["token"] for n, d in _parse_sse(raw_stream) if n == "token")
+        assert "## Architectural Analysis" in streamed
         assert len(done_data["plan"]) >= 2
         assert len(done_data["nodeHistory"]) >= 3
         assert done_data["grounding"] in {"grounded", "weak", "none"}
@@ -180,7 +181,8 @@ async def test_stream_forwards_real_chunks_with_labels_and_warnings(stream_clien
     done = events[-1][1]
     assert done["grounding"] == "grounded"
     assert "reflectionScore" not in done and "iterationCount" not in done
-    assert done["response"].endswith("Done.") and streamed == done["response"]
+    assert streamed.endswith("Done.")
+    assert "response" not in done  # LOG-01: the answer is sent once, as tokens
 
     started = [d["node"] for n, d in events if n == "node_start"]
     assert started == ["planner", "retriever", "grounding", "synthesizer"]
@@ -211,3 +213,25 @@ async def test_llm_failure_refunds_the_charged_token(stream_client, monkeypatch)
     events = _parse_sse(res.text)
     assert events[-1][0] == "error"
     assert list(db.tokens.values()) == [5]  # consumed 1, refunded 1
+
+
+@pytest.mark.asyncio
+async def test_canary_leak_redacts_streamed_text(stream_client, fake_llm, monkeypatch):
+    """A leaked canary withdraws what was streamed via `redact`; the token itself never streams."""
+    from app.agent.graph import CANARY_ALERT
+
+    canary = "CANARY-test-1234567890"
+    monkeypatch.setattr("app.agent.graph.generate_canary_token", lambda: canary)
+    fake_llm(["Quorum is a majority. ", "The token is ", canary, " end."])
+    client, _user, _db = stream_client
+
+    async with client:
+        res = await client.post("/api/agent/stream", json={"query": "Explain Raft quorum"})
+
+    events = _parse_sse(res.text)
+    streamed = "".join(d["token"] for n, d in events if n == "token")
+    assert canary not in res.text
+    assert streamed  # the safe prefix had already been shown
+    redacts = [d for n, d in events if n == "redact"]
+    assert [r["response"] for r in redacts] == [CANARY_ALERT]
+    assert events[-1][0] == "done"

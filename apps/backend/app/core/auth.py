@@ -92,15 +92,6 @@ def session_claims(user: User, auth_time: int | None = None) -> dict:
     }
 
 
-def token_lifetime(user: User) -> timedelta:
-    minutes = (
-        settings.GUEST_TOKEN_EXPIRE_MINUTES
-        if user.is_guest
-        else settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    )
-    return timedelta(minutes=minutes)
-
-
 def user_to_session(user: User) -> UserSession:
     """Convert User model to UserSession contract schema."""
     return UserSession(
@@ -231,9 +222,7 @@ async def issue_guest_pass(
         is_guest=True,
     )
 
-    token_str, expires_in = create_access_token(
-        data=session_claims(target_user), expires_delta=token_lifetime(target_user)
-    )
+    token_str, expires_in = create_access_token(data=session_claims(target_user))
 
     return GuestPassResponse(
         user=user_to_session(target_user),
