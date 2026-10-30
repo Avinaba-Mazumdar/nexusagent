@@ -213,6 +213,21 @@ class NeonDatabase:
         async with self.pool.acquire() as conn:
             await conn.execute(query, datetime.now(UTC), user_id, client_ip, device_id)
 
+    async def touch_user(self, user_id: UUID) -> bool:
+        """
+        Refresh ``last_seen_at`` at most once per 5 minutes. Returns whether a row was written.
+        Only the 24 h guest-pruning rule reads the value, so per-request precision is wasted writes.
+        """
+        if not self.pool:
+            return False
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                "UPDATE users SET last_seen_at = NOW() "
+                "WHERE id = $1 AND last_seen_at < NOW() - INTERVAL '5 minutes';",
+                user_id,
+            )
+        return result.endswith(" 1")
+
     async def prune_expired_guests(self, ttl_hours: int = 24) -> int:
         """Prune ephemeral guest sessions inactive for longer than ttl_hours (Section 11 Architecture).
 

@@ -432,3 +432,40 @@ async def test_optional_user_ignores_a_signed_out_token_r2_sec_04():
     user.token_version = 1  # user logged out
     assert await get_current_user_optional(creds, db) is None
     assert await get_current_user_optional(None, db) is None
+
+
+@pytest.mark.asyncio
+async def test_authenticated_requests_use_the_throttled_last_seen_write_r2_log_09():
+    from unittest.mock import AsyncMock
+
+    from fastapi.security import HTTPAuthorizationCredentials
+
+    from app.core.auth import get_current_user, session_claims
+
+    user = _user()
+    token, _ = create_access_token(session_claims(user))
+    db = AsyncMock()
+    db.get_user_by_id.return_value = user
+    await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=token), db)
+
+    db.touch_user.assert_awaited_once_with(user.id)
+    db.update_user_last_seen.assert_not_called()
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_touch_user_writes_at_most_once_per_window_r2_log_09():
+    user = await neon_db.create_user(
+        User(id=uuid4(), name="Touched", is_guest=True, device_id=uuid4().hex)
+    )
+    try:
+        pool = neon_db.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE users SET last_seen_at = NOW() - INTERVAL '1 hour' WHERE id = $1;", user.id
+            )
+        assert await neon_db.touch_user(user.id) is True
+        assert await neon_db.touch_user(user.id) is False
+    finally:
+        async with neon_db.get_pool().acquire() as conn:
+            await conn.execute("DELETE FROM users WHERE id = $1;", user.id)

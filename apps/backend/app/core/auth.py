@@ -148,7 +148,7 @@ async def get_current_user(
     if not credentials:
         raise _unauthorized("Authentication credentials were not provided")
     user = await _resolve_user(credentials, db)
-    await db.update_user_last_seen(user.id)
+    await db.touch_user(user.id)
     return user
 
 
