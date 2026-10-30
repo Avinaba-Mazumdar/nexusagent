@@ -55,6 +55,8 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
     const inFlightConversationsRef = React.useRef(false);
     const lastFetchConversationsRef = React.useRef<number>(0);
     const memoryMessageCache = React.useRef(new Map<string, ChatMessageRecord[]>());
+    // The conversation the user selected last; a slower response for an earlier click is dropped.
+    const selectionRef = React.useRef<string | null>(null);
 
     // Clear messages and active conversation when user changes
     React.useEffect(() => {
@@ -167,12 +169,14 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
     }, []);
 
     const handleNewChat = React.useCallback(() => {
+        selectionRef.current = null;
         setActiveSessionId(null);
         setMessages([]);
     }, []);
 
     const handleSelectConversationItem = React.useCallback(
         (conv: ChatConversation) => {
+            selectionRef.current = conv.id;
             let initialMessages: ChatMessageRecord[] | undefined = memoryMessageCache.current.get(conv.id);
             if (!initialMessages) {
                 try {
@@ -198,6 +202,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
                         } catch {
                             // Ignore
                         }
+                        if (selectionRef.current !== conv.id) return;
                         handleSelectConversation(conv.id, conv.title, detail.messages, false);
                     }
                 })
