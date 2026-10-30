@@ -127,19 +127,24 @@ def test_rrf_camelcase_metadata():
 
 
 @pytest.mark.asyncio
-async def test_search_raises_runtime_error_when_db_disconnected():
+async def test_search_raises_runtime_error_when_db_disconnected(monkeypatch):
     """Verify hybrid search raises RuntimeError instead of fabricating offline results (L-11, D-6)."""
+    from app.db.neon import neon_db
     from app.rag.hybrid_search import HybridSearchEngine
 
+    monkeypatch.setattr(neon_db, "pool", None)
     engine = HybridSearchEngine(db=None)
     with pytest.raises(RuntimeError, match="Knowledge base unavailable: database not connected"):
         await engine.search("Raft consensus")
 
 
 @pytest.mark.asyncio
-async def test_mcp_registry_catches_runtime_error():
+async def test_mcp_registry_catches_runtime_error(monkeypatch):
     """Verify default_mcp_registry._exec_hybrid_search returns isError=True on RuntimeError (L-11)."""
+    from app.db.neon import neon_db
     from app.mcp.registry import HybridRagSearchArgs, default_mcp_registry
+
+    monkeypatch.setattr(neon_db, "pool", None)
 
     res = await default_mcp_registry._exec_hybrid_search(
         HybridRagSearchArgs(query="Raft consensus")

@@ -127,7 +127,12 @@ def test_markdown_hierarchical_parser_chunks_and_metadata():
 
 @pytest.mark.db
 @pytest.mark.asyncio
-async def test_upload_and_list_documents():
+async def test_upload_and_list_documents(monkeypatch):
+    async def fake_embed(texts, **kwargs):
+        return [[0.1] * 768 for _ in texts]
+
+    monkeypatch.setattr("app.routes.documents.default_embedding_service.api_key", "k")
+    monkeypatch.setattr("app.routes.documents.default_embedding_service.get_embeddings", fake_embed)
     transport = ASGITransport(app=app)
     user_id = uuid4()
     token, _ = create_access_token({"sub": str(user_id), "role": "user", "is_guest": False})

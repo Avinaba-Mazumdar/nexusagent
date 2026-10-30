@@ -133,7 +133,7 @@ The API rejects request bodies over 1 MB + 16 KB on `/api/documents/upload` and 
 ## 🧪 Testing
 
 - **Backend tests**: `cd apps/backend && uv run pytest -q`
-    - `@pytest.mark.db` tests run only when `TEST_DATABASE_URL` points to a disposable database. They create and delete data. Never point test runs at a production database.
+    - `@pytest.mark.db` tests run only when `TEST_DATABASE_URL` points to a disposable database (they apply the migrations and create and delete data; never point them at a production database). CI runs them against a `pgvector/pgvector:pg18` service container and fails if any test is skipped. Locally: `docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=nexus_test pgvector/pgvector:pg18`, then `TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nexus_test uv run pytest -q`.
 - **Frontend tests**: `cd apps/frontend && pnpm test`
 - **Lint & format** (Vite+: oxlint and oxfmt, configured in `vite.config.ts`): `pnpm lint`, `pnpm format:check`
 - **Backend lint & format**: `cd apps/backend && uv run ruff check . && uv run ruff format --check .`

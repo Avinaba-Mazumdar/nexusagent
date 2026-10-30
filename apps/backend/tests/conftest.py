@@ -18,6 +18,7 @@ from uuid import UUID
 
 import pytest
 
+from app.db.migrations import apply_migrations
 from app.db.neon import neon_db
 
 DB_STATE = {"connected": False}
@@ -34,6 +35,9 @@ def pytest_configure(config):
 async def neon_pool():
     """Open a single Neon connection pool for the session and close it at teardown."""
     DB_STATE["connected"] = await neon_db.connect()
+    if DB_STATE["connected"]:
+        # A fresh database (for example the CI service container) has no schema yet; applying is idempotent.
+        await apply_migrations(neon_db)
     try:
         yield
     finally:
