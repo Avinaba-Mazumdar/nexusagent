@@ -375,3 +375,22 @@ async def test_stdio_rejects_non_object_payloads(payload):
     """LOG-10: batches and scalars get INVALID_REQUEST instead of crashing the read loop."""
     res = await handle_jsonrpc_request(payload)
     assert res["error"]["code"] == -32600
+
+
+@pytest.mark.asyncio
+async def test_all_four_knowledge_base_files_are_readable_resources_r2_cln_09():
+    listed = await handle_jsonrpc_request({"jsonrpc": "2.0", "id": 1, "method": "resources/list"})
+    resources = listed["result"]["resources"]
+    assert len(resources) == 4
+    for resource in resources:
+        read = await handle_jsonrpc_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "resources/read",
+                "params": {"uri": resource["uri"]},
+            }
+        )
+        content = read["result"]["contents"][0]
+        assert content["uri"] == resource["uri"]
+        assert len(content["text"]) > 100

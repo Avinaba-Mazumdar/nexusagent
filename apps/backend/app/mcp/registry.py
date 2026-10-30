@@ -4,6 +4,7 @@ Provides tools:
   - hybrid_rag_search: Dense pgvector + BM25 tsvector with RRF ranking
 """
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -69,21 +70,42 @@ TOOLS: list[ToolDefinition] = [
 ]
 
 
-# Resource Definitions
-STATIC_RESOURCES: list[ResourceDefinition] = [
-    ResourceDefinition(
-        uri="benchmark://benchlm-2026",
-        name="BenchLM Overall Model Rankings",
-        description="BenchLM overall scores, prices and evidence levels (snapshot retrieved 2026-10-30).",
-        mimeType="text/markdown",
+# One table for the readable resources: (definition, knowledge-base file). Snapshot dates are in the files.
+RESOURCES: list[tuple[ResourceDefinition, str]] = [
+    (
+        ResourceDefinition(
+            uri="benchmark://benchlm-2026",
+            name="BenchLM Overall Model Rankings",
+            description="BenchLM overall scores, prices and evidence levels (snapshot retrieved 2026-10-30).",
+        ),
+        "benchlm_evals.md",
     ),
-    ResourceDefinition(
-        uri="benchmark://cursorbench-coding",
-        name="CursorBench Agentic Coding Leaderboard",
-        description="CursorBench 4.0 agentic coding scores and cost per task (snapshot retrieved 2026-10-30).",
-        mimeType="text/markdown",
+    (
+        ResourceDefinition(
+            uri="benchmark://cursorbench-coding",
+            name="CursorBench Agentic Coding Leaderboard",
+            description="CursorBench 4.0 agentic coding scores and cost per task (snapshot retrieved 2026-10-30).",
+        ),
+        "cursor_bench.md",
+    ),
+    (
+        ResourceDefinition(
+            uri="benchmark://artificial-analysis",
+            name="Artificial Analysis LLM Leaderboard",
+            description="Intelligence index, cost per task, output speed and latency (snapshot retrieved 2026-10-30).",
+        ),
+        "artificial_analysis.md",
+    ),
+    (
+        ResourceDefinition(
+            uri="benchmark://openrouter-metrics",
+            name="OpenRouter Model Pricing & Context Index",
+            description="Per-token list prices, context windows and release dates (snapshot retrieved 2026-10-30).",
+        ),
+        "openrouter_metrics.md",
     ),
 ]
+RESOURCE_FILES = {definition.uri: filename for definition, filename in RESOURCES}
 
 
 class McpRegistry:
@@ -109,33 +131,17 @@ class McpRegistry:
 
     @staticmethod
     def get_resources() -> list[dict[str, Any]]:
-        return [res.model_dump() for res in STATIC_RESOURCES]
+        return [definition.model_dump() for definition, _ in RESOURCES]
 
     @staticmethod
     async def read_resource(uri: str) -> dict[str, Any]:
-        """Read resource content by URI."""
-        filename_map = {
-            "benchmark://benchlm-2026": "benchlm_evals.md",
-            "benchmark://cursorbench-coding": "cursor_bench.md",
-        }
-
-        # Check knowledge base files
-        filename = filename_map.get(uri)
-        if filename and KNOWLEDGE_BASE_DIR.is_dir():
-            target_file = KNOWLEDGE_BASE_DIR / filename
-            if target_file.is_file():
-                content = target_file.read_text(encoding="utf-8")
-                return {
-                    "contents": [
-                        {
-                            "uri": uri,
-                            "mimeType": "text/markdown",
-                            "text": content,
-                        }
-                    ]
-                }
-
-        raise ValueError(f"Unknown resource: {uri}")
+        """Read resource content by URI (the file is read off the event loop)."""
+        filename = RESOURCE_FILES.get(uri)
+        target_file = KNOWLEDGE_BASE_DIR / filename if filename else None
+        if target_file is None or not target_file.is_file():
+            raise ValueError(f"Unknown resource: {uri}")
+        content = await asyncio.to_thread(target_file.read_text, encoding="utf-8")
+        return {"contents": [{"uri": uri, "mimeType": "text/markdown", "text": content}]}
 
     @classmethod
     async def call_tool(
