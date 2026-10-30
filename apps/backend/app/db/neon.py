@@ -67,6 +67,7 @@ class NeonDatabase:
             return False
 
         try:
+            await self._ensure_vector_extension()
 
             async def init_connection(conn: asyncpg.Connection):
                 await register_vector(conn)
@@ -85,6 +86,19 @@ class NeonDatabase:
             logger.error(f"Failed to connect to Neon PostgreSQL: {e}")
             self.pool = None
             return False
+
+    async def _ensure_vector_extension(self) -> None:
+        """
+        Pool connections register the pgvector codec as soon as they open, which fails on a fresh
+        database where the migrations have not created the extension yet.
+        """
+        conn = await asyncpg.connect(self.dsn)
+        try:
+            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+        except asyncpg.PostgresError as e:
+            logger.warning(f"Could not create the pgvector extension ({e}); assuming it exists.")
+        finally:
+            await conn.close()
 
     async def _detect_pgvector_features(self) -> None:
         try:
@@ -277,7 +291,7 @@ class NeonDatabase:
         pool = self.get_pool()
         query = """
             INSERT INTO rate_limit_buckets (user_id, tokens_remaining, bucket_capacity, last_replenished_at)
-            VALUES ($1, $2 - $3, $2, NOW())
+            VALUES ($1, $2::int - $3::int, $2::int, NOW())
             ON CONFLICT (user_id) DO UPDATE SET
               tokens_remaining = CASE WHEN rate_limit_buckets.last_replenished_at <= NOW() - INTERVAL '1 hour'
                                       THEN rate_limit_buckets.bucket_capacity - $3
