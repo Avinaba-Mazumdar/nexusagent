@@ -1,3 +1,6 @@
+import logging
+import os
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -126,3 +129,19 @@ async def test_health_reports_unhealthy_when_the_pool_is_saturated_r2_log_13(mon
         response = await client.get("/api/health")
     assert response.status_code == 503
     assert response.json()["status"] == "unhealthy"
+
+
+def test_importing_the_app_enables_info_logging_r2_ops_05():
+    """pytest installs its own root handlers, so check the level in a fresh interpreter."""
+    import subprocess
+    import sys
+
+    code = "import logging; import app.main; print(logging.getLogger().getEffectiveLevel())"
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "ENVIRONMENT": "test", "LOG_LEVEL": "INFO"},
+        check=True,
+    )
+    assert result.stdout.strip().splitlines()[-1] == str(logging.INFO)

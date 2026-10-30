@@ -22,6 +22,11 @@ from app.routes.health import router as health_router
 from app.routes.mcp import router as mcp_router
 from app.routes.rag import router as rag_router
 
+# Uvicorn only configures its own loggers; without this the nexusagent.* INFO records are dropped.
+logging.basicConfig(
+    level=settings.LOG_LEVEL.upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 logger = logging.getLogger("nexusagent.main")
 
 
