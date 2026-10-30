@@ -47,6 +47,8 @@ export function AppHeader({
     onLogout
 }: AppHeaderProps) {
     const [popoverOpen, setPopoverOpen] = React.useState(false);
+    // bucketCapacity is 0 until the server answers, which would make the width NaN%.
+    const quotaPercent = bucketCapacity > 0 ? Math.min(100, Math.max(0, (quotaRemaining / bucketCapacity) * 100)) : 0;
 
     return (
         <header
@@ -93,7 +95,7 @@ export function AppHeader({
                 {/* Pre-loaded Guest / User Quota Badge */}
                 {user && (
                     <div
-                        className="hidden sm:flex items-center gap-1.5 h-9 px-3 rounded-xl bg-secondary/50 border border-border text-xs font-medium shrink-0"
+                        className="flex items-center gap-1.5 h-9 px-2 sm:px-3 rounded-xl bg-secondary/50 border border-border text-xs font-medium shrink-0"
                         title={`${quotaRemaining} of ${bucketCapacity} query quota remaining`}
                         data-testid="quota-badge"
                     >
@@ -101,7 +103,7 @@ export function AppHeader({
                         <span className="font-semibold text-foreground tabular-nums">
                             {quotaRemaining}/{bucketCapacity}
                         </span>
-                        <span className="text-muted-foreground">{user.isGuest ? 'Guest' : 'Questions'}</span>
+                        <span className="hidden sm:inline text-muted-foreground">{user.isGuest ? 'Guest' : 'Questions'}</span>
                     </div>
                 )}
 
@@ -149,10 +151,7 @@ export function AppHeader({
                                     </span>
                                 </div>
                                 <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden">
-                                    <div
-                                        className="bg-primary h-full rounded-full transition-all duration-300"
-                                        style={{ width: `${Math.min(100, Math.max(0, (quotaRemaining / bucketCapacity) * 100))}%` }}
-                                    />
+                                    <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${quotaPercent}%` }} />
                                 </div>
                                 <p className="text-xs text-muted-foreground">Refills every hour</p>
                             </div>

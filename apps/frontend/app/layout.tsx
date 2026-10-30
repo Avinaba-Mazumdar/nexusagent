@@ -64,7 +64,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     }}
                 />
             </head>
-            <body suppressHydrationWarning className="bg-background text-foreground antialiased font-sans min-h-screen">
+            <body suppressHydrationWarning className="bg-background text-foreground antialiased font-sans min-h-dvh">
                 <a href="#main-canvas" className="skip-link">
                     Skip to chat
                 </a>

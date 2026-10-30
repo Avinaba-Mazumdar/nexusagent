@@ -415,7 +415,7 @@ export default function Home() {
     ];
 
     return (
-        <div className="h-screen flex flex-col bg-background text-foreground font-sans overflow-hidden">
+        <div className="h-dvh flex flex-col bg-background text-foreground font-sans overflow-hidden">
             <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setGisLoaded(true)} />
 
             {/* 1. Header */}

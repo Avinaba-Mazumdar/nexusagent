@@ -16,7 +16,7 @@ export default function TermsAndConditionsPage() {
     const lastUpdated = 'October 29, 2026';
 
     return (
-        <div className="min-h-screen bg-background text-foreground flex flex-col">
+        <div className="min-h-dvh bg-background text-foreground flex flex-col">
             {/* Header / Navigation Bar */}
             <header className="h-14 bg-card border-b border-border px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md bg-card/90">
                 <div className="flex items-center gap-3">
