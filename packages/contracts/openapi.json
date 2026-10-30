@@ -497,6 +497,8 @@
                     "deviceId": {
                         "anyOf": [
                             {
+                                "maxLength": 128,
+                                "minLength": 16,
                                 "type": "string"
                             },
                             {

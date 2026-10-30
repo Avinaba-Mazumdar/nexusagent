@@ -493,3 +493,12 @@ async def test_refresh_limit_applies_before_any_database_work_r2_log_11(monkeypa
         mock_db.get_user_by_id.assert_not_called()
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.mark.asyncio
+async def test_guest_device_id_must_be_a_reasonable_length_r2_sec_11():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        too_long = await client.post("/api/auth/guest", json={"deviceId": "a" * 10_000})
+        too_short = await client.post("/api/auth/guest", json={"deviceId": "abc"})
+    assert too_long.status_code == 422
+    assert too_short.status_code == 422

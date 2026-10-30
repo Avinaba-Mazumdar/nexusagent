@@ -88,7 +88,8 @@ class UserSession(BaseModel):
 
 
 class GuestPassRequest(BaseModel):
-    deviceId: str | None = None
+    # The device id re-opens a guest account, so it must be long enough to be unguessable.
+    deviceId: str | None = Field(default=None, min_length=16, max_length=128)
 
 
 class AuthTokens(BaseModel):

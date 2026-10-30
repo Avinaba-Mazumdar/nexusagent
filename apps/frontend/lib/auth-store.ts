@@ -44,12 +44,23 @@ function readCachedQuota(): QuotaSnapshot {
     return NO_QUOTA;
 }
 
+/** A random, unguessable id; empty when no secure RNG exists, so the server generates one instead. */
+function newDeviceId(): string {
+    if (typeof crypto === 'undefined') return '';
+    if (crypto.randomUUID) return crypto.randomUUID();
+    if (crypto.getRandomValues) {
+        return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    }
+    return '';
+}
+
 function getOrCreateDeviceId(): string {
     if (typeof window === 'undefined') return '';
     try {
         let deviceId = localStorage.getItem(STORAGE_KEY_DEVICE_ID);
         if (!deviceId) {
-            deviceId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 18);
+            deviceId = newDeviceId();
+            if (!deviceId) return '';
             localStorage.setItem(STORAGE_KEY_DEVICE_ID, deviceId);
         }
         return deviceId;

@@ -112,3 +112,45 @@ describe('session notice (R2-UX-02)', () => {
         expect(useAuthStore.getState().sessionNotice).toBeNull();
     });
 });
+
+describe('guest device id (R2-SEC-11)', () => {
+    beforeEach(() => {
+        localStorage.clear();
+        useAuthStore.setState({ user: null, token: null, sessionNotice: null });
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+    });
+
+    async function guestDeviceId(): Promise<unknown> {
+        let sent: { deviceId?: string } = {};
+        global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+            sent = JSON.parse(typeof init?.body === 'string' ? init.body : '{}');
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ tokens: { accessToken: 't' }, user, quotaRemaining: 5, bucketCapacity: 5 })
+            } as unknown as Response;
+        }) as typeof fetch;
+        await useAuthStore.getState().loginGuest();
+        const deviceId = sent.deviceId; // logout() below also calls fetch
+        useAuthStore.getState().logout();
+        return deviceId;
+    }
+
+    it('falls back to crypto.getRandomValues when randomUUID is missing', async () => {
+        vi.stubGlobal('crypto', {
+            getRandomValues: (bytes: Uint8Array) => {
+                bytes.fill(0xab);
+                return bytes;
+            }
+        });
+        expect(await guestDeviceId()).toBe('ab'.repeat(16));
+    });
+
+    it('sends no device id when there is no secure RNG, so the server generates one', async () => {
+        vi.stubGlobal('crypto', {});
+        expect(await guestDeviceId()).toBeUndefined();
+    });
+});
