@@ -158,7 +158,7 @@ async def upload_document(
     raw_bytes = await file.read(MAX_FILE_BYTES + 1)
     if len(raw_bytes) > MAX_FILE_BYTES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"File exceeds maximum allowed size of {MAX_FILE_BYTES // (1024 * 1024)}MB",
         )
 
@@ -211,7 +211,7 @@ async def upload_document(
 
     if len(chunks) > settings.MAX_CHUNKS_PER_DOCUMENT:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Document produced {len(chunks)} chunks, exceeding the maximum allowed limit of {settings.MAX_CHUNKS_PER_DOCUMENT}.",
         )
 
