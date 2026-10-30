@@ -301,6 +301,15 @@ async def test_hourly_rate_limit_replenishment():
     replenished = await neon_db.get_or_create_rate_limit(user.id, default_tokens=5)
     assert replenished.tokens_remaining == 5
 
+    # R2-LOG-08: the read reports full capacity but does not write the refill.
+    async with pool.acquire() as conn:
+        stored = await conn.fetchrow(
+            "SELECT tokens_remaining, last_replenished_at FROM rate_limit_buckets WHERE user_id = $1;",
+            user.id,
+        )
+    assert stored["tokens_remaining"] == 0
+    assert stored["last_replenished_at"] == past_time
+
 
 # ---------------------------------------------------------------------------
 # SEC-04: revocation, session age cap, iss/aud

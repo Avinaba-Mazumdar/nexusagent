@@ -284,42 +284,29 @@ class NeonDatabase:
     async def get_or_create_rate_limit(
         self, user_id: UUID, default_tokens: int = 5
     ) -> RateLimitBucket:
-        """Get or initialize rate limit bucket for user, replenishing hourly if expired."""
+        """
+        Current bucket state without consuming. Read-only apart from creating the row: an expired
+        bucket is reported as full (the next ``consume_rate_limit`` performs the actual refill).
+        """
         pool = self.get_pool()
-        now = datetime.now(UTC)
-        select_query = "SELECT * FROM rate_limit_buckets WHERE user_id = $1;"
         async with pool.acquire() as conn:
-            row = await conn.fetchrow(select_query, user_id)
-            if row:
-                bucket = RateLimitBucket(**dict(row))
-                last_rep = bucket.last_replenished_at
-                if last_rep.tzinfo is None:
-                    last_rep = last_rep.replace(tzinfo=UTC)
-                if (now - last_rep) >= timedelta(hours=1):
-                    replenish_query = """
-                        UPDATE rate_limit_buckets
-                        SET tokens_remaining = bucket_capacity,
-                            last_replenished_at = $2
-                        WHERE user_id = $1
-                        RETURNING *;
-                    """
-                    updated_row = await conn.fetchrow(replenish_query, user_id, now)
-                    if updated_row:
-                        return RateLimitBucket(**dict(updated_row))
-                return bucket
-
-            insert_query = """
-                INSERT INTO rate_limit_buckets (user_id, tokens_remaining, bucket_capacity, last_replenished_at)
-                VALUES ($1, $2, $3, $4)
-                ON CONFLICT (user_id) DO UPDATE SET last_replenished_at = EXCLUDED.last_replenished_at
-                RETURNING *;
-            """
-            row = await conn.fetchrow(
-                insert_query,
+            await conn.execute(
+                "INSERT INTO rate_limit_buckets (user_id, tokens_remaining, bucket_capacity) "
+                "VALUES ($1, $2, $2) ON CONFLICT (user_id) DO NOTHING;",
                 user_id,
                 default_tokens,
-                default_tokens,
-                now,
+            )
+            row = await conn.fetchrow(
+                """
+                SELECT id, user_id, bucket_capacity,
+                       CASE WHEN last_replenished_at <= NOW() - INTERVAL '1 hour'
+                            THEN bucket_capacity ELSE tokens_remaining END AS tokens_remaining,
+                       CASE WHEN last_replenished_at <= NOW() - INTERVAL '1 hour'
+                            THEN NOW() ELSE last_replenished_at END AS last_replenished_at
+                FROM rate_limit_buckets
+                WHERE user_id = $1;
+                """,
+                user_id,
             )
             return RateLimitBucket(**dict(row))
 
