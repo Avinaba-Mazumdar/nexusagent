@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import type { ChatConversation, ChatConversationDetailResponse } from '@nexusagent/contracts';
 import { apiClient } from '@/lib/api-client';
@@ -57,5 +57,21 @@ describe('useChatHistory', () => {
 
         expect(result.current.activeSessionId).toBe('b');
         expect(result.current.messages.map((m) => m.content)).toEqual(['content of b']);
+    });
+
+    it('restores a conversation and explains when the delete fails', async () => {
+        const first = conv('a');
+        vi.mocked(apiClient).mockImplementation((path: string, options?: { method?: string }) => {
+            if (options?.method === 'DELETE') return Promise.reject(new Error('server down')) as never;
+            return Promise.resolve({ conversations: [first] }) as never;
+        });
+
+        const { result } = renderHook(() => useChatHistory({ id: 'u1', isGuest: false }));
+        await waitFor(() => expect(result.current.conversations).toHaveLength(1));
+
+        act(() => result.current.handleDeleteConversation('a'));
+        await waitFor(() => expect(result.current.chatNotice).toMatch(/couldn't delete/i));
+
+        expect(result.current.conversations.map((c) => c.id)).toEqual(['a']);
     });
 });
