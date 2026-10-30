@@ -90,7 +90,7 @@ async def test_chat_history_google_user_crud():
 async def test_follow_up_turn_keeps_first_title():
     """LOG-02: a follow-up turn must not rename the conversation to the latest question."""
     from app.agent.state import AgentState
-    from app.routes.agent import persist_turn
+    from app.services.conversations import persist_turn
 
     user_id = uuid4()
     await neon_db.create_user(

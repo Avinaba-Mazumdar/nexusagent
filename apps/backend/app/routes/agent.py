@@ -13,8 +13,10 @@ from app.agent.graph import (
     default_agent_graph,
     next_node,
 )
+from app.agent.sse import format_sse
 from app.agent.state import AgentState, Intent
 from app.config import settings
+from app.core.access import require_document_access
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
 from app.core.rate_limiter import default_rate_limiter
@@ -34,13 +36,11 @@ from app.db.models import (
     User,
 )
 from app.db.neon import neon_db
-from app.routes.documents import require_document_access
+from app.services.conversations import persist_turn
 
 logger = logging.getLogger("nexusagent.routes.agent")
 
 router = APIRouter(prefix="/agent", tags=["Agent Autonomous Orchestration & SSE Streaming"])
-
-TITLE_MAX_CHARS = 60
 
 
 class AgentStreamRequestWire(BaseModel):
@@ -58,43 +58,6 @@ class AgentStreamRequestWire(BaseModel):
         None,
         description="Optional existing session ID for conversation continuity",
     )
-
-
-def format_sse(event_type: str, payload: BaseModel) -> str:
-    """Format a typed payload (see ``SSE_WIRE_MODELS``) as one Server-Sent Event frame."""
-    return f"event: {event_type}\ndata: {payload.model_dump_json(by_alias=True)}\n\n"
-
-
-async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentState) -> str | None:
-    """Save the turn for a signed-in user. Returns the conversation id, or None on failure."""
-    try:
-        title = query[:TITLE_MAX_CHARS] + "..." if len(query) > TITLE_MAX_CHARS else query
-        conv = await neon_db.create_conversation(
-            user_id, title=title, conversation_id=UUID(session_id)
-        )
-        if not conv or "id" not in conv:
-            logger.warning(f"Could not persist conversation {session_id} for user {user_id}")
-            return None
-        await neon_db.save_turn(
-            conv["id"],
-            query,
-            state.response,
-            plan_trace=[
-                PlanStepWire.model_validate(s).model_dump(by_alias=True) for s in state.plan
-            ],
-            reflection_summary={
-                "grounding": state.grounding,
-                "citations": [
-                    CitationWire.model_validate(c).model_dump(by_alias=True)
-                    for c in state.citations
-                ],
-                "mermaidDiagrams": state.mermaid_diagrams,
-            },
-        )
-        return str(conv["id"])
-    except Exception as save_err:  # noqa: BLE001
-        logger.warning(f"Could not persist conversation history: {save_err}")
-        return None
 
 
 async def generate_agent_stream(

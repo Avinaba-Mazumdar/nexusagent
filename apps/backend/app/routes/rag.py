@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
+from app.core.access import require_document_access
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
 from app.core.rate_limiter import default_rate_limiter
@@ -17,7 +18,6 @@ from app.rag.hybrid_search import (
     DEFAULT_SPARSE_WEIGHT,
     HybridSearchEngine,
 )
-from app.routes.documents import require_document_access
 
 logger = logging.getLogger("nexusagent.routes.rag")
 

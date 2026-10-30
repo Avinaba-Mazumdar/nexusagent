@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
 from app.config import settings
+from app.core.access import require_document_access
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user, get_current_user_optional
 from app.core.rate_limiter import default_rate_limiter
@@ -80,14 +81,6 @@ async def list_documents(
     """
     docs = await db.list_all_documents(user_id=current_user.id if current_user else None)
     return {"documents": [document_to_wire(d) for d in docs]}
-
-
-async def require_document_access(db: NeonDatabase, document_id: UUID, user: User) -> Document:
-    """Validate document existence and tenancy access: seeded documents or user's own uploads."""
-    doc = await db.get_document_by_id(document_id)
-    if not doc or (not doc.is_seeded and doc.user_id != user.id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    return doc
 
 
 @router.get("/{document_id}/chunks/{chunk_id}", response_model=DocumentChunkWire)
