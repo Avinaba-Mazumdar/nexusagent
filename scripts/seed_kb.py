@@ -2,7 +2,7 @@
 """
 NexusAgent Predefined Knowledge Base Seeding Pipeline.
 Reads markdown files in knowledge_base/benchmarks/, creates semantic chunks using
-the app's MarkdownNodeParser, generates 768-dimensional embeddings via Gemini,
+the app's header-aware markdown parser, generates 768-dimensional embeddings via Gemini,
 and upserts into Neon PostgreSQL inside an atomic transaction.
 
 Usage:
@@ -69,6 +69,7 @@ async def seed_knowledge_base():
             text,
             document_id=doc_id,
             extra_metadata={"filename": doc_path.name},
+            chunk_id_namespace=doc_id,  # stable chunk ids keep stored citations valid
         )
         if not chunks:
             continue
@@ -104,6 +105,10 @@ async def seed_knowledge_base():
                 )
             )
 
+    if not doc_models:
+        logger.error("No seedable documents were produced; refusing to delete the existing corpus.")
+        sys.exit(1)
+
     doc_query = """
         INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, is_seeded, uploaded_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -114,17 +119,18 @@ async def seed_knowledge_base():
     """
     chunk_query = """
         INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, embedding_model, metadata, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8);
+        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+        ON CONFLICT (id) DO UPDATE SET
+            content = EXCLUDED.content,
+            embedding = EXCLUDED.embedding,
+            embedding_model = EXCLUDED.embedding_model,
+            metadata = EXCLUDED.metadata;
     """
 
     logger.info("Executing atomic upsert transaction...")
     async with neon_db.pool.acquire() as conn, conn.transaction():
         await conn.execute(
             "DELETE FROM documents WHERE is_seeded = TRUE AND id <> ALL($1::uuid[]);",
-            [d.id for d in doc_models],
-        )
-        await conn.execute(
-            "DELETE FROM document_chunks WHERE document_id = ANY($1::uuid[]);",
             [d.id for d in doc_models],
         )
         for doc in doc_models:
@@ -138,6 +144,13 @@ async def seed_knowledge_base():
                 doc.total_chunks,
                 doc.is_seeded,
                 doc.uploaded_at,
+            )
+            # Drop chunks that are no longer produced (a shorter document, or the random ids
+            # written by older seeds) before upserting the current ones.
+            await conn.execute(
+                "DELETE FROM document_chunks WHERE document_id = $1 AND NOT (id = ANY($2::uuid[]));",
+                doc.id,
+                [r[0] for r in chunk_records if r[1] == doc.id],
             )
         if chunk_records:
             await conn.executemany(chunk_query, chunk_records)

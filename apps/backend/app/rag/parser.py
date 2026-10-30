@@ -1,7 +1,7 @@
 import hashlib
 import re
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from app.core.security_guardrails import scrub_sensitive_information
 from app.db.models import DocumentChunk
@@ -159,10 +159,13 @@ class MarkdownHierarchicalParser:
         markdown_text: str,
         document_id: UUID,
         extra_metadata: dict[str, Any] | None = None,
+        chunk_id_namespace: UUID | None = None,
     ) -> list[DocumentChunk]:
         """
         Parse raw markdown content into structured, hierarchical DocumentChunk models.
         Extracts header hierarchy, start_line, end_line, char_count, token_count, and SHA-256 hash.
+        With ``chunk_id_namespace`` chunk ids are deterministic (``uuid5(namespace, chunk_index)``),
+        so re-parsing the same document keeps stored citations valid.
         """
         extra_metadata = extra_metadata or {}
         clean_text = scrub_sensitive_information(markdown_text, preserve_lines=True)
@@ -186,14 +189,16 @@ class MarkdownHierarchicalParser:
                     "sha256": hashlib.sha256(sub_text.encode("utf-8")).hexdigest(),
                     **extra_metadata,
                 }
-                chunks.append(
-                    DocumentChunk(
-                        document_id=document_id,
-                        chunk_index=len(chunks),
-                        content=sub_text,
-                        metadata=meta,
-                    )
+                chunk_index = len(chunks)
+                chunk = DocumentChunk(
+                    document_id=document_id,
+                    chunk_index=chunk_index,
+                    content=sub_text,
+                    metadata=meta,
                 )
+                if chunk_id_namespace is not None:
+                    chunk.id = uuid5(chunk_id_namespace, str(chunk_index))
+                chunks.append(chunk)
 
         return chunks
 

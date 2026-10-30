@@ -635,3 +635,17 @@ async def test_chunk_endpoint_returns_own_chunk_r2_log_04(upload_client):
         res = await client.get(f"/api/documents/{seeded.id}/chunks/{chunk.id}")
     assert res.status_code == 200
     assert res.json()["content"] == "public passage"
+
+
+def test_chunk_ids_are_stable_when_a_namespace_is_given_r2_log_05():
+    doc_id = uuid4()
+    first = default_markdown_parser.parse_markdown(
+        SAMPLE_RFC_MARKDOWN, document_id=doc_id, chunk_id_namespace=doc_id
+    )
+    second = default_markdown_parser.parse_markdown(
+        SAMPLE_RFC_MARKDOWN, document_id=doc_id, chunk_id_namespace=doc_id
+    )
+    assert [c.id for c in first] == [c.id for c in second]
+    assert len({c.id for c in first}) == len(first)
+    random_ids = default_markdown_parser.parse_markdown(SAMPLE_RFC_MARKDOWN, document_id=doc_id)
+    assert [c.id for c in random_ids] != [c.id for c in first]
