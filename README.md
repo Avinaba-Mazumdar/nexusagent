@@ -122,7 +122,7 @@ The API rejects request bodies over 1 MB + 16 KB on `/api/documents/upload` and 
 
 ## 🛠️ Maintenance
 
-Run `uv run python scripts/prune_guests.py` daily (cron, Render Cron Job, or a scheduled CI job). It deletes guests inactive for 24 h (`--ttl`) and audit rows older than 30 days (`--audit-days`).
+`.github/workflows/maintenance.yml` runs `scripts/prune_guests.py` every 6 hours (and on demand). It deletes guests inactive for 24 h (`--ttl`) and audit rows older than 30 days (`--audit-days`), which is the retention the privacy policy promises. Add the repository secret `NEON_DATABASE_URL` for it. GitHub disables scheduled workflows after 60 days without repository activity; re-enable it from the Actions tab, or run the script from another scheduler (cron, Render Cron Job).
 
 ### Database Permissions
 
