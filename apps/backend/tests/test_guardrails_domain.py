@@ -89,3 +89,24 @@ async def test_agent_graph_fast_path_refusal():
     assert "Scope Guardrail: Out-of-Domain Request" in final_state.response
     # Fast-path must not invoke the retriever
     assert "retriever" not in final_state.node_history
+
+
+def test_follow_ups_in_a_conversation_are_not_refused_r2_log_02():
+    assert classify_query_intent("explain that in more detail") == "out_of_scope"
+    assert classify_query_intent("explain that in more detail", has_history=True) == "architectural"
+    assert classify_query_intent("why?", has_history=True) == "architectural"
+    # A long off-topic message is still refused, even mid-conversation.
+    long_offtopic = "tell me " + "all about the history of pancakes " * 10
+    assert classify_query_intent(long_offtopic, has_history=True) == "out_of_scope"
+
+
+def test_more_architecture_vocabulary_is_in_scope_r2_log_02():
+    for query in (
+        "How scalable is leader election in Raft?",
+        "B-tree vs LSM trade-offs",
+        "Postgres vs MySQL isolation levels",
+        "What makes an API idempotent?",
+        "Kubernetes rate limiting and throttling",
+    ):
+        assert classify_query_intent(query) == "architectural", query
+    assert classify_query_intent("best pasta recipe") == "out_of_scope"

@@ -13,7 +13,7 @@ from app.agent.graph import (
     default_agent_graph,
     route_after_planner,
 )
-from app.agent.state import AgentState, Citation, InjectionWarning, PlanStep
+from app.agent.state import AgentState, Citation, InjectionWarning, Intent, PlanStep
 from app.config import settings
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
@@ -130,6 +130,7 @@ async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentS
 
 async def generate_agent_stream(
     query: str,
+    intent: Intent,
     user_id: UUID | None,
     document_id: UUID | None,
     session_id: str,
@@ -151,7 +152,7 @@ async def generate_agent_stream(
         query=query,
         document_id=document_id,
         chat_history=chat_history or [],
-        intent=classify_query_intent(query),
+        intent=intent,
     )
 
     event_queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -345,20 +346,6 @@ async def stream_agent_execution(
             )
         await require_document_access(neon_db, doc_uuid, current_user)
 
-    # Out-of-scope refusals cost nothing, so they are not metered.
-    quota_charged = classify_query_intent(payload.query) != "out_of_scope"
-    if quota_charged:
-        remaining = await default_rate_limiter.check_and_consume(
-            user_id=current_user.id,
-            client_ip=client_ip,
-            is_guest=current_user.is_guest,
-        )
-    else:
-        remaining = await default_rate_limiter.get_quota(
-            user_id=current_user.id,
-            is_guest=current_user.is_guest,
-        )
-
     session_id = uuid4().hex
     chat_history: list[dict[str, str]] = []
     resumed_conversation: UUID | None = None
@@ -376,9 +363,25 @@ async def stream_agent_execution(
                 resumed_conversation = requested
                 chat_history = [{"role": r["role"], "content": r["content"]} for r in rows]
 
+    # Out-of-scope refusals cost nothing, so they are not metered.
+    intent = classify_query_intent(payload.query, has_history=bool(chat_history))
+    quota_charged = intent != "out_of_scope"
+    if quota_charged:
+        remaining = await default_rate_limiter.check_and_consume(
+            user_id=current_user.id,
+            client_ip=client_ip,
+            is_guest=current_user.is_guest,
+        )
+    else:
+        remaining = await default_rate_limiter.get_quota(
+            user_id=current_user.id,
+            is_guest=current_user.is_guest,
+        )
+
     return StreamingResponse(
         generate_agent_stream(
             query=payload.query,
+            intent=intent,
             user_id=current_user.id,
             document_id=doc_uuid,
             session_id=session_id,

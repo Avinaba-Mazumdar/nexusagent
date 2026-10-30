@@ -260,6 +260,7 @@ async def test_abort_after_retrieval_keeps_the_quota_charge(stream_client):
 
     stream = generate_agent_stream(
         query="Explain Raft quorum",
+        intent="architectural",
         user_id=user.id,
         document_id=None,
         session_id=uuid4().hex,
