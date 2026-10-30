@@ -117,21 +117,26 @@ export default function Home() {
         }
     }, [initAuth]);
 
-    const handleToggleTheme = React.useCallback((checked?: boolean) => {
-        setIsDarkTheme((prev) => {
-            const next = typeof checked === 'boolean' ? checked : !prev;
-            if (typeof document !== 'undefined') {
-                if (next) {
-                    document.documentElement.classList.add('dark');
-                    localStorage.setItem('nexusagent_theme', 'dark');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                    localStorage.setItem('nexusagent_theme', 'light');
-                }
-            }
-            return next;
-        });
-    }, []);
+    // The inline script in layout.tsx applied the saved theme before hydration; only write after a user toggle.
+    const themeToggledRef = React.useRef(false);
+
+    const handleToggleTheme = React.useCallback(
+        (checked?: boolean) => {
+            themeToggledRef.current = true;
+            setIsDarkTheme(typeof checked === 'boolean' ? checked : !isDarkTheme);
+        },
+        [isDarkTheme]
+    );
+
+    React.useEffect(() => {
+        if (!themeToggledRef.current) return;
+        document.documentElement.classList.toggle('dark', isDarkTheme);
+        try {
+            localStorage.setItem('nexusagent_theme', isDarkTheme ? 'dark' : 'light');
+        } catch {
+            // Storage unavailable (private mode): the theme still applies for this tab.
+        }
+    }, [isDarkTheme]);
 
     const fetchDocs = React.useCallback(async () => {
         try {

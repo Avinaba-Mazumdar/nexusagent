@@ -225,6 +225,21 @@ describe('Home Page - Layout and Header Controls', () => {
         global.fetch = originalFetch;
     });
 
+    it('still switches theme when localStorage throws (R2-UX-08)', async () => {
+        const user = userEvent.setup();
+        render(<Home />);
+        const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+            throw new Error('denied');
+        });
+        try {
+            await user.click(screen.getByRole('button', { name: /toggle theme mode/i }));
+            expect(document.documentElement.classList.contains('dark')).toBe(true);
+        } finally {
+            setItem.mockRestore();
+            document.documentElement.classList.remove('dark');
+        }
+    });
+
     it('renders stream errors in the assistant bubble with a retry action instead of an endless spinner', async () => {
         const guest = {
             user: { id: '55555555-5555-5555-5555-555555555555', email: null, name: 'Guest Five', avatarUrl: null, isGuest: true },
