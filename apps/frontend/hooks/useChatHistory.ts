@@ -152,7 +152,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
         }
     }, [isGoogleUser, loadConversations]);
 
-    const handleSelectConversation = React.useCallback((conversationId: string, _title: string, historyMessages?: ChatMessageRecord[], isLoading?: boolean) => {
+    const handleSelectConversation = React.useCallback((conversationId: string, historyMessages?: ChatMessageRecord[], isLoading?: boolean) => {
         setActiveSessionId(conversationId);
         if (historyMessages && historyMessages.length > 0) {
             setMessages(
@@ -191,7 +191,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
             }
 
             const hasCached = Boolean(initialMessages && initialMessages.length > 0);
-            handleSelectConversation(conv.id, conv.title, initialMessages, !hasCached);
+            handleSelectConversation(conv.id, initialMessages, !hasCached);
 
             apiClient<ChatConversationDetailResponse>(`/api/chat/history/${conv.id}`)
                 .then((detail) => {
@@ -203,7 +203,7 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
                             // Ignore
                         }
                         if (selectionRef.current !== conv.id) return;
-                        handleSelectConversation(conv.id, conv.title, detail.messages, false);
+                        handleSelectConversation(conv.id, detail.messages, false);
                     }
                 })
                 .catch(() => {
@@ -261,7 +261,6 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
         setMessages,
         activeSessionId,
         setActiveSessionId,
-        loadConversations,
         handleNewChat,
         handleSelectConversationItem,
         handleDeleteConversation,

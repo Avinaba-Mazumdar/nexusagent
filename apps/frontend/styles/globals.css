@@ -34,11 +34,6 @@
     --warning-bg: #fffbeb;
     --warning-border: #fcd34d;
 
-    --info: #0284c7;
-    --info-foreground: #ffffff;
-    --info-bg: #f0f9ff;
-    --info-border: #bae6fd;
-
     --banner-bg: #e8f3fc;
     --banner-border: #bfdbfe;
     --banner-badge-bg: #dbeafe;
@@ -46,9 +41,6 @@
 
     --featured-border: #93c5fd;
     --featured-bg: #ffffff;
-
-    --dark-pill: #1e232a;
-    --dark-pill-hover: #0a0d12;
     --citation-bg: #e8f3fc;
     --citation-text: #004182;
     --citation-border: #93c5fd;
@@ -86,11 +78,6 @@
     --warning-bg: rgba(245, 158, 11, 0.15);
     --warning-border: rgba(245, 158, 11, 0.3);
 
-    --info: #38bdf8;
-    --info-foreground: #ffffff;
-    --info-bg: rgba(56, 189, 248, 0.15);
-    --info-border: rgba(56, 189, 248, 0.3);
-
     --banner-bg: rgba(30, 58, 138, 0.2);
     --banner-border: rgba(59, 130, 246, 0.35);
     --banner-badge-bg: rgba(59, 130, 246, 0.25);
@@ -98,9 +85,6 @@
 
     --featured-border: rgba(59, 130, 246, 0.7);
     --featured-bg: rgba(13, 19, 34, 0.6);
-
-    --dark-pill: #1e293b;
-    --dark-pill-hover: #334155;
     --citation-bg: #1e293b;
     --citation-text: #60a5fa;
     --citation-border: #3b82f6;
@@ -138,11 +122,6 @@
     --color-warning-bg: var(--warning-bg);
     --color-warning-border: var(--warning-border);
 
-    --color-info: var(--info);
-    --color-info-foreground: var(--info-foreground);
-    --color-info-bg: var(--info-bg);
-    --color-info-border: var(--info-border);
-
     --color-banner-bg: var(--banner-bg);
     --color-banner-border: var(--banner-border);
     --color-banner-badge-bg: var(--banner-badge-bg);
@@ -150,9 +129,6 @@
 
     --color-featured-border: var(--featured-border);
     --color-featured-bg: var(--featured-bg);
-
-    --color-dark-pill: var(--dark-pill);
-    --color-dark-pill-hover: var(--dark-pill-hover);
     --color-citation-bg: var(--citation-bg);
     --color-citation-text: var(--citation-text);
     --color-citation-border: var(--citation-border);

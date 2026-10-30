@@ -11,7 +11,6 @@ describe('useAgentStream Hook', () => {
         const { result } = renderHook(() => useAgentStream());
 
         expect(result.current.isStreaming).toBe(false);
-        expect(result.current.streamError).toBeNull();
         expect(result.current.plan).toEqual([]);
         expect(result.current.currentNode).toBeNull();
         expect(result.current.citations).toEqual([]);
@@ -107,7 +106,6 @@ describe('useAgentStream Hook', () => {
         });
 
         expect(result.current.isStreaming).toBe(false);
-        expect(result.current.streamError).toContain('Rate limit exceeded');
     });
 
     it('rejects with a quota message on 429 so the UI can surface it', async () => {
@@ -122,8 +120,6 @@ describe('useAgentStream Hook', () => {
         await act(async () => {
             await expect(result.current.startStream({ query: 'Hello' })).rejects.toMatchObject({ status: 429 });
         });
-
-        expect(result.current.streamError).toMatch(/quota exhausted/i);
     });
 
     it('rejects when the server emits an error event and no done payload', async () => {

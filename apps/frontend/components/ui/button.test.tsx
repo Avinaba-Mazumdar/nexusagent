@@ -40,7 +40,7 @@ describe('Button component', () => {
         const { rerender } = render(<Button variant="outline">Outline</Button>);
         expect(screen.getByRole('button')).toHaveClass('border');
 
-        rerender(<Button variant="destructive">Destructive</Button>);
-        expect(screen.getByRole('button')).toBeInTheDocument();
+        rerender(<Button variant="ghost">Ghost</Button>);
+        expect(screen.getByRole('button')).toHaveClass('text-muted-foreground');
     });
 });

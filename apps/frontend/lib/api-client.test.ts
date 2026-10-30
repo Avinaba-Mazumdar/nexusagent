@@ -41,20 +41,6 @@ describe('apiClient', () => {
             expect(headers.get('Authorization')).toBe('Bearer valid-bearer-token');
         });
 
-        it('appends query parameters when params option is provided', async () => {
-            vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }));
-
-            await apiClient('/api/search', {
-                params: { query: 'benchmarks', limit: 5 }
-            });
-
-            const fetchCalls = vi.mocked(globalThis.fetch).mock.calls;
-            const input = fetchCalls[0][0];
-            const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-            expect(url).toContain('query=benchmarks');
-            expect(url).toContain('limit=5');
-        });
-
         it('triggers unauthorized callback on 401 response and throws', async () => {
             const onUnauthorized = vi.fn();
             setOnUnauthorizedCallback(onUnauthorized);

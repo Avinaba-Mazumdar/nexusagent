@@ -14,7 +14,6 @@ export interface UseAgentStreamOptions {
 
 export interface StreamParams {
     query: string;
-    documentId?: string | null;
     sessionId?: string | null;
 }
 
@@ -63,7 +62,6 @@ export function parseSseBlock(block: string): { eventType: string; data: string 
 
 export function useAgentStream(options?: UseAgentStreamOptions) {
     const [isStreaming, setIsStreaming] = React.useState(false);
-    const [streamError, setStreamError] = React.useState<string | null>(null);
     const [plan, setPlan] = React.useState<PlanStep[]>([]);
     const [currentNode, setCurrentNode] = React.useState<string | null>(null);
     const [citations, setCitations] = React.useState<Citation[]>([]);
@@ -82,12 +80,11 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
 
     const startStream = React.useCallback(
         async (params: StreamParams): Promise<AgentRunResult | null> => {
-            const { query, documentId, sessionId: existingSessionId } = params;
+            const { query, sessionId: existingSessionId } = params;
 
             cancelStream();
 
             setIsStreaming(true);
-            setStreamError(null);
             setPlan([]);
             setCurrentNode(null);
             setCitations([]);
@@ -124,7 +121,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                     headers,
                     body: JSON.stringify({
                         query,
-                        documentId: documentId || undefined,
                         sessionId: existingSessionId || undefined
                     }),
                     signal: controller.signal
@@ -237,7 +233,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
 
                                 case 'error':
                                     serverError = data.error || 'Unknown SSE stream error';
-                                    setStreamError(serverError);
                                     emitLog('ROUTER', `Stream error: ${data.error}`);
                                     break;
                             }
@@ -259,7 +254,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                     return null;
                 }
                 const msg = err instanceof Error ? err.message : String(err);
-                setStreamError(msg);
                 emitLog('ROUTER', `Fatal stream error: ${msg}`);
                 setIsStreaming(false);
                 throw err instanceof AgentStreamError ? err : new AgentStreamError(msg);
@@ -270,7 +264,6 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
 
     return {
         isStreaming,
-        streamError,
         plan,
         currentNode,
         citations,

@@ -16,10 +16,9 @@ describe('Badge component', () => {
         expect(badge).toHaveClass('bg-accent');
         expect(badge).toHaveClass('text-accent-foreground');
 
-        rerender(<Badge variant="secondary">RFC-104:L128</Badge>);
-        const secondaryBadge = screen.getByText('RFC-104:L128');
-        expect(secondaryBadge).toHaveClass('border-border');
-        expect(secondaryBadge).toHaveClass('bg-secondary');
-        expect(secondaryBadge).toHaveClass('text-secondary-foreground');
+        rerender(<Badge variant="outline">Outline Badge</Badge>);
+        const outlineBadge = screen.getByText('Outline Badge');
+        expect(outlineBadge).toHaveClass('border-border');
+        expect(outlineBadge).toHaveClass('bg-card');
     });
 });

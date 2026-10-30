@@ -30,7 +30,6 @@ export function notifyUnauthorized(): void {
 }
 
 export interface ApiClientOptions extends RequestInit {
-    params?: Record<string, string | number | boolean | undefined>;
     timeoutMs?: number;
 }
 
@@ -46,18 +45,9 @@ export async function apiClient<T>(endpoint: string, options: ApiClientOptions =
         headers.set('Authorization', `Bearer ${token}`);
     }
 
-    let url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
-    if (options.params) {
-        const parsedUrl = new URL(url, 'http://localhost');
-        for (const [k, v] of Object.entries(options.params)) {
-            if (v !== undefined) {
-                parsedUrl.searchParams.set(k, String(v));
-            }
-        }
-        url = endpoint.startsWith('http') ? parsedUrl.toString() : `${API_BASE}${parsedUrl.pathname}${parsedUrl.search}`;
-    }
+    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
 
-    const { params: _params, timeoutMs = 15000, ...fetchOptions } = options;
+    const { timeoutMs = 15000, ...fetchOptions } = options;
 
     let timeoutController: AbortController | null = null;
     let signal = fetchOptions.signal;
