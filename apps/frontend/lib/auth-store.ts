@@ -7,6 +7,20 @@ const STORAGE_KEY_USER = 'nexusagent_user';
 const STORAGE_KEY_QUOTA = 'nexusagent_quota';
 const STORAGE_KEY_DEVICE_ID = 'nexusagent_device_id';
 const CHAT_CACHE_PREFIXES = ['nexusagent_chat_history_', 'nexusagent_msgs_'];
+/** Renew the token when less than this is left (tokens last 24 h), and re-check this often while the tab is open. */
+const REFRESH_WHEN_LEFT_SECONDS = 12 * 60 * 60;
+const REFRESH_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/** Seconds until the JWT's `exp`, or null when the token cannot be read. */
+function secondsUntilExpiry(token: string): number | null {
+    try {
+        const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        const exp = (JSON.parse(atob(payload)) as { exp?: unknown }).exp;
+        return typeof exp === 'number' ? exp - Date.now() / 1000 : null;
+    } catch {
+        return null;
+    }
+}
 
 /** Quota numbers always come from the server; these are only shown until it answers. */
 interface QuotaSnapshot {
@@ -62,8 +76,14 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
+    let refreshTimer: ReturnType<typeof setInterval> | null = null;
+
     /** Forget the session locally (no server call: used when the server already rejected it). */
     function clearSession() {
+        if (refreshTimer) {
+            clearInterval(refreshTimer);
+            refreshTimer = null;
+        }
         if (typeof window !== 'undefined') {
             try {
                 localStorage.removeItem(STORAGE_KEY_TOKEN);
@@ -124,7 +144,31 @@ export const useAuthStore = create<AuthState>((set, get) => {
             isGoogleLoading: false,
             error: null
         });
+        startRefreshTimer();
     };
+
+    /** Swap the token for a fresh one when it is close to expiring. Failures are ignored: the 401 path handles a dead session. */
+    async function refreshSessionIfNeeded() {
+        const { token, user } = get();
+        if (!token || !user) return;
+        const left = secondsUntilExpiry(token);
+        if (left === null || left > REFRESH_WHEN_LEFT_SECONDS) return;
+        try {
+            const data = await apiClient<TokenResponse>('/api/auth/refresh', { method: 'POST' });
+            applySession(data.accessToken, data.user, {
+                remaining: data.quotaRemaining ?? get().quotaRemaining,
+                capacity: data.bucketCapacity ?? get().bucketCapacity,
+                resetsAt: get().quotaResetsAt
+            });
+        } catch {
+            // Keep the current token.
+        }
+    }
+
+    function startRefreshTimer() {
+        if (refreshTimer) return;
+        refreshTimer = setInterval(() => void refreshSessionIfNeeded(), REFRESH_CHECK_INTERVAL_MS);
+    }
 
     return {
         user: null,
@@ -175,6 +219,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
                         capacity: data.quota.bucketCapacity,
                         resetsAt: data.quota.resetsAt ?? null
                     });
+                    await refreshSessionIfNeeded();
                 } catch {
                     // Handled by 401 interceptor or offline resilience
                 }

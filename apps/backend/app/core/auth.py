@@ -120,8 +120,10 @@ def _unauthorized(detail: str) -> HTTPException:
     )
 
 
-async def _resolve_user(credentials: HTTPAuthorizationCredentials, db: NeonDatabase) -> User:
-    """Decode the bearer token and load its user; raises 401 for a bad, stale or signed-out token."""
+async def resolve_session(
+    credentials: HTTPAuthorizationCredentials, db: NeonDatabase
+) -> tuple[User, dict]:
+    """Decode the bearer token and load its user (with the token claims); 401 if bad or signed out."""
     payload = decode_access_token(credentials.credentials)
     user_id_str = payload.get("sub")
     if not user_id_str:
@@ -137,7 +139,7 @@ async def _resolve_user(credentials: HTTPAuthorizationCredentials, db: NeonDatab
         raise _unauthorized("User not found")
     if payload.get("tv", 0) != user.token_version:
         raise _unauthorized("Session has been signed out")
-    return user
+    return user, payload
 
 
 async def get_current_user(
@@ -147,7 +149,7 @@ async def get_current_user(
     """FastAPI dependency to extract and verify authenticated user."""
     if not credentials:
         raise _unauthorized("Authentication credentials were not provided")
-    user = await _resolve_user(credentials, db)
+    user, _claims = await resolve_session(credentials, db)
     await db.touch_user(user.id)
     return user
 
@@ -160,7 +162,7 @@ async def get_current_user_optional(
     if not credentials:
         return None
     try:
-        return await _resolve_user(credentials, db)
+        return (await resolve_session(credentials, db))[0]
     except HTTPException:
         return None
 

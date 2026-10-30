@@ -366,12 +366,17 @@ def test_tokens_carry_and_require_issuer_and_audience():
 
 @pytest.mark.asyncio
 async def test_refresh_cannot_extend_a_session_past_the_max_age(monkeypatch, fake_rate_db):
-    from app.core.auth import get_current_user, session_claims
+    from unittest.mock import AsyncMock
+
+    from app.core.auth import session_claims
+    from app.db.neon import get_db
 
     user = _user()
     old_login = int((datetime.now(UTC) - timedelta(days=8)).timestamp())
     token, _ = create_access_token(session_claims(user, auth_time=old_login))
-    app.dependency_overrides[get_current_user] = lambda: user
+    mock_db = AsyncMock()
+    mock_db.get_user_by_id.return_value = user
+    app.dependency_overrides[get_db] = lambda: mock_db
     try:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -389,7 +394,7 @@ async def test_refresh_cannot_extend_a_session_past_the_max_age(monkeypatch, fak
         new_claims = decode_access_token(ok.json()["accessToken"])
         assert new_claims["auth_time"] == decode_access_token(fresh)["auth_time"]
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.mark.asyncio
@@ -469,3 +474,22 @@ async def test_touch_user_writes_at_most_once_per_window_r2_log_09():
     finally:
         async with neon_db.get_pool().acquire() as conn:
             await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
+
+
+@pytest.mark.asyncio
+async def test_refresh_limit_applies_before_any_database_work_r2_log_11(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from app.core.rate_limiter import refresh_limiter
+    from app.db.neon import get_db
+
+    mock_db = AsyncMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    monkeypatch.setattr(refresh_limiter, "hit", lambda _ip: False)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post("/api/auth/refresh", headers={"Authorization": "Bearer x"})
+        assert res.status_code == 429
+        mock_db.get_user_by_id.assert_not_called()
+    finally:
+        app.dependency_overrides.pop(get_db, None)

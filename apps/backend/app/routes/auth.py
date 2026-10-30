@@ -6,10 +6,10 @@ from fastapi.security import HTTPAuthorizationCredentials
 from app.config import settings
 from app.core.auth import (
     create_access_token,
-    decode_access_token,
     get_client_ip,
     get_current_user,
     issue_guest_pass,
+    resolve_session,
     security_bearer,
     session_claims,
     user_to_session,
@@ -126,18 +126,20 @@ async def logout(
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Security(security_bearer),
-    current_user: User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials | None = Security(security_bearer),
+    db: NeonDatabase = Depends(get_db),
 ):
     """Refresh JWT access token for currently authenticated session."""
-    tokens_remaining = await default_rate_limiter.get_quota(
-        user_id=current_user.id,
-        is_guest=current_user.is_guest,
-    )
-
     enforce_ip_limit(refresh_limiter, get_client_ip(request))
-    payload = decode_access_token(credentials.credentials)
-    auth_time = int(payload.get("auth_time", payload.get("iat", 0)))
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials were not provided",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    current_user, claims = await resolve_session(credentials, db)
+
+    auth_time = int(claims.get("auth_time", claims.get("iat", 0)))
     session_age = datetime.now(UTC) - datetime.fromtimestamp(auth_time, UTC)
     if session_age > timedelta(days=settings.MAX_SESSION_AGE_DAYS):
         raise HTTPException(
@@ -146,6 +148,10 @@ async def refresh_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    tokens_remaining = await default_rate_limiter.get_quota(
+        user_id=current_user.id,
+        is_guest=current_user.is_guest,
+    )
     token_str, expires_in = create_access_token(
         data=session_claims(current_user, auth_time=auth_time),
     )
