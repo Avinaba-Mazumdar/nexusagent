@@ -649,3 +649,42 @@ def test_chunk_ids_are_stable_when_a_namespace_is_given_r2_log_05():
     assert len({c.id for c in first}) == len(first)
     random_ids = default_markdown_parser.parse_markdown(SAMPLE_RFC_MARKDOWN, document_id=doc_id)
     assert [c.id for c in random_ids] != [c.id for c in first]
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_replace_seeded_documents_is_idempotent_with_stable_chunk_ids_r2_cln_10():
+    from app.db.models import Document
+
+    doc_id = uuid4()
+    chunks = default_markdown_parser.parse_markdown(
+        SAMPLE_RFC_MARKDOWN, document_id=doc_id, chunk_id_namespace=doc_id
+    )
+    doc = Document(
+        id=doc_id,
+        user_id=None,
+        filename="seed-test.md",
+        mime_type="text/markdown",
+        sha256_hash=uuid4().hex,
+        total_chunks=len(chunks),
+        is_seeded=True,
+    )
+    pool = neon_db.get_pool()
+    try:
+        for _ in range(2):
+            await neon_db.replace_seeded_documents([(doc, chunks)])
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT id FROM document_chunks WHERE document_id = $1 ORDER BY chunk_index;",
+                    doc_id,
+                )
+            assert [r["id"] for r in rows] == [c.id for c in chunks]
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM documents WHERE id = $1;", doc_id)
+
+
+@pytest.mark.asyncio
+async def test_replace_seeded_documents_refuses_an_empty_corpus_r2_cln_10():
+    with pytest.raises(ValueError):
+        await neon_db.replace_seeded_documents([])

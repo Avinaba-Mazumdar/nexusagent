@@ -14,6 +14,21 @@ from app.db.models import Document, DocumentChunk, RateLimitBucket, User
 logger = logging.getLogger("nexusagent.db.neon")
 
 
+INSERT_CHUNK_SQL = """
+    INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, embedding_model, metadata, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+"""
+UPSERT_CHUNK_SQL = (
+    INSERT_CHUNK_SQL
+    + """
+    ON CONFLICT (id) DO UPDATE SET
+        content = EXCLUDED.content,
+        embedding = EXCLUDED.embedding,
+        embedding_model = EXCLUDED.embedding_model,
+        metadata = EXCLUDED.metadata
+"""
+)
+
 _TS_TERM = re.compile(r"[A-Za-z0-9]{2,}")
 MAX_TS_TERMS = 20
 
@@ -345,6 +360,66 @@ class NeonDatabase:
             val = await conn.fetchval(query, user_id)
             return int(val or 0)
 
+    @staticmethod
+    def _chunk_records(chunks: list[DocumentChunk]) -> list[tuple]:
+        return [
+            (
+                c.id,
+                c.document_id,
+                c.chunk_index,
+                c.content,
+                c.embedding,
+                settings.EMBEDDING_MODEL if c.embedding is not None else None,
+                json.dumps(c.metadata),
+                c.created_at,
+            )
+            for c in chunks
+        ]
+
+    async def replace_seeded_documents(
+        self, items: list[tuple[Document, list[DocumentChunk]]]
+    ) -> None:
+        """
+        Make the seeded corpus exactly ``items`` in one transaction: upsert each document and its
+        chunks (stable ids keep stored citations valid), drop chunks that are no longer produced,
+        and delete seeded documents that are no longer listed. Refuses an empty list.
+        """
+        if not items:
+            raise ValueError("Refusing to replace the seeded corpus with nothing.")
+        pool = self.get_pool()
+        doc_query = """
+            INSERT INTO documents (id, user_id, filename, mime_type, sha256_hash, total_chunks, is_seeded, uploaded_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (id) DO UPDATE SET
+                sha256_hash = EXCLUDED.sha256_hash,
+                total_chunks = EXCLUDED.total_chunks,
+                uploaded_at = EXCLUDED.uploaded_at;
+        """
+        async with pool.acquire() as conn, conn.transaction():
+            await conn.execute(
+                "DELETE FROM documents WHERE is_seeded = TRUE AND id <> ALL($1::uuid[]);",
+                [doc.id for doc, _ in items],
+            )
+            for doc, chunks in items:
+                await conn.execute(
+                    doc_query,
+                    doc.id,
+                    doc.user_id,
+                    doc.filename,
+                    doc.mime_type,
+                    doc.sha256_hash,
+                    doc.total_chunks,
+                    doc.is_seeded,
+                    doc.uploaded_at,
+                )
+                await conn.execute(
+                    "DELETE FROM document_chunks WHERE document_id = $1 AND NOT (id = ANY($2::uuid[]));",
+                    doc.id,
+                    [c.id for c in chunks],
+                )
+                if chunks:
+                    await conn.executemany(UPSERT_CHUNK_SQL, self._chunk_records(chunks))
+
     async def create_document_with_chunks(
         self, document: Document, chunks: list[DocumentChunk]
     ) -> Document:
@@ -361,23 +436,7 @@ class NeonDatabase:
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING id, user_id, filename, mime_type, sha256_hash, total_chunks, is_seeded, uploaded_at;
         """
-        chunk_query = """
-            INSERT INTO document_chunks (id, document_id, chunk_index, content, embedding, embedding_model, metadata, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8);
-        """
-        records = [
-            (
-                c.id,
-                c.document_id,
-                c.chunk_index,
-                c.content,
-                c.embedding,
-                settings.EMBEDDING_MODEL if c.embedding is not None else None,
-                json.dumps(c.metadata),
-                c.created_at,
-            )
-            for c in chunks
-        ]
+        records = self._chunk_records(chunks)
         try:
             async with pool.acquire() as conn, conn.transaction():
                 if document.user_id is not None:
@@ -401,7 +460,7 @@ class NeonDatabase:
                     document.uploaded_at,
                 )
                 if records:
-                    await conn.executemany(chunk_query, records)
+                    await conn.executemany(INSERT_CHUNK_SQL, records)
                 return Document(**dict(row))
         except asyncpg.UniqueViolationError:
             if document.user_id is not None:
