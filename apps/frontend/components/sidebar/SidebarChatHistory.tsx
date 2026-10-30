@@ -122,8 +122,8 @@ export function SidebarChatHistory({
                     type="search"
                     value={searchQuery}
                     onChange={(e) => onSearchChange(e.target.value)}
-                    placeholder="Search chats..."
-                    aria-label="Search conversation history"
+                    placeholder="Search titles..."
+                    aria-label="Search conversation titles"
                     className="w-full h-7 pl-7 pr-6 text-xs rounded-lg border border-border bg-secondary/40 text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
                 />
                 {searchQuery && (

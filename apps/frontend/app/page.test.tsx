@@ -164,7 +164,7 @@ describe('Home Page - Layout and Header Controls', () => {
         expect(profileBtn).toBeInTheDocument();
 
         // Collapsible Chats category displays search input and new chat button in sidebar
-        expect(await screen.findByRole('searchbox', { name: /search conversation history/i })).toBeInTheDocument();
+        expect(await screen.findByRole('searchbox', { name: /search conversation titles/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /new chat/i })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /toggle chat history/i })).not.toBeInTheDocument();
 

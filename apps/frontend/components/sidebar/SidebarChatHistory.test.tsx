@@ -69,7 +69,7 @@ describe('SidebarChatHistory Component', () => {
             />
         );
 
-        expect(screen.getByRole('searchbox', { name: /search conversation history/i })).toBeInTheDocument();
+        expect(screen.getByRole('searchbox', { name: /search conversation titles/i })).toBeInTheDocument();
         expect(screen.getByText('Raft Consensus Protocol Verification')).toBeInTheDocument();
     });
 
