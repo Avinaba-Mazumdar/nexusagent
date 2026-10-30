@@ -501,8 +501,6 @@ export interface components {
         ChatHistoryResponseWire: {
             /** Conversations */
             conversations: components['schemas']['ChatConversationWire'][];
-            /** Total */
-            total: number;
         };
         /** ChatMessageWire */
         ChatMessageWire: {
@@ -1148,8 +1146,6 @@ export interface operations {
     list_chat_history_api_chat_history_get: {
         parameters: {
             query?: {
-                /** @description Optional search query across conversation titles and message content */
-                q?: string | null;
                 limit?: number;
             };
             header?: never;

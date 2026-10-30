@@ -190,7 +190,6 @@ class ChatMessageWire(BaseModel):
 
 class ChatHistoryResponseWire(BaseModel):
     conversations: list[ChatConversationWire]
-    total: int
 
 
 class ChatConversationDetailWire(BaseModel):

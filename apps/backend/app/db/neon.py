@@ -607,7 +607,6 @@ class NeonDatabase:
     async def list_conversations(
         self,
         user_id: UUID,
-        search_term: str | None = None,
         limit: int = 50,
     ) -> list[dict]:
         """List conversations for a user with aggregated message counts and latest snippets."""
@@ -616,13 +615,9 @@ class NeonDatabase:
             WITH user_convs AS (
                 SELECT id, user_id, title, created_at, updated_at
                 FROM agent_conversations c
-                WHERE c.user_id = $1 AND (
-                    $2::text IS NULL OR
-                    c.title ILIKE $2 OR
-                    EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.content ILIKE $2)
-                )
+                WHERE c.user_id = $1
                 ORDER BY c.updated_at DESC
-                LIMIT $3
+                LIMIT $2
             ),
             msg_stats AS (
                 SELECT conversation_id,
@@ -639,9 +634,8 @@ class NeonDatabase:
             LEFT JOIN msg_stats s ON c.id = s.conversation_id
             ORDER BY c.updated_at DESC;
         """
-        search_pattern = f"%{search_term}%" if search_term else None
         async with pool.acquire() as conn:
-            rows = await conn.fetch(query, user_id, search_pattern, limit)
+            rows = await conn.fetch(query, user_id, limit)
             return [dict(r) for r in rows]
 
     async def get_conversation_with_messages(
@@ -652,7 +646,7 @@ class NeonDatabase:
         """Fetch conversation metadata and ordered messages in a single connection checkout."""
         pool = self.get_pool()
         query_conv = """
-            SELECT id, user_id, title, created_at
+            SELECT id, user_id, title, created_at, updated_at
             FROM agent_conversations
             WHERE id = $1 AND user_id = $2;
         """

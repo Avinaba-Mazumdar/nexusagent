@@ -73,10 +73,11 @@ async def test_chat_history_google_user_crud():
         assert res_detail.status_code == 200
         assert res_detail.json()["conversation"]["id"] == conv_id
 
-        # 4. Search conversation
-        res_search = await client.get("/api/chat/history?q=Raft", headers=headers)
-        assert res_search.status_code == 200
-        assert any(c["id"] == conv_id for c in res_search.json()["conversations"])
+        # 4. The list includes it, with timestamps
+        res_list = await client.get("/api/chat/history", headers=headers)
+        assert res_list.status_code == 200
+        listed = next(c for c in res_list.json()["conversations"] if c["id"] == conv_id)
+        assert listed["updatedAt"]
 
         # 5. Delete conversation
         res_del = await client.delete(f"/api/chat/history/{conv_id}", headers=headers)

@@ -248,13 +248,9 @@
                         },
                         "title": "Conversations",
                         "type": "array"
-                    },
-                    "total": {
-                        "title": "Total",
-                        "type": "integer"
                     }
                 },
-                "required": ["conversations", "total"],
+                "required": ["conversations"],
                 "title": "ChatHistoryResponseWire",
                 "type": "object"
             },
@@ -1413,25 +1409,6 @@
                 "operationId": "list_chat_history_api_chat_history_get",
                 "parameters": [
                     {
-                        "description": "Optional search query across conversation titles and message content",
-                        "in": "query",
-                        "name": "q",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "maxLength": 200,
-                                    "type": "string"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "description": "Optional search query across conversation titles and message content",
-                            "title": "Q"
-                        }
-                    },
-                    {
                         "in": "query",
                         "name": "limit",
                         "required": false,
@@ -1472,7 +1449,7 @@
                     }
                 ],
                 "summary": "List Chat History",
-                "tags": ["Chat History & Seeded Knowledge Base"]
+                "tags": ["Chat History"]
             }
         },
         "/api/chat/history/{conversation_id}": {
@@ -1519,7 +1496,7 @@
                     }
                 ],
                 "summary": "Delete Chat Conversation",
-                "tags": ["Chat History & Seeded Knowledge Base"]
+                "tags": ["Chat History"]
             },
             "get": {
                 "description": "Fetch complete message history for a conversation.",
@@ -1564,7 +1541,7 @@
                     }
                 ],
                 "summary": "Get Chat Conversation",
-                "tags": ["Chat History & Seeded Knowledge Base"]
+                "tags": ["Chat History"]
             }
         },
         "/api/documents": {
