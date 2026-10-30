@@ -28,8 +28,11 @@ INJECTION_PATTERNS = [
 SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Private Key blocks
     (
+        # The body may not contain "--", so a stray BEGIN header cannot scan to the end of the file.
         re.compile(
-            r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+            r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+            r"(?:[^-]|-(?!--)){0,16384}?"
+            r"-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
         ),
         "[REDACTED_PRIVATE_KEY]",
     ),
@@ -44,7 +47,11 @@ SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
     ),
     # JWT tokens
     (
-        re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
+        # Start only at the beginning of a token and bound each segment so matching stays linear.
+        re.compile(
+            r"(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,8192}"
+            r"\.[A-Za-z0-9_-]{10,8192}\.[A-Za-z0-9_-]{10,8192}(?![A-Za-z0-9_-])"
+        ),
         "[REDACTED_JWT_TOKEN]",
     ),
     # OpenAI, Anthropic, or GitHub tokens
@@ -54,7 +61,10 @@ SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
     ),
     # Database URIs with credentials
     (
-        re.compile(r"(postgresql|postgres|mysql|mongodb|redis)://([^:\s]+):([^@\s]+)@"),
+        re.compile(
+            r"(?<![A-Za-z0-9])(postgresql|postgres|mysql|mongodb|redis)://"
+            r"([^:\s@/]{1,128}):([^@\s]{1,256})@"
+        ),
         r"\1://\2:[REDACTED_PASSWORD]@",
     ),
 ]
