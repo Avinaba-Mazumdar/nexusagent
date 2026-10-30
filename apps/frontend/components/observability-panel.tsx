@@ -97,7 +97,7 @@ export function ObservabilityPanel({
                 <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5 text-xs font-heading font-semibold text-foreground">
                         <GitFork className="h-3.5 w-3.5 text-primary" />
-                        <span>LangGraph DAG Pipeline</span>
+                        <span>Pipeline</span>
                     </div>
                     {isStreaming && (
                         <Badge variant="soft" className="text-xs gap-1 px-1.5 py-0 bg-primary/20 text-primary">
@@ -195,13 +195,13 @@ export function ObservabilityPanel({
                 )}
             </Card>
 
-            {/* Wire Logs Streaming Terminal */}
+            {/* Run log terminal */}
             <Card className="flex-1 flex flex-col shadow-2xs border-border bg-card overflow-hidden">
                 <CardHeader className="p-2 pb-1.5 border-b border-border bg-secondary/30 flex flex-row items-center justify-between gap-1.5">
                     <div className="min-w-0 flex-1">
                         <CardTitle className="text-xs font-heading flex items-center gap-1.5">
                             <Terminal className="h-3 w-3 text-primary shrink-0" />
-                            <span className="truncate">Execution Wire Logs</span>
+                            <span className="truncate">Run log</span>
                         </CardTitle>
                         <CardDescription className="text-xs text-muted-foreground truncate">Telemetry trace &amp; model routing</CardDescription>
                     </div>

@@ -1800,7 +1800,7 @@
                     }
                 ],
                 "summary": "Mcp Messages Endpoint",
-                "tags": ["Model Context Protocol (MCP v2)"]
+                "tags": ["Model Context Protocol"]
             }
         },
         "/api/mcp/sse": {
@@ -1823,7 +1823,7 @@
                     }
                 ],
                 "summary": "Mcp Sse Endpoint",
-                "tags": ["Model Context Protocol (MCP v2)"]
+                "tags": ["Model Context Protocol"]
             }
         },
         "/api/mcp/v1": {
@@ -1846,7 +1846,7 @@
                     }
                 ],
                 "summary": "Direct Jsonrpc Gateway",
-                "tags": ["Model Context Protocol (MCP v2)"]
+                "tags": ["Model Context Protocol"]
             }
         },
         "/api/rag/search": {

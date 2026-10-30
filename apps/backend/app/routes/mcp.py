@@ -1,5 +1,5 @@
 """
-Model Context Protocol (MCP v2) HTTP & SSE endpoints.
+Model Context Protocol HTTP & SSE endpoints.
 Provides:
   - GET /mcp/sse: SSE connection initialization for Claude Desktop & external agents
   - POST /mcp/messages: Inbound JSON-RPC 2.0 message handler for active SSE sessions
@@ -30,7 +30,7 @@ from app.mcp.protocol import (
 
 logger = logging.getLogger("nexusagent.routes.mcp")
 
-router = APIRouter(prefix="/mcp", tags=["Model Context Protocol (MCP v2)"])
+router = APIRouter(prefix="/mcp", tags=["Model Context Protocol"])
 
 
 # Active SSE sessions: sessionId -> McpSession

@@ -1,5 +1,5 @@
 """
-Model Context Protocol (MCP v2) JSON-RPC 2.0 wire specifications.
+Model Context Protocol JSON-RPC 2.0 wire specifications.
 Complies with official MCP protocol specifications (protocolVersion: 2024-11-05).
 """
 

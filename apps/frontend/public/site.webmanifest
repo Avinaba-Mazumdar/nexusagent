@@ -1,7 +1,7 @@
 {
     "name": "NexusAgent — Autonomous Systems Analyst",
     "short_name": "NexusAgent",
-    "description": "Enterprise-grade autonomous systems analyst and architecture intelligence engine powered by LangGraph, LlamaIndex, Neon PostgreSQL 18, and MCP v2.",
+    "description": "Enterprise-grade autonomous systems analyst and architecture intelligence engine powered by LangGraph, Neon PostgreSQL 18, and the Model Context Protocol.",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#f4f5f8",

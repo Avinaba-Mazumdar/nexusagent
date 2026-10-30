@@ -138,7 +138,7 @@ export function McpInspector({ onOpenSignIn }: McpInspectorProps) {
                         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                             <DialogTrigger asChild>
                                 <Button size="sm" variant="outline" className="h-8 text-xs rounded-lg px-2 text-muted-foreground">
-                                    Raw Wire
+                                    Raw messages
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-xl max-h-[80vh] flex flex-col p-4">

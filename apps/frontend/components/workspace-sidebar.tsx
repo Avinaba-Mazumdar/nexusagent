@@ -319,7 +319,7 @@ export function WorkspaceSidebar({
                     onToggle={() => onToggleCategory('mcp')}
                     badge={
                         <Badge variant="soft" className="text-xs font-mono py-0 px-1.5">
-                            v2
+                            2024-11-05
                         </Badge>
                     }
                 >
