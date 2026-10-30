@@ -539,6 +539,7 @@ export default function Home() {
                 isGoogleLoading={isGoogleLoading}
                 isGuestLoading={isGuestLoading}
                 error={error}
+                hasGuestDocuments={Boolean(user?.isGuest) && docs.some((d) => !d.isSeeded)}
                 onGuestLogin={async () => {
                     const ok = await loginGuest();
                     if (ok) setDialogOpen(false);

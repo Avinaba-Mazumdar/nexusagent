@@ -14,6 +14,8 @@ export interface SignInDialogProps {
     isGoogleLoading: boolean;
     isGuestLoading: boolean;
     error: string | null;
+    /** A guest with uploaded documents: signing in with Google starts a fresh workspace. */
+    hasGuestDocuments?: boolean;
     onGuestLogin: () => Promise<void>;
     renderGoogleButton: (container: HTMLDivElement | null) => void;
 }
@@ -26,6 +28,7 @@ export function SignInDialog({
     isGoogleLoading,
     isGuestLoading,
     error,
+    hasGuestDocuments = false,
     onGuestLogin,
     renderGoogleButton
 }: SignInDialogProps) {
@@ -54,6 +57,11 @@ export function SignInDialog({
                     <div className="border-2 border-featured-border rounded-2xl p-4 sm:p-5 bg-featured-bg relative">
                         <h3 className="text-sm font-bold text-foreground">Sign in with Google</h3>
                         <p className="text-xs text-muted-foreground mt-1 mb-4 leading-relaxed">Keeps your chat history across sessions and devices.</p>
+                        {hasGuestDocuments && (
+                            <p role="note" className="text-xs text-foreground mb-4 p-2.5 rounded-lg border border-warning-border bg-warning-bg leading-relaxed">
+                                Signing in starts a fresh workspace. Documents uploaded as a guest will be deleted.
+                            </p>
+                        )}
 
                         {googleClientId ? (
                             isGoogleLoading ? (
