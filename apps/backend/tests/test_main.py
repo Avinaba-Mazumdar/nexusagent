@@ -93,3 +93,22 @@ async def test_database_outage_returns_503(monkeypatch):
         res = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 503
     assert res.headers["retry-after"] == "30"
+
+
+def test_multiple_workers_are_refused_in_production_r2_sec_06(monkeypatch):
+    import pytest
+
+    from app.config import settings
+    from app.main import ensure_single_worker
+
+    monkeypatch.setenv("WEB_CONCURRENCY", "2")
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    with pytest.raises(RuntimeError, match="exactly one worker"):
+        ensure_single_worker()
+
+    monkeypatch.setenv("WEB_CONCURRENCY", "1")
+    ensure_single_worker()
+
+    monkeypatch.setenv("WEB_CONCURRENCY", "4")
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    ensure_single_worker()

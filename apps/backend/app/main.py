@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import asyncpg
@@ -23,9 +24,23 @@ from app.routes.rag import router as rag_router
 logger = logging.getLogger("nexusagent.main")
 
 
+def ensure_single_worker() -> None:
+    """Abuse counters, MCP sessions and upload locks live in process memory, so N workers break them."""
+    try:
+        workers = int(os.environ.get("WEB_CONCURRENCY", "1"))
+    except ValueError:
+        return
+    if workers > 1 and not settings.is_dev:
+        raise RuntimeError(
+            "NexusAgent keeps abuse counters and MCP sessions in memory; "
+            "run exactly one worker (see README)."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for Neon PostgreSQL 18 connection pool & migrations."""
+    ensure_single_worker()
     if not settings.is_dev and settings.TRUSTED_PROXY_HOPS == 0:
         logger.warning(
             "IP-based limits use the socket address; set TRUSTED_PROXY_HOPS if you run behind a proxy."

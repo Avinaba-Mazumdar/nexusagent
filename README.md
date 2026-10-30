@@ -118,9 +118,9 @@ Then embed the knowledge base once: `uv run --project apps/backend python script
 
 ## 🚢 Deployment
 
-Run the API as a single process (`uvicorn app.main:app --workers 1`). MCP SSE sessions and guest abuse counters are kept in process memory. In production the API refuses to start if the database is unreachable, and hides `/docs`.
+Run the API as exactly one worker (`uvicorn app.main:app --workers 1`; the API refuses to start in production when `WEB_CONCURRENCY` is above 1). MCP SSE sessions, guest abuse counters and the upload lock are kept in process memory, so they reset on every restart or cold start (for example when a free Render instance spins down) and cannot be shared between instances. In production the API refuses to start if the database is unreachable, and hides `/docs`.
 
-The API rejects request bodies over 1 MB + 16 KB on `/api/documents/upload` and over 64 KB elsewhere (`MAX_UPLOAD_REQUEST_BYTES`, `MAX_JSON_REQUEST_BYTES`) before parsing or authentication. Also cap bodies at the reverse proxy (for example Cloudflare, or nginx `client_max_body_size 2m`).
+The API rejects request bodies over 1 MB + 16 KB on `/api/documents/upload` and over 64 KB elsewhere (`MAX_UPLOAD_REQUEST_BYTES`, `MAX_JSON_REQUEST_BYTES`) before parsing or authentication. Set `TRUSTED_PROXY_HOPS` to the number of reverse proxies in front of the API (Render alone: `1`; Cloudflare in front of Render: `2`); with the default `0` every per-IP limit is keyed on the proxy's address and is shared by all users. Also cap bodies at the reverse proxy (for example Cloudflare, or nginx `client_max_body_size 2m`).
 
 ---
 
