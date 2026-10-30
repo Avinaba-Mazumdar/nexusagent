@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     MAX_DOCUMENTS_PER_USER: int = 20
     CHAT_HISTORY_MESSAGES: int = 6
     MAX_CHUNKS_PER_DOCUMENT: int = 400
+    # Request-body caps enforced before parsing/auth: 1 MB file + multipart overhead, and a small cap elsewhere.
+    MAX_UPLOAD_REQUEST_BYTES: int = 1024 * 1024 + 16 * 1024
+    MAX_JSON_REQUEST_BYTES: int = 64 * 1024
     GUEST_SIGNUPS_PER_IP_PER_HOUR: int = 5
     GUEST_IP_QUOTA_PER_HOUR: int = 15
     GOOGLE_AUTH_PER_IP_PER_HOUR: int = 20

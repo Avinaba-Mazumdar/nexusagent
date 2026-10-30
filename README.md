@@ -120,6 +120,8 @@ Then embed the knowledge base once: `uv run --project apps/backend python script
 
 Run the API as a single process (`uvicorn app.main:app --workers 1`). MCP SSE sessions and guest abuse counters are kept in process memory. In production the API refuses to start if the database is unreachable, and hides `/docs`.
 
+The API rejects request bodies over 1 MB + 16 KB on `/api/documents/upload` and over 64 KB elsewhere (`MAX_UPLOAD_REQUEST_BYTES`, `MAX_JSON_REQUEST_BYTES`) before parsing or authentication. Also cap bodies at the reverse proxy (for example Cloudflare, or nginx `client_max_body_size 2m`).
+
 ---
 
 ## 🛠️ Maintenance

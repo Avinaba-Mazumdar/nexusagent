@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.db.migrations import apply_migrations
 from app.db.neon import DatabaseUnavailable, neon_db
 from app.routes.agent import router as agent_router
@@ -48,6 +49,13 @@ app = FastAPI(
     redoc_url="/redoc" if settings.is_dev else None,
     openapi_url="/openapi.json" if settings.is_dev else None,
     lifespan=lifespan,
+)
+
+# Registered before CORS so CORS wraps it and 413 responses still carry CORS headers.
+app.add_middleware(
+    BodySizeLimitMiddleware,
+    upload_limit=settings.MAX_UPLOAD_REQUEST_BYTES,
+    default_limit=settings.MAX_JSON_REQUEST_BYTES,
 )
 
 # Hardened CORS configuration: explicit origins from settings, restrictive methods and headers

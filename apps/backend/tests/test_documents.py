@@ -213,8 +213,8 @@ async def test_document_upload_size_limit_413():
     transport = ASGITransport(app=app)
     try:
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            # 1.5 MB generated file exceeds 1 MB limit
-            large_content = b"A" * int(1.5 * 1024 * 1024)
+            # 1 byte over the file limit still fits the request-size cap, so the handler rejects it
+            large_content = b"A" * (1024 * 1024 + 1)
             files = {"file": ("large.md", large_content, "text/markdown")}
             headers = {"Authorization": "Bearer test-token"}
             resp = await client.post("/api/documents/upload", files=files, headers=headers)
