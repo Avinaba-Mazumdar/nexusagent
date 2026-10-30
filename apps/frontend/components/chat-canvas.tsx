@@ -76,7 +76,6 @@ export function ChatCanvas({
     return (
         <main
             id="main-canvas"
-            role="main"
             aria-label="Active Chat Canvas"
             className={`relative flex-1 flex-col overflow-hidden bg-background ${mobileActiveTab === 'chat' ? 'flex' : 'hidden xl:flex'}`}
         >

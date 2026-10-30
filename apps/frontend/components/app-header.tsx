@@ -52,7 +52,6 @@ export function AppHeader({
 
     return (
         <header
-            role="banner"
             aria-label="Command Center Navigation"
             className="h-14 bg-card border-b border-border px-4 md:px-6 flex items-center justify-between gap-2 shrink-0 z-30"
         >

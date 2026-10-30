@@ -181,7 +181,6 @@ export function WorkspaceSidebar({
 }: WorkspaceSidebarProps) {
     return (
         <aside
-            role="complementary"
             aria-label="Workspace"
             className={`w-full xl:w-72 2xl:w-80 bg-card border-r border-border flex flex-col shrink-0 h-full overflow-hidden ${
                 mobileActiveTab === 'workspace' ? 'flex' : 'hidden xl:flex'

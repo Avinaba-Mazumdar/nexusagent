@@ -69,7 +69,6 @@ export function ObservabilityPanel({
 
     return (
         <aside
-            role="complementary"
             aria-label="Agent Telemetry & Observability"
             className={cn('w-full xl:w-72 bg-card border-l border-border flex flex-col shrink-0 overflow-y-auto p-2.5 space-y-2.5', className)}
         >
