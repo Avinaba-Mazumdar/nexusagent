@@ -112,3 +112,17 @@ def test_multiple_workers_are_refused_in_production_r2_sec_06(monkeypatch):
     monkeypatch.setenv("WEB_CONCURRENCY", "4")
     monkeypatch.setattr(settings, "ENVIRONMENT", "development")
     ensure_single_worker()
+
+
+@pytest.mark.asyncio
+async def test_health_reports_unhealthy_when_the_pool_is_saturated_r2_log_13(monkeypatch):
+    class SaturatedPool:
+        def acquire(self, timeout=None):
+            raise TimeoutError
+
+    monkeypatch.setattr(neon_db, "pool", SaturatedPool())
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/health")
+    assert response.status_code == 503
+    assert response.json()["status"] == "unhealthy"

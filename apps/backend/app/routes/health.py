@@ -18,7 +18,7 @@ async def get_health():
     extensions: list[str] = []
     if neon_db.pool is not None:
         try:
-            async with neon_db.pool.acquire() as conn:
+            async with neon_db.pool.acquire(timeout=2) as conn:
                 db_connected = await conn.fetchval("SELECT 1;") == 1
                 if db_connected and settings.is_dev:
                     # Version/extension fingerprints are dev-only; production does one query.
@@ -27,7 +27,7 @@ async def get_health():
                         "SELECT extname FROM pg_extension ORDER BY extname;"
                     )
                     extensions = [r["extname"] for r in ext_rows]
-        except asyncpg.PostgresError, OSError:
+        except asyncpg.PostgresError, OSError, TimeoutError:
             db_connected = False
             engine_str = None
             extensions = []
