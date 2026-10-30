@@ -18,20 +18,22 @@ logger = logging.getLogger("nexusagent.core.auth")
 security_bearer = HTTPBearer(auto_error=False)
 
 
-def get_client_ip(request: Request, trust_proxy: bool | None = None) -> str:
+def get_client_ip(request: Request, hops: int | None = None) -> str:
     """
     Extract the client IP used for rate-limit keying.
 
-    Defaults to the direct socket address so clients cannot rotate quota by
-    spoofing ``X-Forwarded-For``. When ``TRUST_PROXY_HEADERS`` is enabled (the
-    deployment sits behind a trusted reverse proxy that overwrites the header),
-    the left-most ``X-Forwarded-For`` entry is used instead.
+    With ``TRUSTED_PROXY_HOPS = 0`` (default) this is the socket address, so a client cannot rotate
+    quota by sending its own ``X-Forwarded-For``. Behind ``n`` trusted proxies each proxy appends the
+    address it saw, so the client is the ``n``-th entry from the right; entries further left are
+    client-controlled and never used.
     """
-    use_proxy = settings.TRUST_PROXY_HEADERS if trust_proxy is None else trust_proxy
-    if use_proxy:
+    n = settings.TRUSTED_PROXY_HOPS if hops is None else hops
+    if n > 0:
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
-            return forwarded.split(",")[0].strip()
+            parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+            if len(parts) >= n:
+                return parts[-n]
     return request.client.host if request.client else "127.0.0.1"
 
 

@@ -24,9 +24,19 @@ def test_get_client_ip_ignores_forwarded_header_by_default():
     assert get_client_ip(cast(Request, req)) == "10.0.0.5"
 
 
-def test_get_client_ip_honors_forwarded_header_only_when_trusted():
-    req = _make_request({"X-Forwarded-For": "1.2.3.4, 5.6.7.8"})
-    assert get_client_ip(cast(Request, req), trust_proxy=True) == "1.2.3.4"
+def test_get_client_ip_takes_the_entry_added_by_the_trusted_proxy():
+    req = _make_request({"X-Forwarded-For": "1.1.1.1, 9.9.9.9"})
+    assert get_client_ip(cast(Request, req), hops=1) == "9.9.9.9"
+    assert get_client_ip(cast(Request, req), hops=2) == "1.1.1.1"
+    # A spoofed left-most entry is never used.
+    spoofed = _make_request({"X-Forwarded-For": "6.6.6.6, 1.1.1.1, 9.9.9.9"})
+    assert get_client_ip(cast(Request, spoofed), hops=2) == "1.1.1.1"
+
+
+def test_get_client_ip_falls_back_to_socket_when_header_is_short_or_missing():
+    short = _make_request({"X-Forwarded-For": "1.1.1.1"})
+    assert get_client_ip(cast(Request, short), hops=3) == "10.0.0.5"
+    assert get_client_ip(cast(Request, _make_request({})), hops=1) == "10.0.0.5"
 
 
 # ---------------------------------------------------------------------------

@@ -26,6 +26,10 @@ logger = logging.getLogger("nexusagent.main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for Neon PostgreSQL 18 connection pool & migrations."""
+    if not settings.is_dev and settings.TRUSTED_PROXY_HOPS == 0:
+        logger.warning(
+            "IP-based limits use the socket address; set TRUSTED_PROXY_HOPS if you run behind a proxy."
+        )
     connected = await neon_db.connect()
     if not connected and not settings.is_dev:
         raise RuntimeError("Database connection failed; refusing to start in production.")

@@ -71,10 +71,10 @@ class Settings(BaseSettings):
     GUEST_IP_QUOTA_PER_HOUR: int = 15
     GOOGLE_AUTH_PER_IP_PER_HOUR: int = 20
     REFRESH_PER_IP_PER_HOUR: int = 60
-    # Rate-limit keying: enable only when behind a trusted reverse proxy that
-    # overwrites X-Forwarded-For. Default keys quota on the socket IP so clients
-    # cannot rotate quota by header spoofing.
-    TRUST_PROXY_HEADERS: bool = False
+    # Number of trusted reverse proxies in front of the API (Render alone = 1; Cloudflare in front
+    # of Render = 2). 0 keys per-IP limits on the socket address, which behind a proxy is the
+    # proxy's address, so every user shares one limit. Never set it higher than the real hop count.
+    TRUSTED_PROXY_HOPS: int = 0
 
     GEMINI_API_KEY: str = ""
     GOOGLE_CLIENT_ID: str = ""
