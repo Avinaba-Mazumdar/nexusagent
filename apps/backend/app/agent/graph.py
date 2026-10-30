@@ -35,13 +35,20 @@ from app.core.security_guardrails import (
     sanitize_retrieved_chunks,
     wrap_untrusted_context,
 )
-from app.rag.hybrid_search import HybridSearchEngine, default_hybrid_search_engine
+from app.rag.hybrid_search import (
+    DEFAULT_RRF_K,
+    HybridSearchEngine,
+    default_hybrid_search_engine,
+)
 
 logger = logging.getLogger("nexusagent.agent.graph")
 
 TokenSink = Callable[[str], Awaitable[None]]
 
 RETRIEVAL_LIMIT = 5
+# The agent leans slightly toward semantic matches; the public search endpoint defaults to 0.5/0.5.
+AGENT_DENSE_WEIGHT = 0.6
+AGENT_SPARSE_WEIGHT = 0.4
 MAX_CHUNK_CHARS_IN_PROMPT = 1200
 STRONG_DENSE_SCORE = 0.5
 
@@ -302,9 +309,9 @@ async def retriever_node(
         user_id=state.user_id,
         document_id=state.document_id,
         limit=RETRIEVAL_LIMIT,
-        dense_weight=0.6,
-        sparse_weight=0.4,
-        rrf_k=60,
+        dense_weight=AGENT_DENSE_WEIGHT,
+        sparse_weight=AGENT_SPARSE_WEIGHT,
+        rrf_k=DEFAULT_RRF_K,
     )
     duration_ms = max(int((time.perf_counter() - started) * 1000), 1)
 

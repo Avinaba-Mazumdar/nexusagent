@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from typing import Any
 from uuid import UUID
@@ -32,12 +33,43 @@ class HybridSearchResult(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+DEFAULT_DENSE_WEIGHT = 0.5
+DEFAULT_SPARSE_WEIGHT = 0.5
+DEFAULT_RRF_K = 60
+
+
+def _accumulate(
+    scores: dict[str, dict[str, Any]],
+    items: list[dict],
+    weight: float,
+    rrf_k: int,
+    kind: str,
+    score_field: str,
+) -> None:
+    """Add one ranking's RRF contribution (``kind`` is "dense" or "sparse") to ``scores``."""
+    for rank, item in enumerate(items, start=1):
+        entry = scores.setdefault(
+            str(item["id"]),
+            {
+                "item": item,
+                "rrf_score": 0.0,
+                "dense_rank": None,
+                "sparse_rank": None,
+                "dense_score": None,
+                "sparse_score": None,
+            },
+        )
+        entry["rrf_score"] += weight / (rrf_k + rank)
+        entry[f"{kind}_rank"] = rank
+        entry[f"{kind}_score"] = float(item.get(score_field, 0.0) or 0.0)
+
+
 def compute_rrf(
     dense_results: list[dict],
     sparse_results: list[dict],
-    dense_weight: float = 0.5,
-    sparse_weight: float = 0.5,
-    rrf_k: int = 60,
+    dense_weight: float = DEFAULT_DENSE_WEIGHT,
+    sparse_weight: float = DEFAULT_SPARSE_WEIGHT,
+    rrf_k: int = DEFAULT_RRF_K,
     limit: int = 5,
 ) -> list[HybridSearchResult]:
     """
@@ -49,50 +81,15 @@ def compute_rrf(
     Args:
         dense_results: Ordered list of dense cosine similarity candidate dicts.
         sparse_results: Ordered list of full-text ts_rank candidate dicts.
-        dense_weight: Multiplier weight for dense vector rankings (default 0.5).
-        sparse_weight: Multiplier weight for sparse lexical rankings (default 0.5).
-        rrf_k: Smoothing parameter constant (default 60).
+        dense_weight: Multiplier weight for dense vector rankings.
+        sparse_weight: Multiplier weight for sparse lexical rankings.
+        rrf_k: Smoothing parameter constant.
         limit: Top-K items to return after fusion.
     """
     scores: dict[str, dict[str, Any]] = {}
+    _accumulate(scores, dense_results, dense_weight, rrf_k, "dense", "similarity")
+    _accumulate(scores, sparse_results, sparse_weight, rrf_k, "sparse", "rank_score")
 
-    # 1. Process dense rankings
-    for rank_idx, item in enumerate(dense_results, start=1):
-        cid = str(item["id"])
-        score_contrib = dense_weight / (rrf_k + rank_idx)
-        if cid not in scores:
-            scores[cid] = {
-                "item": item,
-                "rrf_score": score_contrib,
-                "dense_rank": rank_idx,
-                "sparse_rank": None,
-                "dense_score": float(item.get("similarity", 0.0) or 0.0),
-                "sparse_score": None,
-            }
-        else:
-            scores[cid]["rrf_score"] += score_contrib
-            scores[cid]["dense_rank"] = rank_idx
-            scores[cid]["dense_score"] = float(item.get("similarity", 0.0) or 0.0)
-
-    # 2. Process sparse rankings
-    for rank_idx, item in enumerate(sparse_results, start=1):
-        cid = str(item["id"])
-        score_contrib = sparse_weight / (rrf_k + rank_idx)
-        if cid not in scores:
-            scores[cid] = {
-                "item": item,
-                "rrf_score": score_contrib,
-                "dense_rank": None,
-                "sparse_rank": rank_idx,
-                "dense_score": None,
-                "sparse_score": float(item.get("rank_score", 0.0) or 0.0),
-            }
-        else:
-            scores[cid]["rrf_score"] += score_contrib
-            scores[cid]["sparse_rank"] = rank_idx
-            scores[cid]["sparse_score"] = float(item.get("rank_score", 0.0) or 0.0)
-
-    # 3. Sort by combined RRF score descending
     sorted_items = sorted(scores.values(), key=lambda x: x["rrf_score"], reverse=True)
 
     results: list[HybridSearchResult] = []
@@ -100,18 +97,15 @@ def compute_rrf(
         raw_item = entry["item"]
         meta = raw_item.get("metadata") or {}
         if isinstance(meta, str):
-            import json
-
             try:
                 meta = json.loads(meta)
             except json.JSONDecodeError, TypeError, ValueError:
                 meta = {}
 
-        header_path = meta.get("header_path") or meta.get("headerPath") or []
+        # The parser writes camelCase metadata keys only.
+        header_path = meta.get("headerPath") or []
         if isinstance(header_path, str):
             header_path = [header_path]
-        start_line = meta.get("start_line", meta.get("startLine"))
-        end_line = meta.get("end_line", meta.get("endLine"))
 
         results.append(
             HybridSearchResult(
@@ -129,8 +123,8 @@ def compute_rrf(
                 sparse_score=round(entry["sparse_score"], 4)
                 if entry["sparse_score"] is not None
                 else None,
-                start_line=start_line,
-                end_line=end_line,
+                start_line=meta.get("startLine"),
+                end_line=meta.get("endLine"),
                 header_path=header_path,
                 metadata=meta,
             )
@@ -159,9 +153,9 @@ class HybridSearchEngine:
         user_id: UUID | None = None,
         document_id: UUID | None = None,
         limit: int = 5,
-        dense_weight: float = 0.5,
-        sparse_weight: float = 0.5,
-        rrf_k: int = 60,
+        dense_weight: float = DEFAULT_DENSE_WEIGHT,
+        sparse_weight: float = DEFAULT_SPARSE_WEIGHT,
+        rrf_k: int = DEFAULT_RRF_K,
         candidate_pool_multiplier: int = 3,
     ) -> list[HybridSearchResult]:
         """

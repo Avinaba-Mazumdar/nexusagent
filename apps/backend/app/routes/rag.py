@@ -11,7 +11,12 @@ from app.core.auth import get_client_ip, get_current_user
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import User
 from app.db.neon import NeonDatabase, get_db
-from app.rag.hybrid_search import HybridSearchEngine
+from app.rag.hybrid_search import (
+    DEFAULT_DENSE_WEIGHT,
+    DEFAULT_RRF_K,
+    DEFAULT_SPARSE_WEIGHT,
+    HybridSearchEngine,
+)
 from app.routes.documents import require_document_access
 
 logger = logging.getLogger("nexusagent.routes.rag")
@@ -37,19 +42,19 @@ class HybridSearchRequestWire(BaseModel):
         description="Maximum number of top-K results to return after RRF fusion",
     )
     denseWeight: float = Field(
-        0.5,
+        DEFAULT_DENSE_WEIGHT,
         ge=0.0,
         le=1.0,
         description="Weight for dense vector cosine similarity rankings (0.0 to 1.0)",
     )
     sparseWeight: float = Field(
-        0.5,
+        DEFAULT_SPARSE_WEIGHT,
         ge=0.0,
         le=1.0,
         description="Weight for BM25 tsvector lexical rankings (0.0 to 1.0)",
     )
     rrfK: int = Field(
-        60,
+        DEFAULT_RRF_K,
         ge=1,
         le=200,
         description="Reciprocal Rank Fusion smoothing constant k (standard default: 60)",
