@@ -21,7 +21,7 @@ function renderComposer(prompt: string, overrides: Partial<React.ComponentProps<
 describe('Composer', () => {
     it('limits the textarea to the server maximum', () => {
         renderComposer('');
-        expect(screen.getByLabelText('Architecture question')).toHaveAttribute('maxlength', String(MAX_QUERY_CHARS));
+        expect(screen.getByLabelText('Benchmark question')).toHaveAttribute('maxlength', String(MAX_QUERY_CHARS));
     });
 
     it('shows the counter only close to the limit', () => {
@@ -32,7 +32,7 @@ describe('Composer', () => {
             <Composer prompt={'a'.repeat(1601)} onPromptChange={() => {}} onSubmit={() => {}} onKeyDown={() => {}} isStreaming={false} onStop={() => {}} />
         );
         expect(screen.getByText('1601/2000')).toBeInTheDocument();
-        expect(screen.getByLabelText('Architecture question')).toHaveAttribute('aria-describedby', 'query-counter');
+        expect(screen.getByLabelText('Benchmark question')).toHaveAttribute('aria-describedby', 'query-counter');
     });
 
     it('disables Send for an empty prompt and sends on submit', async () => {

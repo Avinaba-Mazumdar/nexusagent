@@ -18,28 +18,20 @@ class User(BaseModel):
     name: str = "Guest Reviewer"
     avatar_url: str | None = None
     is_guest: bool = True
+    is_admin: bool = False
     client_ip: str | None = None
     device_id: str | None = None
+    machine_hash: str | None = None
     token_version: int = 0
     created_at: datetime = Field(default_factory=utc_now)
     last_seen_at: datetime = Field(default_factory=utc_now)
-
-
-class RateLimitBucket(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID = Field(default_factory=uuid4)
-    user_id: UUID
-    tokens_remaining: int = 5
-    bucket_capacity: int = 5
-    last_replenished_at: datetime = Field(default_factory=utc_now)
 
 
 class Document(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID = Field(default_factory=uuid4)
-    user_id: UUID | None = None
+    uploaded_by: UUID | None = None
     filename: str
     mime_type: str = "text/markdown"
     sha256_hash: str
@@ -109,6 +101,7 @@ class UserSession(WireModel):
     name: str
     avatar_url: str | None = None
     is_guest: bool
+    is_admin: bool = False
     created_at: WireTimestamp
     last_seen_at: WireTimestamp
 
@@ -116,6 +109,7 @@ class UserSession(WireModel):
 class GuestPassRequest(BaseModel):
     # The device id re-opens a guest account, so it must be long enough to be unguessable.
     deviceId: str | None = Field(default=None, min_length=16, max_length=128)
+    machineId: str | None = Field(default=None, max_length=128)
 
 
 class AuthTokens(BaseModel):
@@ -152,7 +146,7 @@ class TokenResponse(BaseModel):
 
 class DocumentMetadataWire(WireModel):
     id: WireId
-    user_id: WireId | None = None
+    uploaded_by: WireId | None = None
     filename: str
     mime_type: str
     sha256_hash: str
@@ -241,8 +235,7 @@ class CitationWire(WireModel):
     chunk_id: str
     document_id: str
     filename: str
-    start_line: int | None = None
-    end_line: int | None = None
+    page: int | None = None
     header_path: list[str]
     preview: str
 
@@ -279,19 +272,34 @@ class RetrievalToolArguments(BaseModel):
     documentScoped: bool
 
 
+class SseUsageEvent(BaseModel):
+    sessionId: str
+    step: str
+    model: str
+    inputTokens: int
+    outputTokens: int
+    totalTokens: int
+
+
+class WebSourceWire(BaseModel):
+    title: str
+    url: str
+
+
 class SseToolCallEvent(BaseModel):
     """Sent just before a tool runs. The matching `tool_result` follows when it finishes."""
 
     sessionId: str
-    tool: Literal["hybrid_rag_search"]
-    arguments: RetrievalToolArguments
+    tool: Literal["hybrid_rag_search", "google_search"]
+    arguments: dict[str, Any]
 
 
 class SseToolResultEvent(BaseModel):
     tool: str
     chunksRetrieved: int
-    citations: list[CitationWire]
-    injectionWarnings: list[InjectionWarningWire]
+    citations: list[CitationWire] = []
+    injectionWarnings: list[InjectionWarningWire] = []
+    durationMs: int | None = None
 
 
 class SseGroundingEvent(BaseModel):
@@ -307,13 +315,6 @@ class SseTokenEvent(BaseModel):
     token: str
 
 
-class SseRedactEvent(BaseModel):
-    """Replace everything streamed so far with ``response`` (sent after a canary-token leak)."""
-
-    sessionId: str
-    response: str
-
-
 class SseErrorEvent(BaseModel):
     sessionId: str
     error: str
@@ -327,9 +328,9 @@ class AgentDoneEventWire(BaseModel):
     query: str
     nodeHistory: list[str]
     plan: list[PlanStepWire]
-    citations: list[CitationWire]
-    injectionWarnings: list[InjectionWarningWire]
-    mermaidDiagrams: list[str]
+    citations: list[CitationWire] = []
+    injectionWarnings: list[InjectionWarningWire] = []
+    webSources: list[WebSourceWire] = []
     grounding: Literal["grounded", "weak", "none"]
     model: str | None = None
     isComplete: bool
@@ -341,11 +342,12 @@ SSE_WIRE_MODELS: list[type[BaseModel]] = [
     SseStartEvent,
     SseNodeStartEvent,
     SsePlanEvent,
+    SseUsageEvent,
+    WebSourceWire,
     SseToolCallEvent,
     SseToolResultEvent,
     SseGroundingEvent,
     SseTokenEvent,
-    SseRedactEvent,
     SseErrorEvent,
     AgentDoneEventWire,
 ]

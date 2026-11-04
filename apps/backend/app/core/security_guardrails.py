@@ -7,7 +7,6 @@ import html
 import re
 from collections.abc import Sequence
 from typing import Any
-from uuid import uuid4
 
 # Prompt injection signatures (case-insensitive)
 INJECTION_PATTERNS = [
@@ -92,11 +91,6 @@ def scrub_sensitive_information(text: str, preserve_lines: bool = False) -> str:
     return scrubbed
 
 
-def generate_canary_token() -> str:
-    """Generate a cryptographic per-session/per-turn UUID canary token."""
-    return f"CANARY_{uuid4().hex[:12].upper()}"
-
-
 def sanitize_untrusted_text(text: str) -> str:
     """
     Sanitize text retrieved from external or user-uploaded documents to prevent delimiter breakout attacks.
@@ -117,6 +111,7 @@ def sanitize_untrusted_text(text: str) -> str:
 def wrap_untrusted_context(
     content: str,
     filename: str = "document.md",
+    page: int | None = None,
     start_line: int | None = None,
     end_line: int | None = None,
     doc_id: str | None = None,
@@ -128,11 +123,12 @@ def wrap_untrusted_context(
     """
     safe_content = sanitize_untrusted_text(content)
     line_attr = f' lines="{start_line}-{end_line}"' if start_line and end_line else ""
+    page_attr = f' page="{page}"' if page else ""
     doc_attr = f' id="{doc_id}"' if doc_id else ""
     label_attr = f' label="{html.escape(label)}"' if label else ""
 
     return (
-        f'<untrusted_document_context{label_attr} filename="{html.escape(filename)}"{doc_attr}{line_attr}>\n'
+        f'<untrusted_document_context{label_attr} filename="{html.escape(filename)}"{doc_attr}{page_attr}{line_attr}>\n'
         f"{safe_content.strip()}\n"
         f"</untrusted_document_context>"
     )
@@ -152,17 +148,6 @@ def detect_prompt_injection(text: str) -> tuple[bool, str | None]:
             return True, f"Suspicious prompt pattern detected: '{match.group(0)}'"
 
     return False, None
-
-
-def verify_canary_integrity(output: str, canary_token: str) -> bool:
-    """
-    Check if the private canary token was leaked into model output.
-    Returns True if the output is clean (canary was NOT leaked).
-    Returns False if canary was compromised.
-    """
-    if not canary_token:
-        return True
-    return canary_token not in output
 
 
 def sanitize_retrieved_chunks(

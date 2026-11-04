@@ -14,8 +14,6 @@ export interface SignInDialogProps {
     isGoogleLoading: boolean;
     isGuestLoading: boolean;
     error: string | null;
-    /** A guest with uploaded documents: signing in with Google starts a fresh workspace. */
-    hasGuestDocuments?: boolean;
     onGuestLogin: () => Promise<void>;
     renderGoogleButton: (container: HTMLDivElement | null) => void;
 }
@@ -28,7 +26,6 @@ export function SignInDialog({
     isGoogleLoading,
     isGuestLoading,
     error,
-    hasGuestDocuments = false,
     onGuestLogin,
     renderGoogleButton
 }: SignInDialogProps) {
@@ -38,7 +35,7 @@ export function SignInDialog({
                 <DialogHeader className="text-left space-y-1">
                     <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground font-heading">Sign In to NexusAgent</DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
-                        Choose an option to begin architecture analysis with your complimentary live LLM quota.
+                        Choose an option to begin exploring LLM benchmarks with your complimentary live quota.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -49,7 +46,8 @@ export function SignInDialog({
                             Live models
                         </span>
                         <p className="text-xs sm:text-xs text-muted-foreground leading-snug">
-                            Answers are generated live by Google Gemini. Guests get a small free allowance; Google accounts get more. Both refill hourly.
+                            Answers are generated live by Google Gemini. Guests get a small free allowance; Google accounts get more. Both refill every 24
+                            hours.
                         </p>
                     </div>
 
@@ -57,11 +55,6 @@ export function SignInDialog({
                     <div className="border-2 border-featured-border rounded-2xl p-4 sm:p-5 bg-featured-bg relative">
                         <h3 className="text-sm font-bold text-foreground">Sign in with Google</h3>
                         <p className="text-xs text-muted-foreground mt-1 mb-4 leading-relaxed">Keeps your chat history across sessions and devices.</p>
-                        {hasGuestDocuments && (
-                            <p role="note" className="text-xs text-foreground mb-4 p-2.5 rounded-lg border border-warning-border bg-warning-bg leading-relaxed">
-                                Signing in starts a fresh workspace. Documents uploaded as a guest will be deleted.
-                            </p>
-                        )}
 
                         {googleClientId ? (
                             isGoogleLoading ? (
@@ -93,7 +86,7 @@ export function SignInDialog({
                         <div className="space-y-1">
                             <h3 className="text-sm font-bold text-foreground">Continue as Guest</h3>
                             <p className="text-xs text-muted-foreground leading-relaxed max-w-55 sm:max-w-65">
-                                Start right away with a free hourly allowance. No registration required.
+                                Start right away with a free allowance every 24 hours. No registration required.
                             </p>
                         </div>
                         <Button

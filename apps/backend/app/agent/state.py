@@ -6,12 +6,25 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.rag.hybrid_search import HybridSearchResult
 
-Intent = Literal["greeting", "architectural", "out_of_scope"]
+Intent = Literal["smalltalk", "benchmark", "refuse"]
 Grounding = Literal["grounded", "weak", "none"]
 
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+class UsageRecord(BaseModel):
+    step: str  # "router" | "chat" | "answer"
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+
+
+class WebSource(BaseModel):
+    title: str
+    url: str
 
 
 class Citation(BaseModel):
@@ -24,8 +37,7 @@ class Citation(BaseModel):
     chunk_id: str
     document_id: str
     filename: str
-    start_line: int | None = None
-    end_line: int | None = None
+    page: int | None = None
     header_path: list[str] = Field(default_factory=list)
     preview: str = ""
 
@@ -47,7 +59,7 @@ class InjectionWarning(BaseModel):
 class AgentState(BaseModel):
     """
     Strongly-typed state for the LangGraph pipeline:
-    planner -> retriever -> grounding check -> synthesizer.
+    router -> refuse | chat | retriever -> grounding -> answer.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -64,7 +76,7 @@ class AgentState(BaseModel):
     node_history: list[str] = Field(default_factory=list)
     current_node: str | None = None
 
-    # Planning (intent is classified once, by the caller or the planner)
+    # Routing
     intent: Intent | None = None
     plan: list[PlanStep] = Field(default_factory=list)
 
@@ -72,20 +84,24 @@ class AgentState(BaseModel):
     retrieved_chunks: list[HybridSearchResult] = Field(default_factory=list)
     citations: list[Citation] = Field(default_factory=list)
     injection_warnings: list[InjectionWarning] = Field(default_factory=list)
+    retrieval_duration_ms: int | None = None
 
     # Grounding check
     grounding: Grounding = "none"
     grounding_feedback: str | None = None
 
-    # Security
-    canary_token: str | None = None
-    canary_leaked: bool = False
+    # Web search (Google Search grounding in chat node)
+    web_search_queries: list[str] = Field(default_factory=list)
+    web_sources: list[WebSource] = Field(default_factory=list)
+    search_duration_ms: int | None = None
 
-    # Final synthesis
+    # Token and model usage observability
+    usage: list[UsageRecord] = Field(default_factory=list)
+
+    # Final response
     response: str = ""
     model: str | None = None  # the Gemini model that produced ``response``
     error: str | None = None
-    mermaid_diagrams: list[str] = Field(default_factory=list)
     is_complete: bool = False
     created_at: datetime = Field(default_factory=utc_now)
     completed_at: datetime | None = None

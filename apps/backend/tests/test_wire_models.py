@@ -43,6 +43,7 @@ def test_user_session_uses_string_ids_and_iso_timestamps():
         "name": "Ada",
         "avatarUrl": None,
         "isGuest": False,
+        "isAdmin": False,
         "createdAt": NOW.isoformat(),
         "lastSeenAt": NOW.isoformat(),
     }
@@ -51,7 +52,7 @@ def test_user_session_uses_string_ids_and_iso_timestamps():
 def test_document_metadata_is_built_from_the_document_object():
     doc = Document(
         id=DOC_ID,
-        user_id=USER_ID,
+        uploaded_by=USER_ID,
         filename="rfc.md",
         mime_type="text/markdown",
         sha256_hash="ab" * 32,
@@ -64,7 +65,7 @@ def test_document_metadata_is_built_from_the_document_object():
 
     assert dumped == {
         "id": str(DOC_ID),
-        "userId": str(USER_ID),
+        "uploadedBy": str(USER_ID),
         "filename": "rfc.md",
         "mimeType": "text/markdown",
         "sha256Hash": "ab" * 32,
@@ -77,7 +78,7 @@ def test_document_metadata_is_built_from_the_document_object():
 def test_upload_response_nests_camel_case_document_and_chunks():
     doc = Document(
         id=DOC_ID,
-        user_id=USER_ID,
+        uploaded_by=USER_ID,
         filename="rfc.md",
         sha256_hash="cd" * 32,
         total_chunks=1,

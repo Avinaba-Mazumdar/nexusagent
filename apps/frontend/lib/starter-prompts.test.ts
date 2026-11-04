@@ -9,17 +9,20 @@ const kbText = readdirSync(KB_DIR)
     .join('\n')
     .toLowerCase();
 
-// Model and source names each prompt relies on must exist in the knowledge base.
-const REQUIRED_TERMS: Record<string, string[]> = {
-    [STARTER_PROMPTS[0]]: ['claude opus 5.5', 'gpt-6 astra', 'intelligence index'],
-    [STARTER_PROMPTS[1]]: ['openrouter'],
-    [STARTER_PROMPTS[2]]: ['benchlm'],
-    [STARTER_PROMPTS[3]]: ['gemini 3.8 flash', 'deepseek v4.1 flash', 'cursorbench'],
-    [MCP_DEFAULT_QUERY]: ['opus 5.5', 'cursorbench 4.0']
+// Benchmark prompts and default MCP query must reference entities in the knowledge base.
+const BENCHMARK_TERMS: Record<string, string[]> = {
+    [STARTER_PROMPTS[0]]: ['artificial analysis', 'intelligence index'],
+    [STARTER_PROMPTS[1]]: ['gpt', 'claude', 'cursorbench'],
+    [STARTER_PROMPTS[2]]: ['openrouter'],
+    [MCP_DEFAULT_QUERY]: ['cursorbench']
 };
 
 describe('starter prompts', () => {
-    it.each(Object.entries(REQUIRED_TERMS))('"%s" only references things in the knowledge base', (_prompt, terms) => {
+    it('has 4 starter prompts', () => {
+        expect(STARTER_PROMPTS).toHaveLength(4);
+    });
+
+    it.each(Object.entries(BENCHMARK_TERMS))('"%s" only references things in the knowledge base', (_prompt, terms) => {
         for (const term of terms) expect(kbText).toContain(term);
     });
 });

@@ -44,7 +44,7 @@ describe('Home page - saving a Google user turn (R2-LOG-07)', () => {
         } as unknown as Response);
         useAuthStore.setState({
             token: 'token',
-            user: { id: 'u1', name: 'Ada', email: 'ada@example.com', isGuest: false, createdAt: '', lastSeenAt: '' },
+            user: { id: 'u1', name: 'Ada', email: 'ada@example.com', isGuest: false, isAdmin: false, createdAt: '', lastSeenAt: '' },
             quotaRemaining: 5,
             bucketCapacity: 25
         });
@@ -53,7 +53,7 @@ describe('Home page - saving a Google user turn (R2-LOG-07)', () => {
     async function ask() {
         const user = userEvent.setup();
         render(<Home />);
-        await user.type(screen.getByLabelText(/architecture question/i), 'Explain Raft');
+        await user.type(screen.getByLabelText(/benchmark question/i), 'Explain Raft');
         await act(async () => {
             await user.click(screen.getByRole('button', { name: /send query/i }));
         });

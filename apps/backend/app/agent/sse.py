@@ -16,16 +16,16 @@ from app.db.models import (
     CitationWire,
     InjectionWarningWire,
     PlanStepWire,
-    RetrievalToolArguments,
     SseErrorEvent,
     SseGroundingEvent,
     SseNodeStartEvent,
     SsePlanEvent,
-    SseRedactEvent,
     SseStartEvent,
     SseTokenEvent,
     SseToolCallEvent,
     SseToolResultEvent,
+    SseUsageEvent,
+    WebSourceWire,
 )
 
 
@@ -60,27 +60,42 @@ def tool_call_frame(session_id: str, state: AgentState) -> str:
         SseToolCallEvent(
             sessionId=session_id,
             tool=RETRIEVAL_TOOL,
-            arguments=RetrievalToolArguments(
-                query=state.query,
-                limit=RETRIEVAL_LIMIT,
-                documentScoped=state.document_id is not None,
-            ),
+            arguments={
+                "query": state.query,
+                "limit": RETRIEVAL_LIMIT,
+                "documentScoped": state.document_id is not None,
+            },
         ),
     )
 
 
 def token_frame(session_id: str, text: str) -> str:
-    """One chunk of model output (or the fixed out-of-scope refusal, sent as a single chunk)."""
+    """One chunk of model output (or the fixed refusal, sent as a single chunk)."""
     return format_sse("token", SseTokenEvent(sessionId=session_id, token=text))
-
-
-def redact_frame(session_id: str, response: str) -> str:
-    """Replace everything streamed so far with ``response`` (after a canary-token leak)."""
-    return format_sse("redact", SseRedactEvent(sessionId=session_id, response=response))
 
 
 def error_frame(session_id: str, error: str) -> str:
     return format_sse("error", SseErrorEvent(sessionId=session_id, error=error))
+
+
+def usage_frames(session_id: str, state: AgentState, already_sent: int = 0) -> list[str]:
+    """Frames for new usage records produced since ``already_sent``."""
+    frames = []
+    for u in state.usage[already_sent:]:
+        frames.append(
+            format_sse(
+                "usage",
+                SseUsageEvent(
+                    sessionId=session_id,
+                    step=u.step,
+                    model=u.model,
+                    inputTokens=u.input_tokens,
+                    outputTokens=u.output_tokens,
+                    totalTokens=u.total_tokens,
+                ),
+            )
+        )
+    return frames
 
 
 def done_frame(session_id: str, conversation_id: str | None, query: str, state: AgentState) -> str:
@@ -96,7 +111,7 @@ def done_frame(session_id: str, conversation_id: str | None, query: str, state: 
             injectionWarnings=[
                 InjectionWarningWire.model_validate(w) for w in state.injection_warnings
             ],
-            mermaidDiagrams=state.mermaid_diagrams,
+            webSources=[WebSourceWire(title=s.title, url=s.url) for s in state.web_sources],
             grounding=state.grounding,
             model=state.model,
             isComplete=True,
@@ -105,12 +120,40 @@ def done_frame(session_id: str, conversation_id: str | None, query: str, state: 
     )
 
 
-# Frames a finished node reports. The synthesizer reports through `token` and `done` instead.
+# Frames a finished node reports.
 
 
-def _planner_frames(session_id: str, state: AgentState) -> list[str]:
+def _router_frames(session_id: str, state: AgentState) -> list[str]:
     plan = [PlanStepWire.model_validate(s) for s in state.plan]
     return [format_sse("plan", SsePlanEvent(sessionId=session_id, plan=plan))]
+
+
+def _chat_frames(session_id: str, state: AgentState) -> list[str]:
+    frames = []
+    if state.web_search_queries:
+        frames.append(
+            format_sse(
+                "tool_call",
+                SseToolCallEvent(
+                    sessionId=session_id,
+                    tool="google_search",
+                    arguments={"queries": state.web_search_queries},
+                ),
+            )
+        )
+        frames.append(
+            format_sse(
+                "tool_result",
+                SseToolResultEvent(
+                    tool="google_search",
+                    chunksRetrieved=len(state.web_sources),
+                    citations=[],
+                    injectionWarnings=[],
+                    durationMs=state.search_duration_ms,
+                ),
+            )
+        )
+    return frames
 
 
 def _retriever_frames(session_id: str, state: AgentState) -> list[str]:
@@ -124,6 +167,7 @@ def _retriever_frames(session_id: str, state: AgentState) -> list[str]:
                 injectionWarnings=[
                     InjectionWarningWire.model_validate(w) for w in state.injection_warnings
                 ],
+                durationMs=state.retrieval_duration_ms,
             ),
         )
     ]
@@ -143,13 +187,19 @@ def _grounding_frames(session_id: str, state: AgentState) -> list[str]:
 
 
 _NODE_FRAMES: dict[str, Callable[[str, AgentState], list[str]]] = {
-    "planner": _planner_frames,
+    "router": _router_frames,
+    "chat": _chat_frames,
     "retriever": _retriever_frames,
     "grounding": _grounding_frames,
 }
 
 
-def node_frames(node: str, session_id: str, state: AgentState) -> list[str]:
-    """The frames a node reports when it finishes (none for nodes without a frame)."""
+def node_frames(node: str, session_id: str, state: AgentState, usage_sent: int = 0) -> list[str]:
+    """The frames a node reports when it finishes, including usage frames for LLM nodes."""
+    frames = []
     builder = _NODE_FRAMES.get(node)
-    return builder(session_id, state) if builder else []
+    if builder:
+        frames.extend(builder(session_id, state))
+    if node in {"router", "chat", "answer"}:
+        frames.extend(usage_frames(session_id, state, already_sent=usage_sent))
+    return frames

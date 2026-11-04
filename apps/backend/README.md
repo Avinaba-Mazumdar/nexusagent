@@ -1,6 +1,6 @@
 # NexusAgent Backend
 
-Autonomous Architecture Intelligence & Systems Design Engine built with FastAPI, LangGraph, and Neon PostgreSQL 18.
+An open-source LLM benchmark assistant built with FastAPI, LangGraph, and Neon PostgreSQL 18.
 
 ## Requirements
 

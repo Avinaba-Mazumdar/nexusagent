@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vite-plus/test';
 import { SignInDialog } from './sign-in-dialog';
 
-function renderDialog(hasGuestDocuments: boolean) {
+function renderDialog() {
     return render(
         <SignInDialog
             open
@@ -12,7 +12,6 @@ function renderDialog(hasGuestDocuments: boolean) {
             isGoogleLoading={false}
             isGuestLoading={false}
             error={null}
-            hasGuestDocuments={hasGuestDocuments}
             onGuestLogin={async () => {}}
             renderGoogleButton={() => {}}
         />
@@ -20,13 +19,10 @@ function renderDialog(hasGuestDocuments: boolean) {
 }
 
 describe('SignInDialog', () => {
-    it('warns that guest documents are not carried over (R2-UX-04)', () => {
-        renderDialog(true);
-        expect(screen.getByRole('note')).toHaveTextContent(/documents uploaded as a guest will be deleted/i);
-    });
-
-    it('shows no warning without guest documents', () => {
-        renderDialog(false);
-        expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    it('renders the sign in options and title', () => {
+        renderDialog();
+        expect(screen.getByText('Sign In to NexusAgent')).toBeInTheDocument();
+        expect(screen.getByText('Sign in with Google')).toBeInTheDocument();
+        expect(screen.getByText('Continue as Guest')).toBeInTheDocument();
     });
 });

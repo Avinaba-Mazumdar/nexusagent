@@ -13,10 +13,9 @@ export interface CitationPillProps {
 
 /** Must render inside a `TooltipProvider` (MarkdownRenderer provides one). */
 export function CitationPill({ citation, onClick, className = '' }: CitationPillProps) {
-    const { filename, label, startLine, endLine, headerPath, preview } = citation;
+    const { filename, label, page, headerPath, preview } = citation;
 
-    const hasLineInfo = typeof startLine === 'number' && typeof endLine === 'number' && startLine > 0;
-    const lineLabel = hasLineInfo ? (startLine === endLine ? `L${startLine}` : `L${startLine}-${endLine}`) : null;
+    const pageLabel = typeof page === 'number' && page > 0 ? `p. ${page}` : null;
 
     return (
         <Tooltip>
@@ -28,13 +27,13 @@ export function CitationPill({ citation, onClick, className = '' }: CitationPill
                         onClick?.(citation);
                     }}
                     data-testid="citation-pill"
-                    aria-label={`Source ${label}: ${filename}${lineLabel ? ` lines ${lineLabel}` : ''}`}
+                    aria-label={`Source ${label}: ${filename}${pageLabel ? ` (${pageLabel})` : ''}`}
                     className={`inline-flex items-center gap-1.5 px-2 py-0.5 my-0.5 rounded-md text-xs font-mono font-medium border transition-all cursor-pointer select-none bg-citation-bg text-citation-text border-citation-border hover:brightness-95 active:scale-95 ${className}`}
                 >
                     <FileText className="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
                     <span className="font-bold">{label}</span>
                     <span className="truncate max-w-40 font-sans font-semibold tracking-tight">{filename}</span>
-                    {lineLabel && <span className="text-xs px-1 rounded bg-primary/10 border border-primary/20 opacity-90">{lineLabel}</span>}
+                    {pageLabel && <span className="text-xs px-1 rounded bg-primary/10 border border-primary/20 opacity-90">{pageLabel}</span>}
                 </button>
             </TooltipTrigger>
             <TooltipContent
@@ -47,9 +46,9 @@ export function CitationPill({ citation, onClick, className = '' }: CitationPill
                         <Bookmark className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{filename}</span>
                     </div>
-                    {lineLabel && (
+                    {pageLabel && (
                         <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground border border-border shrink-0">
-                            {lineLabel}
+                            {pageLabel}
                         </span>
                     )}
                 </div>

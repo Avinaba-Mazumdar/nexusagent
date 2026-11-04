@@ -41,12 +41,7 @@ export function SourceDialog({ citation, onClose }: SourceDialogProps) {
         };
     }, [citation]);
 
-    const lines =
-        citation && typeof citation.startLine === 'number' && citation.startLine > 0
-            ? citation.startLine === citation.endLine
-                ? `line ${citation.startLine}`
-                : `lines ${citation.startLine}-${citation.endLine}`
-            : null;
+    const pageLabel = citation && typeof citation.page === 'number' && citation.page > 0 ? `page ${citation.page}` : null;
 
     return (
         <Dialog open={citation !== null} onOpenChange={(open) => !open && onClose()}>
@@ -55,7 +50,7 @@ export function SourceDialog({ citation, onClose }: SourceDialogProps) {
                     <DialogTitle className="text-base font-mono break-all">{citation?.filename}</DialogTitle>
                     <DialogDescription>
                         {citation?.label}
-                        {lines ? ` · ${lines}` : ''}
+                        {pageLabel ? ` · ${pageLabel}` : ''}
                         {citation && citation.headerPath.length > 0 ? ` · ${citation.headerPath.join(' › ')}` : ''}
                     </DialogDescription>
                 </DialogHeader>

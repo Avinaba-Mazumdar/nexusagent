@@ -6,7 +6,7 @@ function jwtExpiringIn(seconds: number): string {
     return `${encode({ alg: 'HS256' })}.${encode({ exp: Math.floor(Date.now() / 1000) + seconds })}.signature`;
 }
 
-const user = { id: 'u1', name: 'Ada', email: 'ada@example.com', isGuest: false, createdAt: '', lastSeenAt: '' };
+const user = { id: 'u1', name: 'Ada', email: 'ada@example.com', isGuest: false, isAdmin: false, createdAt: '', lastSeenAt: '' };
 
 function mockApi(refreshedToken: string) {
     const calls: string[] = [];

@@ -70,8 +70,8 @@ export function CollapsibleSection({ id, title, icon: Icon, badge, isOpen, onTog
     );
 }
 
-/** One document; uploads get a two-step delete (first click arms it, second confirms). */
-function DocumentRow({ doc, onDelete }: { doc: WorkspaceDoc; onDelete: (id: string) => void }) {
+/** One document; admins get a two-step delete (first click arms it, second confirms). */
+function DocumentRow({ doc, isAdmin, onDelete }: { doc: WorkspaceDoc; isAdmin: boolean; onDelete: (id: string) => void }) {
     const [confirming, setConfirming] = React.useState(false);
 
     React.useEffect(() => {
@@ -86,48 +86,51 @@ function DocumentRow({ doc, onDelete }: { doc: WorkspaceDoc; onDelete: (id: stri
                 <FileText className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
                 <span className="truncate font-mono text-foreground">{doc.filename}</span>
             </div>
-            {doc.isSeeded ? (
+            {isAdmin ? (
+                confirming ? (
+                    <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setConfirming(false);
+                                onDelete(doc.id);
+                            }}
+                            aria-label={`Confirm delete ${doc.filename}`}
+                            className="px-1.5 py-1 rounded bg-destructive text-destructive-foreground text-xs font-semibold cursor-pointer"
+                        >
+                            Delete
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setConfirming(false)}
+                            aria-label="Cancel delete"
+                            className="p-1 rounded text-muted-foreground hover:bg-secondary cursor-pointer"
+                        >
+                            <X className="h-3 w-3" aria-hidden="true" />
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => setConfirming(true)}
+                        aria-label={`Delete document ${doc.filename}`}
+                        title="Delete document"
+                        className="p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground shrink-0 cursor-pointer"
+                    >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                )
+            ) : (
                 <Badge variant="outline" className="text-xs px-1 py-0 shrink-0">
                     {doc.totalChunks} chunks
                 </Badge>
-            ) : confirming ? (
-                <div className="flex items-center gap-0.5 shrink-0">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setConfirming(false);
-                            onDelete(doc.id);
-                        }}
-                        aria-label={`Confirm delete ${doc.filename}`}
-                        className="px-1.5 py-1 rounded bg-destructive text-destructive-foreground text-xs font-semibold cursor-pointer"
-                    >
-                        Delete
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setConfirming(false)}
-                        aria-label="Cancel delete"
-                        className="p-1 rounded text-muted-foreground hover:bg-secondary cursor-pointer"
-                    >
-                        <X className="h-3 w-3" aria-hidden="true" />
-                    </button>
-                </div>
-            ) : (
-                <button
-                    type="button"
-                    onClick={() => setConfirming(true)}
-                    aria-label={`Delete document ${doc.filename}`}
-                    title="Delete document"
-                    className="p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground shrink-0 cursor-pointer"
-                >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                </button>
             )}
         </div>
     );
 }
 
 export interface WorkspaceSidebarProps {
+    isAdmin?: boolean;
     mobileActiveTab: 'workspace' | 'chat' | 'observability';
     openCategories: { documents: boolean; chats: boolean; mcp: boolean };
     onToggleCategory: (category: 'documents' | 'chats' | 'mcp') => void;
@@ -155,12 +158,13 @@ export interface WorkspaceSidebarProps {
 }
 
 export function WorkspaceSidebar({
+    isAdmin = false,
     mobileActiveTab,
     openCategories,
     onToggleCategory,
     docs,
     docsError,
-    token,
+    token: _token,
     uploadState,
     fileInputRef,
     onUploadClick,
@@ -208,7 +212,7 @@ export function WorkspaceSidebar({
                     }
                 >
                     <div id="category-documents-content" className="p-3 pt-1 border-t border-border/50 space-y-2">
-                        <p className="text-xs text-muted-foreground">Pre-indexed AI benchmarks plus your uploads</p>
+                        <p className="text-xs text-muted-foreground">Pre-indexed AI benchmarks</p>
                         {docsError && (
                             <p className="text-xs text-destructive" role="alert">
                                 {docsError}
@@ -216,51 +220,55 @@ export function WorkspaceSidebar({
                         )}
                         <div className="space-y-1.5 max-h-35 overflow-y-auto">
                             {docs.map((doc) => (
-                                <DocumentRow key={doc.id} doc={doc} onDelete={onDeleteDocument} />
+                                <DocumentRow key={doc.id} doc={doc} isAdmin={isAdmin} onDelete={onDeleteDocument} />
                             ))}
                         </div>
 
-                        {/* Document Upload */}
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".md,.markdown,.txt,text/markdown,text/plain"
-                            onChange={onFileSelected}
-                            className="hidden"
-                            aria-hidden="true"
-                            tabIndex={-1}
-                            data-testid="document-upload-input"
-                        />
-                        <Button
-                            variant="default"
-                            size="sm"
-                            onClick={onUploadClick}
-                            disabled={uploadState.status === 'uploading'}
-                            className="w-full justify-center gap-1.5 text-xs font-bold rounded-xl mt-2 shadow-2xs h-9 cursor-pointer"
-                        >
-                            {uploadState.status === 'uploading' ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                            ) : (
-                                <UploadCloud className="h-3.5 w-3.5" aria-hidden="true" />
-                            )}
-                            <span>{token ? 'Upload Markdown (.md, .txt)' : 'Sign in to upload'}</span>
-                        </Button>
-                        <p className="text-xs text-muted-foreground text-center">Max {MAX_UPLOAD_MB} MB. Each upload uses at least one query.</p>
-                        {uploadState.status !== 'idle' && (
-                            <p
-                                role="status"
-                                className={`flex items-start gap-1 text-xs ${
-                                    uploadState.status === 'error'
-                                        ? 'text-destructive'
-                                        : uploadState.status === 'success'
-                                          ? 'text-success'
-                                          : 'text-muted-foreground'
-                                }`}
-                            >
-                                {uploadState.status === 'error' && <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />}
-                                {uploadState.status === 'success' && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />}
-                                <span>{uploadState.message}</span>
-                            </p>
+                        {/* Document Upload (Admin only) */}
+                        {isAdmin && (
+                            <>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".pdf,.md,.markdown"
+                                    onChange={onFileSelected}
+                                    className="hidden"
+                                    aria-hidden="true"
+                                    tabIndex={-1}
+                                    data-testid="document-upload-input"
+                                />
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={onUploadClick}
+                                    disabled={uploadState.status === 'uploading'}
+                                    className="w-full justify-center gap-1.5 text-xs font-bold rounded-xl mt-2 shadow-2xs h-9 cursor-pointer"
+                                >
+                                    {uploadState.status === 'uploading' ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                                    ) : (
+                                        <UploadCloud className="h-3.5 w-3.5" aria-hidden="true" />
+                                    )}
+                                    <span>Upload PDF / Markdown</span>
+                                </Button>
+                                <p className="text-xs text-muted-foreground text-center">Admin only · Max {MAX_UPLOAD_MB} MB</p>
+                                {uploadState.status !== 'idle' && (
+                                    <p
+                                        role="status"
+                                        className={`flex items-start gap-1 text-xs ${
+                                            uploadState.status === 'error'
+                                                ? 'text-destructive'
+                                                : uploadState.status === 'success'
+                                                  ? 'text-success'
+                                                  : 'text-muted-foreground'
+                                        }`}
+                                    >
+                                        {uploadState.status === 'error' && <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />}
+                                        {uploadState.status === 'success' && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />}
+                                        <span>{uploadState.message}</span>
+                                    </p>
+                                )}
+                            </>
                         )}
 
                         {/* Lead Magnet Link */}

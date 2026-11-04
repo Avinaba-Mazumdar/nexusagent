@@ -8,98 +8,64 @@
 > 3. **Formatted**: Code formatted cleanly (`uv run ruff format --check`)
 > 4. **Verified**: Functionality verified on running servers
 >
-> Backend gate: `uv run pytest` must be green **offline**. Tests needing a live Neon instance are marked `@pytest.mark.db` and skip (not fail) when `TEST_DATABASE_URL` is absent.
->
-> Status words: `[Done]` everything checked, `[Partial]` some items open, `[Removed]` intentionally dropped (kept for history).
+> Status words: `[Done]` everything checked, `[Partial]` some items open, `[Removed]` intentionally dropped.
 
 ---
 
-### Phase 1: Scaffold [Done]
+### Phase 1: Single Schema & Shared DB [Done]
 
-- [x] pnpm workspace + Vite+ task runner
-- [x] Next.js 16 App Router frontend (`apps/frontend`)
-- [x] Python 3.14 FastAPI backend (`apps/backend`)
-- [x] Neon PostgreSQL connection, migrations applied at startup (`migrations/`)
+- [x] Single idempotent schema file `db/schema.sql` (applied manually in Neon SQL editor)
+- [x] Removed startup runtime migrations (`migrations/` directory deleted)
+- [x] Production and local dev share the same Neon database (`NEON_DATABASE_URL`)
+- [x] Added `is_admin` and `machine_hash` to `users` model and table
 
-### Phase 2: Base UI & Database [Done]
+### Phase 2: Rolling 24-Hour Quotas [Done]
 
-- [x] shadcn/ui primitives and Tailwind v4 theme tokens (`styles/globals.css`)
-- [x] Schema migrations (users, buckets, documents, chunks, conversations, messages, audit log)
-- [x] Frontend/backend API client (`lib/api-client.ts`)
-- [x] Three-column chat layout: workspace sidebar, chat canvas, observability panel (+ mobile tab bar)
+- [x] `chat_usage` table replacing `rate_limit_buckets`
+- [x] Guest users: 5 chats per rolling 24 hours, checked across user ID, device hash, machine hash, and client IP
+- [x] Google users: 25 chats per rolling 24 hours, checked by user ID
+- [x] Atomic quota deduction in Neon SQL (`count_chat_usage_24h` / `record_chat_usage`)
+- [x] Header quota badge reflects rolling window
 
-### Phase 3: Authentication [Done]
+### Phase 3: Admin-Only PDF/Markdown RAG with LlamaIndex [Done]
 
-- [x] Guest pass (device-bound, IP-throttled)
-- [x] Google sign-in: ID token verified locally against Google's keys; accounts keyed on Google `sub`
-- [x] Revocable sessions (`token_version`, `POST /api/auth/logout`), 7-day cap on refresh chains
-- [Removed] Password auth (Argon2): replaced by Google OAuth + guest JWTs
+- [x] Ingestion restricted to administrators (`is_admin = TRUE`); non-admins receive HTTP 403
+- [x] Integrated LlamaIndex (`MarkdownElementNodeParser` + `SentenceSplitter`) for Markdown and PDF chunking
+- [x] Pre-seeded 4 benchmark documents (Artificial Analysis, BenchLM, CursorBench, OpenRouter)
+- [x] UI hides upload controls for non-admin users
 
-### Phase 4: Document Ingestion [Done]
+### Phase 4: Agent Routing & Google Search Grounding [Done]
 
-- [x] `POST /api/documents/upload` (1 MB, strict UTF-8, extension-based type, chunk cap, one upload at a time per user)
-- [x] Header-aware markdown parser (own implementation), ~800-char chunks with line metadata (`rag/parser.py`)
-- [x] Persist documents and chunks transactionally; `DELETE /api/documents/{id}`
+- [x] Free unmetered pre-filter: queries > 60 words or containing code blocks are refused instantly
+- [x] Structured routing node using Gemini: `smalltalk`, `benchmark`, or `refuse`
+- [x] Smalltalk / live facts handled via `google_search` tool binding with deduplicated web sources
+- [x] Benchmark questions routed to hybrid RAG retriever → grounding check → answer synthesis
+- [x] Rate limit failover across free-tier Gemini models
 
-### Phase 5: Hybrid Search [Done]
+### Phase 5: Observability & Telemetry [Done]
 
-- [x] Dense pgvector (HNSW) search, filtered to the pinned embedding model
-- [x] Lexical tsvector search (OR of query terms)
-- [x] Reciprocal Rank Fusion (`rag/hybrid_search.py`); falls back to lexical-only if embedding fails
-- [x] `POST /api/rag/search`
+- [x] Live token usage tracking (input, output, and total tokens per DAG step and session total)
+- [x] Tool execution telemetry with duration and arguments summary (`hybrid_rag_search` and `google_search`)
+- [x] Web sources rendered under assistant messages for live searches
+- [x] Dynamic DAG node visualization based on execution path
 
-### Phase 6: Code Execution Sandbox [Removed]
+### Phase 6: Public FastMCP Server [Done]
 
-The AST-denylist sandbox was escapable and ran on the API host. Removed together with its route, MCP tool and agent node. Regression guard: `tests/test_mcp.py::test_code_execution_is_not_exposed`. Reintroduction requires the isolation boundary in `AGENTs.md` (ASI-05).
+- [x] Official FastMCP server mounted at `/mcp` (Streamable HTTP)
+- [x] Public read-only access (no auth token required by connectors)
+- [x] Standard `search` and `fetch` tools matching ChatGPT and Claude specifications
+- [x] Per-IP rate limiting (60 req/min via `SlidingWindowCounter`)
+- [x] Frontend Connect card with instructions for Claude, ChatGPT Developer mode, Cursor, and Claude Code
 
-### Phase 7: Agent Pipeline [Done]
+### Phase 7: Code Trim & Hardening [Done]
 
-- [x] Typed `AgentState` (`agent/state.py`)
-- [x] Nodes: planner → retriever → grounding → synthesizer (`agent/graph.py`)
-- [x] Grounding check reports `grounded | weak | none` from retrieval results
-- [Removed] Reflection critic with re-planning loop: it was a constant formula and never looped
+- [x] Removed canary token generation, hold-back buffer, and redaction logic
+- [x] Removed Mermaid library and viewers in favor of clean Markdown tables and text
+- [x] Scrubbing of sensitive keys and untrusted content delimiters preserved
 
-### Phase 8: Streaming & Observability [Done]
+### Phase 8: Rebrand & Documentation [Done]
 
-- [x] `POST /api/agent/stream` (SSE): `start`, `node_start`, `plan`, `tool_call`, `tool_result`, `grounding`, `token`, `done`, `error`
-- [x] `token` events carry the model's chunks as they arrive
-- [x] `useAgentStream` hook and observability panel (client-measured first-token and total latency)
-- [x] `tool_call` event, sent before the retrieval runs (`agent/run.py`, `agent/sse.py`)
-
-### Phase 9: Canvas [Done]
-
-- [x] Markdown renderer on react-markdown (tables, callouts, code blocks with copy)
-- [x] Mermaid diagrams with pan/zoom, sanitised SVG
-- [x] Citations: answers cite `[S1]`; pills open a dialog with the full source passage
-- [x] Syntax highlighting in code blocks (`rehype-highlight`; colours are theme tokens in `styles/globals.css`)
-
-### Phase 10: MCP [Partial]
-
-- [x] Hand-rolled JSON-RPC 2.0 server: HTTP gateway, SSE transport, stdio (`python -m app.mcp.server`)
-- [x] `hybrid_rag_search` with Pydantic-validated arguments, metered per user, results wrapped as untrusted content
-- [x] Frontend MCP inspector
-- [x] Client configuration snippets for Claude Desktop and Cursor (MCP inspector, _Setup snippet_). Verified against the stdio launcher; not yet run inside either client.
-- [ ] Migrate to the official `fastmcp` SDK (current server is custom and spec-version `2024-11-05`). Blocked: `architecture.md` lists the official SDK as not implemented, so the owner must decide which document wins.
-
-### Phase 11: Security Controls [Done]
-
-- [x] `<untrusted_document_context>` delimiters, canary token (never forwarded to the client), secret scrubbing
-- [x] Instruction-like retrieved text is reported to the user (`injectionWarnings`)
-- [x] Token-bucket quota per user (not per IP), per-IP caps for guests, auth-endpoint throttles
-- [x] `tool_audit_logs` is append-only by database trigger; 30-day retention via `scripts/prune_guests.py`
-- [x] Per-request CSP nonce (`proxy.ts`), no script `unsafe-inline`
-- [Removed] Human-in-the-loop approval: all tools are read-only, so there is nothing to approve
-
-### Phase 12: Demo Experience [Done]
-
-- [x] Pre-seeded benchmark knowledge base (`knowledge_base/`, `scripts/seed_kb.py`)
-- [x] One-click guest access with quota badge and refill time
-- [x] Source URL and retrieval date for every benchmark table (knowledge base re-scraped 2026-10-30)
-- [Removed] Deterministic offline simulator: a Gemini API key is required for answers and uploads
-
-### Phase 13: Quality [Done]
-
-- [x] Offline backend suite and frontend suite green; CI workflow in `.github/workflows/ci.yml`
-- [x] Route across all Gemini free-tier text models (`GEMINI_MODELS`, `ModelRouter`); a rate-limited model is skipped until its quota resets
-- [x] Generate `packages/contracts` types from the backend OpenAPI schema (`pnpm contracts:generate`; CI fails on drift)
-- [Removed] LangSmith tracing (data privacy)
+- [x] Universal tagline: "NexusAgent: an open-source LLM benchmark assistant"
+- [x] Updated README with technology index, rolling quotas, admin access, and MCP connection
+- [x] Disclosed machine ID hashing and IP quota tracking in Privacy Policy
+- [x] System Architecture and Active Board updated

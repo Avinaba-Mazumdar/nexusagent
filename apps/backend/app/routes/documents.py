@@ -1,7 +1,6 @@
 import asyncio
 import hashlib
 import logging
-import math
 import time
 from uuid import UUID, uuid4
 
@@ -10,8 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from app.config import settings
 from app.core.access import require_document_access
 from app.core.audit_log import default_audit_logger
-from app.core.auth import get_client_ip, get_current_user, get_current_user_optional
-from app.core.rate_limiter import default_rate_limiter
+from app.core.auth import get_current_user, get_current_user_optional, require_admin
 from app.db.models import (
     Document,
     DocumentChunkWire,
@@ -21,18 +19,22 @@ from app.db.models import (
     SuccessResponse,
     User,
 )
-from app.db.neon import DocumentLimitReached, NeonDatabase, get_db
+from app.db.neon import NeonDatabase, get_db
 from app.rag.embeddings import EmbeddingUnavailable, default_embedding_service
-from app.rag.parser import default_markdown_parser
+from app.rag.ingest import build_chunks
 
 logger = logging.getLogger("nexusagent.documents")
 
 router = APIRouter(prefix="/documents", tags=["Document Ingestion & Vault"])
 
 # The extension decides the type; the client-supplied Content-Type is never trusted.
-ALLOWED_EXTENSIONS = {".md": "text/markdown", ".markdown": "text/markdown", ".txt": "text/plain"}
+ALLOWED_EXTENSIONS = {
+    ".pdf": "application/pdf",
+    ".md": "text/markdown",
+    ".markdown": "text/markdown",
+}
 MAX_FILENAME_CHARS = 200
-MAX_FILE_BYTES = 1 * 1024 * 1024  # 1 MB per document
+MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MB per document
 
 
 def safe_filename(raw: str | None) -> str:
@@ -48,13 +50,13 @@ def safe_filename(raw: str | None) -> str:
 
 @router.get("", response_model=DocumentListResponseWire)
 async def list_documents(
-    current_user: User | None = Depends(get_current_user_optional),
+    _current_user: User | None = Depends(get_current_user_optional),
     db: NeonDatabase = Depends(get_db),
 ):
     """
-    List documents visible to the caller: seeded documents, plus the user's uploads if signed in.
+    List all documents in the knowledge base.
     """
-    docs = await db.list_all_documents(user_id=current_user.id if current_user else None)
+    docs = await db.list_all_documents()
     return DocumentListResponseWire(
         documents=[DocumentMetadataWire.model_validate(d) for d in docs]
     )
@@ -64,11 +66,11 @@ async def list_documents(
 async def get_document_chunk(
     document_id: UUID,
     chunk_id: UUID,
-    current_user: User = Depends(get_current_user),
+    _current_user: User = Depends(get_current_user),
     db: NeonDatabase = Depends(get_db),
 ):
-    """Fetch one chunk (the passage a citation points at) with its line-level section metadata."""
-    await require_document_access(db, document_id, current_user)
+    """Fetch one chunk (the passage a citation points at) with its section metadata."""
+    await require_document_access(db, document_id)
     chunk = await db.get_document_chunk(document_id, chunk_id)
     if not chunk:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found")
@@ -78,11 +80,11 @@ async def get_document_chunk(
 @router.delete("/{document_id}", response_model=SuccessResponse)
 async def delete_document(
     document_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: NeonDatabase = Depends(get_db),
 ):
-    """Delete one of the caller's uploaded documents and its chunks."""
-    if not await db.delete_user_document(current_user.id, document_id):
+    """Delete a document and its chunks (admin only)."""
+    if not await db.delete_document(document_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     await default_audit_logger.log_tool_audit(
         tool_name="document_delete",
@@ -99,30 +101,22 @@ async def delete_document(
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: NeonDatabase = Depends(get_db),
 ):
     """
-    Upload and parse markdown or RFC documents.
-    Enforces file size ceiling (1MB), computes SHA-256 hash, runs the markdown header parser,
+    Upload and parse PDF or markdown benchmark documents (admin only).
+    Enforces file size ceiling (5MB), computes SHA-256 hash, runs LlamaIndex chunking,
     and batch persists document record and chunk rows into Neon PostgreSQL.
     """
     upload_started = time.perf_counter()
-    client_ip = get_client_ip(request)
     filename = safe_filename(file.filename)
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Only Markdown and RFC text files (.md, .markdown, .txt) are supported",
-        )
-
-    user_doc_count = await db.count_user_documents(current_user.id)
-    if user_doc_count >= settings.MAX_DOCUMENTS_PER_USER:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Document limit reached ({settings.MAX_DOCUMENTS_PER_USER}). Delete a document first.",
+            detail="Only PDF and Markdown files (.pdf, .md, .markdown) are supported",
         )
 
     raw_bytes = await file.read(MAX_FILE_BYTES + 1)
@@ -138,30 +132,34 @@ async def upload_document(
             detail="Uploaded file is empty",
         )
 
-    try:
-        content_text = raw_bytes.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        content_text = None
-    if content_text is None or "\x00" in content_text:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="File is not valid UTF-8 text.",
-        )
+    if ext == ".pdf":
+        if not raw_bytes.startswith(b"%PDF-"):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="File is not a valid PDF.",
+            )
+    else:
+        try:
+            content_text = raw_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            content_text = None
+        if content_text is None or "\x00" in content_text:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="File is not valid UTF-8 text.",
+            )
 
     sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
 
-    # Deduplication check: If same content was already uploaded by user
-    existing_doc = await db.get_document_by_hash(sha256_hash, user_id=current_user.id)
+    # Deduplication check: If same content was already uploaded
+    existing_doc = await db.get_document_by_hash(sha256_hash)
     if existing_doc:
         existing_chunks = await db.get_document_chunks(existing_doc.id, limit=5)
-        current_quota = await default_rate_limiter.get_quota(
-            user_id=current_user.id, is_guest=current_user.is_guest
-        )
         return DocumentUploadResponseWire(
             document=DocumentMetadataWire.model_validate(existing_doc),
             chunks_count=existing_doc.total_chunks,
             preview_chunks=[DocumentChunkWire.model_validate(c) for c in existing_chunks],
-            quota_remaining=current_quota,
+            quota_remaining=None,
         )
 
     if not default_embedding_service.api_key:
@@ -172,27 +170,13 @@ async def upload_document(
 
     # 1. Parse document into hierarchical chunks off the event loop
     new_doc_id = uuid4()
-    chunks = await asyncio.to_thread(
-        default_markdown_parser.parse_markdown,
-        markdown_text=content_text,
-        document_id=new_doc_id,
-        extra_metadata={"filename": filename},
-    )
+    chunks = await asyncio.to_thread(build_chunks, raw_bytes, filename, new_doc_id)
 
     if len(chunks) > settings.MAX_CHUNKS_PER_DOCUMENT:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Document produced {len(chunks)} chunks, exceeding the maximum allowed limit of {settings.MAX_CHUNKS_PER_DOCUMENT}.",
         )
-
-    # Charge quota proportional to chunk count
-    cost = max(1, math.ceil(len(chunks) / 100))
-    remaining_quota = await default_rate_limiter.check_and_consume(
-        user_id=current_user.id,
-        client_ip=client_ip,
-        is_guest=current_user.is_guest,
-        cost=cost,
-    )
 
     try:
         # 2. Generate dense vector embeddings for all chunks
@@ -205,7 +189,7 @@ async def upload_document(
         # 3. Persist Document record and chunks transactionally
         doc_record = Document(
             id=new_doc_id,
-            user_id=current_user.id,
+            uploaded_by=current_user.id,
             filename=filename,
             mime_type=ALLOWED_EXTENSIONS[ext],
             sha256_hash=sha256_hash,
@@ -214,21 +198,11 @@ async def upload_document(
         )
         saved_doc = await db.create_document_with_chunks(doc_record, chunks)
     except EmbeddingUnavailable:
-        await default_rate_limiter.refund(current_user.id, cost)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Embedding service is busy. Nothing was charged; try again in a minute.",
+            detail="Embedding service is busy. Try again in a minute.",
             headers={"Retry-After": "30"},
         )
-    except DocumentLimitReached:
-        await default_rate_limiter.refund(current_user.id, cost)
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Document limit reached ({settings.MAX_DOCUMENTS_PER_USER}). Delete a document first.",
-        )
-    except Exception:
-        await default_rate_limiter.refund(current_user.id, cost)
-        raise
 
     await default_audit_logger.log_tool_audit(
         tool_name="document_upload",
@@ -243,5 +217,5 @@ async def upload_document(
         document=DocumentMetadataWire.model_validate(saved_doc),
         chunks_count=len(chunks),
         preview_chunks=[DocumentChunkWire.model_validate(c) for c in chunks[:5]],
-        quota_remaining=remaining_quota,
+        quota_remaining=None,
     )

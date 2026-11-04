@@ -1,14 +1,7 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vite-plus/test';
+import { describe, expect, it } from 'vite-plus/test';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import type { Citation } from '@nexusagent/contracts';
-
-vi.mock('mermaid', () => ({
-    default: {
-        initialize: vi.fn(),
-        render: vi.fn().mockResolvedValue({ svg: '<svg data-testid="mock-mermaid-svg"></svg>' })
-    }
-}));
 
 describe('MarkdownRenderer Component', () => {
     const mockCitations: Citation[] = [
@@ -18,8 +11,7 @@ describe('MarkdownRenderer Component', () => {
             chunkId: 'chk-1',
             documentId: 'd-1',
             filename: 'benchlm_evals.md',
-            startLine: 15,
-            endLine: 30,
+            page: 2,
             headerPath: ['Benchmarks', 'Reasoning'],
             preview: 'Gemini 2.5 Flash demonstrates high inference speed.'
         },
@@ -29,8 +21,7 @@ describe('MarkdownRenderer Component', () => {
             chunkId: 'chk-2',
             documentId: 'd-2',
             filename: 'cursor_bench.md',
-            startLine: 3,
-            endLine: 3,
+            page: 3,
             headerPath: [],
             preview: ''
         }
@@ -76,7 +67,7 @@ describe('MarkdownRenderer Component', () => {
         const pills = screen.getAllByTestId('citation-pill');
         // two inline pills + two in the Sources tray
         expect(pills).toHaveLength(4);
-        expect(screen.getAllByText('L15-30').length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText('p. 2').length).toBeGreaterThanOrEqual(1);
         expect(screen.getByText(/\[S9\]/)).toBeInTheDocument();
     });
 
@@ -169,11 +160,5 @@ Detailed analysis here.
         const { container } = render(<MarkdownRenderer content="![chart](https://example.com/x.png?d=secret)" />);
 
         expect(container.querySelector('img')).toBeNull();
-    });
-
-    it('shows a placeholder instead of rendering a mermaid block that is still streaming', () => {
-        render(<MarkdownRenderer content={'Intro\n\n```mermaid\nflowchart TD\n  A --> B'} isStreaming />);
-
-        expect(screen.getByText(/Streaming architecture diagram syntax/)).toBeInTheDocument();
     });
 });

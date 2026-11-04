@@ -34,7 +34,7 @@ async def test_guest_pass_endpoint():
 
         assert "user" in data
         assert data["user"]["isGuest"] is True
-        assert "Guest Architect" in data["user"]["name"]
+        assert "Guest User" in data["user"]["name"]
         assert "tokens" in data
         assert data["tokens"]["tokenType"] == "bearer"
         assert len(data["tokens"]["accessToken"]) > 20
@@ -267,50 +267,6 @@ async def test_offline_prune_guests_safe_fallback():
 
 @pytest.mark.db
 @pytest.mark.asyncio
-async def test_hourly_rate_limit_replenishment():
-    client_ip = f"198.51.100.{uuid4().hex[:2]}"
-    user = await neon_db.create_user(
-        User(
-            id=uuid4(),
-            email=None,
-            name="Replenish Test User",
-            is_guest=True,
-            client_ip=client_ip,
-        )
-    )
-
-    # Initialize bucket with 5 tokens
-    bucket = await neon_db.get_or_create_rate_limit(user.id, default_tokens=5)
-    assert bucket.tokens_remaining == 5
-
-    # Simulate manual depletion & setting timestamp in the past (2 hours ago)
-    pool = neon_db.get_pool()
-    async with pool.acquire() as conn:
-        past_time = datetime.now(UTC) - timedelta(hours=2)
-        await conn.execute(
-            """
-            UPDATE rate_limit_buckets
-            SET tokens_remaining = 0, last_replenished_at = $2
-            WHERE user_id = $1;
-            """,
-            user.id,
-            past_time,
-        )
-
-    # Calling get_or_create_rate_limit should detect elapsed hour and replenish to 5
-    replenished = await neon_db.get_or_create_rate_limit(user.id, default_tokens=5)
-    assert replenished.tokens_remaining == 5
-
-    # R2-LOG-08: the read reports full capacity but does not write the refill.
-    async with pool.acquire() as conn:
-        stored = await conn.fetchrow(
-            "SELECT tokens_remaining, last_replenished_at FROM rate_limit_buckets WHERE user_id = $1;",
-            user.id,
-        )
-    assert stored["tokens_remaining"] == 0
-    assert stored["last_replenished_at"] == past_time
-
-
 # ---------------------------------------------------------------------------
 # SEC-04: revocation, session age cap, iss/aud
 # ---------------------------------------------------------------------------

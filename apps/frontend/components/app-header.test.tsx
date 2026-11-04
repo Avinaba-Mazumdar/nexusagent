@@ -4,7 +4,7 @@ import type { UserSession } from '@nexusagent/contracts';
 import { AppHeader } from './app-header';
 import userEvent from '@testing-library/user-event';
 
-const user: UserSession = { id: 'u1', name: 'Ada Lovelace', email: 'ada@example.com', isGuest: false, createdAt: '', lastSeenAt: '' };
+const user: UserSession = { id: 'u1', name: 'Ada Lovelace', email: 'ada@example.com', isGuest: false, isAdmin: false, createdAt: '', lastSeenAt: '' };
 
 function renderHeader(overrides: Partial<React.ComponentProps<typeof AppHeader>> = {}) {
     return render(

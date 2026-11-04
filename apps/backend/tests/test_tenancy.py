@@ -7,11 +7,9 @@ from httpx import ASGITransport, AsyncClient
 
 from app.core.audit_log import default_audit_logger
 from app.core.auth import create_access_token, session_claims
-from app.db.models import Document, DocumentChunk, User
+from app.db.models import User
 from app.db.neon import neon_db
 from app.main import app
-
-SECRET_TEXT = "tenancyprobe quorum notes belonging to user A only"
 
 
 async def _make_user(name: str) -> tuple[User, dict[str, str]]:
@@ -26,60 +24,6 @@ async def _delete_users(*users: User) -> None:
     async with neon_db.get_pool().acquire() as conn:
         for user in users:
             await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
-
-
-@pytest.mark.db
-@pytest.mark.asyncio
-async def test_other_users_documents_are_invisible_r2_tst_01():
-    user_a, headers_a = await _make_user("Tenant A")
-    user_b, headers_b = await _make_user("Tenant B")
-    doc = Document(
-        id=uuid4(),
-        user_id=user_a.id,
-        filename="a-private.md",
-        mime_type="text/markdown",
-        sha256_hash=uuid4().hex,
-        total_chunks=1,
-        is_seeded=False,
-    )
-    chunk = DocumentChunk(document_id=doc.id, chunk_index=0, content=SECRET_TEXT)
-    try:
-        await neon_db.create_document_with_chunks(doc, [chunk])
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            # The owner can read the chunk and sees the document.
-            own = await client.get(f"/api/documents/{doc.id}/chunks/{chunk.id}", headers=headers_a)
-            assert own.status_code == 200
-
-            # Another user gets 404 for the chunk and does not see the document in the list.
-            foreign = await client.get(
-                f"/api/documents/{doc.id}/chunks/{chunk.id}", headers=headers_b
-            )
-            assert foreign.status_code == 404
-            listed = await client.get("/api/documents", headers=headers_b)
-            assert doc.filename not in [d["filename"] for d in listed.json()["documents"]]
-
-            # Search scoped to that document, and unscoped lexical search, never leak it.
-            scoped = await client.post(
-                "/api/rag/search",
-                json={"query": "tenancyprobe quorum", "documentId": str(doc.id)},
-                headers=headers_b,
-            )
-            assert scoped.status_code == 404
-            unscoped = await client.post(
-                "/api/rag/search", json={"query": "tenancyprobe quorum"}, headers=headers_b
-            )
-            assert unscoped.status_code == 200
-            assert all(SECRET_TEXT not in r["content"] for r in unscoped.json()["results"])
-
-            # Another user cannot delete it either.
-            deleted = await client.delete(f"/api/documents/{doc.id}", headers=headers_b)
-            assert deleted.status_code == 404
-        rows = await neon_db.search_chunks_lexical("tenancyprobe quorum", user_id=user_b.id)
-        assert rows == []
-        own_rows = await neon_db.search_chunks_lexical("tenancyprobe quorum", user_id=user_a.id)
-        assert [r["content"] for r in own_rows] == [SECRET_TEXT]
-    finally:
-        await _delete_users(user_a, user_b)
 
 
 @pytest.mark.db

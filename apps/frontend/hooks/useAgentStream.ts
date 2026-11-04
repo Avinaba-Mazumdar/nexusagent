@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import type { AgentInvokeResponse, Citation, Grounding, PlanStep } from '@nexusagent/contracts';
+import type { AgentInvokeResponse, Citation, Grounding, PlanStep, UsageEvent, WebSource } from '@nexusagent/contracts';
 import type { LogEntry, TelemetryMetrics } from '@/components/observability-panel';
 
 import { API_BASE, getAuthToken, notifyUnauthorized } from '@/lib/api-client';
@@ -10,6 +10,9 @@ export interface UseAgentStreamOptions {
     onLog?: (entry: LogEntry) => void;
     onMetricUpdate?: (updater: (prev: TelemetryMetrics) => TelemetryMetrics) => void;
     onQuota?: (remaining: number) => void;
+    onUsage?: (event: UsageEvent) => void;
+    onToolCall?: (call: { tool: string; args: any }) => void;
+    onToolResult?: (result: { tool: string; chunksRetrieved: number; durationMs?: number | null }) => void;
 }
 
 export interface StreamParams {
@@ -38,12 +41,12 @@ function describeHttpError(status: number, body: string): string {
     } catch {
         // Plain-text body
     }
-    if (status === 429) return 'Query quota exhausted. It replenishes hourly.';
+    if (status === 429) return 'Query quota exhausted. Resets every 24 hours.';
     if (status === 401) return 'Your session has expired. Please sign in again.';
     return `Server returned status ${status}: ${detail}`;
 }
 
-/** The `done` payload plus the answer text, which arrives only as `token` (and `redact`) events. */
+/** The `done` payload plus the answer text, which arrives only as `token` events. */
 export type AgentRunResult = AgentInvokeResponse & { response: string };
 
 /** Parse one SSE block: `event:` name plus all `data:` lines joined with a newline, per the SSE spec. */
@@ -64,7 +67,9 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
     const [isStreaming, setIsStreaming] = React.useState(false);
     const [plan, setPlan] = React.useState<PlanStep[]>([]);
     const [currentNode, setCurrentNode] = React.useState<string | null>(null);
+    const [nodeHistory, setNodeHistory] = React.useState<string[]>([]);
     const [citations, setCitations] = React.useState<Citation[]>([]);
+    const [webSources, setWebSources] = React.useState<WebSource[]>([]);
     const [streamedResponse, setStreamedResponse] = React.useState('');
     const [grounding, setGrounding] = React.useState<Grounding | null>(null);
 
@@ -87,7 +92,9 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
             setIsStreaming(true);
             setPlan([]);
             setCurrentNode(null);
+            setNodeHistory([]);
             setCitations([]);
+            setWebSources([]);
             setStreamedResponse('');
             setGrounding(null);
 
@@ -176,6 +183,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
 
                                 case 'node_start':
                                     setCurrentNode(data.node);
+                                    setNodeHistory((prev) => (prev.includes(data.node) ? prev : [...prev, data.node]));
                                     emitLog('INFERENCE', `Running step: ${data.node}`);
                                     break;
 
@@ -186,19 +194,40 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     }
                                     break;
 
+                                case 'usage':
+                                    options?.onUsage?.(data as UsageEvent);
+                                    emitLog('INFERENCE', `${data.step}: ${data.inputTokens} in / ${data.outputTokens} out (${data.model})`);
+                                    break;
+
                                 case 'tool_call': {
-                                    const scope = data.arguments?.documentScoped ? 'the selected document' : 'all sources';
-                                    emitLog('RAG', `Calling ${data.tool} over ${scope} (top ${data.arguments?.limit ?? '?'})`);
+                                    options?.onToolCall?.({ tool: data.tool, args: data.arguments });
+                                    if (data.tool === 'google_search') {
+                                        const queries = data.arguments?.queries ? data.arguments.queries.join(', ') : '';
+                                        emitLog('RAG', `Google Search: "${queries}"`);
+                                    } else {
+                                        const scope = data.arguments?.documentScoped ? 'the selected document' : 'all sources';
+                                        emitLog('RAG', `Calling ${data.tool} over ${scope} (top ${data.arguments?.limit ?? '?'})`);
+                                    }
                                     break;
                                 }
 
                                 case 'tool_result':
+                                    options?.onToolResult?.({
+                                        tool: data.tool,
+                                        chunksRetrieved: data.chunksRetrieved ?? 0,
+                                        durationMs: data.durationMs
+                                    });
                                     if (data.tool === 'hybrid_rag_search' && Array.isArray(data.citations)) {
                                         setCitations(data.citations);
-                                        emitLog('RAG', `Retrieved ${data.chunksRetrieved ?? data.citations.length} source chunks`);
+                                        emitLog(
+                                            'RAG',
+                                            `Retrieved ${data.chunksRetrieved ?? data.citations.length} source chunks (${data.durationMs ?? '?'}ms)`
+                                        );
                                         for (const w of data.injectionWarnings ?? []) {
                                             emitLog('RAG', `Warning: ${w.filename} contains instruction-like text (${w.reason}). Treated as untrusted data.`);
                                         }
+                                    } else if (data.tool === 'google_search') {
+                                        emitLog('RAG', `Google Search found ${data.chunksRetrieved ?? 0} sources (${data.durationMs ?? '?'}ms)`);
                                     }
                                     break;
 
@@ -223,19 +252,15 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     finalDonePayload = data as AgentInvokeResponse;
                                     if (data.plan !== undefined) setPlan(data.plan);
                                     if (data.citations !== undefined) setCitations(data.citations);
+                                    if (data.webSources !== undefined) setWebSources(data.webSources);
                                     if (data.grounding) setGrounding(data.grounding);
+                                    if (data.nodeHistory) setNodeHistory(data.nodeHistory);
                                     if (data.model) emitLog('INFERENCE', `Answered by ${data.model}`);
                                     const totalLatencyMs = Math.round(performance.now() - startTime);
                                     options?.onMetricUpdate?.((prev) => ({ ...prev, totalLatencyMs }));
                                     emitLog('STREAM', `Run finished in ${totalLatencyMs}ms`);
                                     break;
                                 }
-
-                                case 'redact':
-                                    answer = data.response;
-                                    setStreamedResponse(answer);
-                                    emitLog('STREAM', 'Answer withdrawn by the canary-token check');
-                                    break;
 
                                 case 'error':
                                     serverError = data.error || 'Unknown SSE stream error';
@@ -259,20 +284,20 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                     emitLog('STREAM', 'Run cancelled');
                     return null;
                 }
-                const msg = err instanceof Error ? err.message : String(err);
-                emitLog('ROUTER', `Fatal stream error: ${msg}`);
                 setIsStreaming(false);
-                throw err instanceof AgentStreamError ? err : new AgentStreamError(msg);
+                throw err;
             }
         },
-        [options, cancelStream]
+        [cancelStream, options]
     );
 
     return {
         isStreaming,
         plan,
         currentNode,
+        nodeHistory,
         citations,
+        webSources,
         streamedResponse,
         grounding,
         startStream,

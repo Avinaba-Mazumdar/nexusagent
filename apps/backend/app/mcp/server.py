@@ -1,105 +1,93 @@
+"""Public, read-only MCP server (Streamable HTTP at /mcp, or stdio with `python -m app.mcp.server`).
+
+Tools follow the search/fetch shape ChatGPT connectors expect; Claude and other clients use them too.
 """
-MCP Stdio Transport CLI Server.
-Allows external AI clients (Claude Desktop, Cursor, Antigravity) to connect via command line:
-  python -m app.mcp.server
-"""
 
-import asyncio
-import json
-import logging
-import sys
+from uuid import UUID
 
-from pydantic import ValidationError
+from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 
+from app.config import settings
+from app.core.security_guardrails import sanitize_retrieved_chunks
 from app.db.neon import neon_db
-from app.mcp.dispatch import dispatch_mcp_method
-from app.mcp.protocol import (
-    INTERNAL_ERROR,
-    INVALID_REQUEST,
-    JsonRpcError,
-    JsonRpcRequest,
-    JsonRpcResponse,
+from app.rag.hybrid_search import default_hybrid_search_engine
+
+mcp = MCPServer(
+    "nexusagent",
+    instructions="Search LLM benchmark documents (Artificial Analysis, BenchLM, CursorBench, OpenRouter).",
 )
 
-# Configure logging to stderr so stdio stdout remains pure JSON-RPC
-logging.basicConfig(level=logging.INFO, stream=sys.stderr)
-logger = logging.getLogger("nexusagent.mcp.stdio")
+
+async def _db():
+    if not neon_db.pool:
+        await neon_db.connect()
 
 
-async def handle_jsonrpc_request(req_dict: object) -> dict:
-    """Process incoming JSON-RPC 2.0 request dictionary and return response dictionary."""
-    if not isinstance(req_dict, dict):
-        return JsonRpcResponse(
-            id=None, error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request")
-        ).model_dump(exclude_none=True)
+def _url(document_id: str, chunk_id: str) -> str:
+    return f"https://{settings.PUBLIC_SITE_HOST}/?doc={document_id}&chunk={chunk_id}"
+
+
+@mcp.tool()
+async def search(query: str) -> dict:
+    """Search the LLM benchmark knowledge base. Returns up to 8 matching passages (id, title, url)."""
+    await _db()
+    results, _ = sanitize_retrieved_chunks(
+        await default_hybrid_search_engine.search(query=query[:1000], limit=8)
+    )
+    return {
+        "results": [
+            {
+                "id": f"{r.document_id}:{r.id}",
+                "title": f"{r.filename} - {' > '.join(r.header_path) or 'passage'}",
+                "url": _url(r.document_id, r.id),
+            }
+            for r in results
+        ]
+    }
+
+
+@mcp.tool()
+async def fetch(id: str) -> dict:
+    """Fetch the full text of a passage returned by `search` (id is `document_id:chunk_id`)."""
+    parts = id.split(":", 1)
+    if len(parts) != 2:
+        raise ValueError(f"Invalid id format: {id}. Expected 'document_id:chunk_id'")
+    doc_str, chunk_str = parts
     try:
-        req = JsonRpcRequest.model_validate(req_dict)
-    except ValidationError, ValueError, TypeError:
-        return JsonRpcResponse(
-            id=req_dict.get("id"),
-            error=JsonRpcError(code=INVALID_REQUEST, message="Invalid Request"),
-        ).model_dump(exclude_none=True)
+        doc_id = UUID(doc_str)
+        chunk_id = UUID(chunk_str)
+    except ValueError as exc:
+        raise ValueError(f"Invalid UUID in id: {id}") from exc
 
-    try:
-        # Stdio server is a local, trusted process; calls are unmetered (user=None).
-        resp = await dispatch_mcp_method(req)
-        return resp.model_dump(exclude_none=True)
-    except Exception:
-        logger.exception("Error processing MCP method %s", req.method)
-        return JsonRpcResponse(
-            id=req.id,
-            error=JsonRpcError(code=INTERNAL_ERROR, message="Internal error"),
-        ).model_dump(exclude_none=True)
+    await _db()
+    chunk = await neon_db.get_document_chunk(doc_id, chunk_id)
+    if not chunk:
+        raise ValueError(f"Passage not found: {id}")
 
+    doc = await neon_db.get_document_by_id(doc_id)
+    filename = doc.filename if doc else "document"
 
-async def read_stdin_lines():
-    """
-    Yield raw lines from stdin until EOF, without blocking the event loop.
-
-    asyncio's pipe transport cannot read the stdin pipes that clients create on Windows (they are
-    not overlapped handles; the transport fails with WinError 6), so the blocking reads run in a
-    worker thread instead. The same code path serves every platform.
-    """
-    while True:
-        line_bytes = await asyncio.to_thread(sys.stdin.buffer.readline)
-        if not line_bytes:
-            return
-        yield line_bytes
+    return {
+        "id": id,
+        "title": filename,
+        "text": chunk.content,
+        "url": _url(str(doc_id), str(chunk_id)),
+        "metadata": chunk.metadata,
+    }
 
 
-async def main():
-    """Stdio main loop reading lines from stdin and writing JSON-RPC to stdout."""
-    # Local, trusted process: tools/call is unmetered but still needs the knowledge-base database.
-    if not await neon_db.connect():
-        logger.error("Database unavailable; hybrid_rag_search will report the knowledge base down.")
-
-    async for line_bytes in read_stdin_lines():
-        line = line_bytes.decode("utf-8").strip()
-        if not line:
-            continue
-
-        try:
-            req_data = json.loads(line)
-            res_data = await handle_jsonrpc_request(req_data)
-            is_notification = isinstance(req_data, dict) and req_data.get("id") is None
-            if res_data and not is_notification:  # Notifications produce no response
-                sys.stdout.write(json.dumps(res_data) + "\n")
-                sys.stdout.flush()
-        except json.JSONDecodeError as e:
-            err_res = JsonRpcResponse(
-                id=None,
-                error=JsonRpcError(code=-32700, message=f"Parse Error: {e!s}"),
-            ).model_dump(exclude_none=True)
-            sys.stdout.write(json.dumps(err_res) + "\n")
-            sys.stdout.flush()
+def create_streamable_http_app():
+    return mcp.streamable_http_app(
+        streamable_http_path="/mcp",
+        stateless_http=True,
+        json_response=True,
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    )
 
 
-async def run() -> None:
-    try:
-        await main()
-    finally:
-        await neon_db.disconnect()
+mcp_http_app = create_streamable_http_app()
 
 
 if __name__ == "__main__":
-    asyncio.run(run())
+    mcp.run()  # stdio

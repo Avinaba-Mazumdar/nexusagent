@@ -25,7 +25,7 @@ from app.config import settings
 from app.db.models import Document, DocumentChunk
 from app.db.neon import neon_db
 from app.rag.embeddings import default_embedding_service
-from app.rag.parser import default_markdown_parser
+from app.rag.ingest import build_chunks
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("seed_kb")
@@ -42,9 +42,9 @@ async def seed_knowledge_base():
         logger.error(f"Knowledge base directory {KB_DIR} does not exist.")
         sys.exit(1)
 
-    files = sorted(KB_DIR.glob("*.md"))
+    files = sorted([p for p in KB_DIR.iterdir() if p.suffix.lower() in (".md", ".pdf")])
     if not files:
-        logger.warning(f"No markdown documents found in {KB_DIR}")
+        logger.warning(f"No benchmark documents found in {KB_DIR}")
         return
 
     logger.info("Connecting to Neon database pool...")
@@ -58,15 +58,14 @@ async def seed_knowledge_base():
 
     for doc_path in files:
         raw_bytes = doc_path.read_bytes()
-        text = raw_bytes.decode("utf-8")
         # Stable ID: re-seeding must not invalidate stored citation documentIds.
         doc_id = uuid5(NAMESPACE_URL, f"nexusagent:kb:{doc_path.name}")
         sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
 
-        chunks = default_markdown_parser.parse_markdown(
-            text,
+        chunks = build_chunks(
+            raw_bytes,
+            doc_path.name,
             document_id=doc_id,
-            extra_metadata={"filename": doc_path.name},
             chunk_id_namespace=doc_id,  # stable chunk ids keep stored citations valid
         )
         if not chunks:
@@ -77,11 +76,12 @@ async def seed_knowledge_base():
         for chunk, embedding in zip(chunks, embeddings):
             chunk.embedding = embedding
 
+        mime_type = "application/pdf" if doc_path.suffix.lower() == ".pdf" else "text/markdown"
         doc = Document(
             id=doc_id,
-            user_id=None,
+            uploaded_by=None,
             filename=doc_path.name,
-            mime_type="text/markdown",
+            mime_type=mime_type,
             sha256_hash=sha256_hash,
             total_chunks=len(chunks),
             is_seeded=True,

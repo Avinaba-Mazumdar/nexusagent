@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from langchain_google_genai.chat_models import GoogleModelNotFoundError, GoogleRateLimitError
 
-from app.agent.graph import default_model_router, synthesizer_node
+from app.agent.graph import answer_node, default_model_router
 from app.agent.model_router import PACIFIC, ModelRouter, rate_limit_cooldown
 from app.agent.state import AgentState
 
@@ -67,6 +67,23 @@ def test_cooling_model_is_skipped_until_its_cooldown_ends():
     assert router.candidates() == ["a", "b"]
 
 
+def test_prefer_lite_sorts_lite_models_first():
+    models = [
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash-lite",
+    ]
+    router = ModelRouter(models)
+    assert router.candidates(prefer_lite=False) == models
+    assert router.candidates(prefer_lite=True) == [
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-flash-lite",
+        "gemini-3.8-flash",
+        "gemini-2.5-pro",
+    ]
+
+
 class _Model:
     """Fake chat model: raises ``error`` (optionally after streaming ``pieces``) or streams them."""
 
@@ -95,17 +112,17 @@ def models(monkeypatch):
 
 
 def _state() -> AgentState:
-    return AgentState(query="Explain Raft quorum", user_id=uuid4(), intent="greeting")
+    return AgentState(query="Explain Raft quorum", user_id=uuid4(), intent="benchmark")
 
 
 @pytest.mark.asyncio
 async def test_rate_limited_model_hands_over_and_stays_skipped(models):
     fakes = models({"m1": _Model(error=rate_limited()), "m2": _Model(["Answer from m2."])})
 
-    first = await synthesizer_node(_state())
+    first = await answer_node(_state())
     assert (first.response, first.model, first.error) == ("Answer from m2.", "m2", None)
 
-    second = await synthesizer_node(_state())
+    second = await answer_node(_state())
     assert second.model == "m2"
     assert fakes["m1"].calls == 1  # not retried while it cools down
 
@@ -113,7 +130,7 @@ async def test_rate_limited_model_hands_over_and_stays_skipped(models):
 @pytest.mark.asyncio
 async def test_inaccessible_model_is_skipped(models):
     models({"gone": _Model(error=GoogleModelNotFoundError("404")), "ok": _Model(["Fine."])})
-    result = await synthesizer_node(_state())
+    result = await answer_node(_state())
     assert (result.response, result.model) == ("Fine.", "ok")
 
 
@@ -127,7 +144,7 @@ async def test_no_switch_after_text_reached_the_client(models):
     async def on_token(text: str) -> None:
         sent.append(text)
 
-    result = await synthesizer_node(_state(), {"configurable": {"on_token": on_token}})
+    result = await answer_node(_state(), {"configurable": {"on_token": on_token}})
     assert sent == ["Partial "]
     assert result.error and result.response == ""
     assert fakes["m2"].calls == 0  # one answer never mixes two models
@@ -136,7 +153,7 @@ async def test_no_switch_after_text_reached_the_client(models):
 @pytest.mark.asyncio
 async def test_all_models_limited_reports_when_to_retry(models):
     models({"m1": _Model(error=rate_limited(delay="120s")), "m2": _Model(error=rate_limited())})
-    result = await synthesizer_node(_state())
+    result = await answer_node(_state())
     assert result.response == ""
     assert result.error is not None
     assert "reached its usage limit" in result.error

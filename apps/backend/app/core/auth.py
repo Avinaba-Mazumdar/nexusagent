@@ -9,7 +9,7 @@ from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
-from app.core.rate_limiter import default_rate_limiter, guest_signup_limiter
+from app.core.rate_limiter import default_chat_quota, guest_signup_limiter
 from app.db.models import AuthTokens, GuestPassResponse, User, UserSession
 from app.db.neon import NeonDatabase, get_db
 
@@ -139,6 +139,12 @@ async def get_current_user(
     return user
 
 
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.is_guest or not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
+    return current_user
+
+
 async def get_current_user_optional(
     credentials: HTTPAuthorizationCredentials | None = Security(security_bearer),
     db: NeonDatabase = Depends(get_db),
@@ -153,22 +159,33 @@ async def get_current_user_optional(
 
 
 async def issue_guest_pass(
-    db: NeonDatabase, client_ip: str, device_id: str | None = None
+    db: NeonDatabase,
+    client_ip: str,
+    device_id: str | None = None,
+    machine_id: str | None = None,
 ) -> GuestPassResponse:
-    """Issue or retrieve 1-Click Guest Pass token bound to client IP & device ID."""
+    """Issue or retrieve 1-Click Guest Pass token bound to client IP & device ID & machine ID."""
     now = datetime.now(UTC)
     clean_device_id = device_id.strip() if device_id and device_id.strip() else None
     hashed_device_id = hash_device_id(clean_device_id) if clean_device_id else None
 
+    clean_machine_id = machine_id.strip() if machine_id and machine_id.strip() else None
+    hashed_machine_id = hash_device_id(clean_machine_id) if clean_machine_id else None
+
     target_user: User | None = None
-    if hashed_device_id:
-        target_user = await db.get_guest_by_device_id(hashed_device_id)
+    if hashed_device_id or hashed_machine_id:
+        target_user = await db.get_guest_by_device(hashed_device_id, hashed_machine_id)
 
     if target_user:
         await db.update_user_last_seen(
-            target_user.id, client_ip=client_ip, device_id=hashed_device_id
+            target_user.id,
+            client_ip=client_ip,
+            device_id=hashed_device_id,
+            machine_hash=hashed_machine_id,
         )
         target_user.client_ip = client_ip
+        if hashed_machine_id and not target_user.machine_hash:
+            target_user.machine_hash = hashed_machine_id
         target_user.last_seen_at = now
     else:
         if not guest_signup_limiter.hit(client_ip):
@@ -179,7 +196,7 @@ async def issue_guest_pass(
             )
         assigned_device_id = hashed_device_id or hash_device_id(uuid4().hex)
         guest_uuid = uuid4()
-        guest_name = f"Guest Architect #{str(guest_uuid)[:6]}"
+        guest_name = f"Guest User #{str(guest_uuid)[:6]}"
         user = User(
             id=guest_uuid,
             email=None,
@@ -188,14 +205,15 @@ async def issue_guest_pass(
             is_guest=True,
             client_ip=client_ip,
             device_id=assigned_device_id,
+            machine_hash=hashed_machine_id,
             created_at=now,
             last_seen_at=now,
         )
         target_user = await db.create_user(user)
 
-    tokens_remaining = await default_rate_limiter.get_quota(
-        user_id=target_user.id,
-        is_guest=True,
+    tokens_remaining, _resets_at = await default_chat_quota.status(
+        user=target_user,
+        client_ip=client_ip,
     )
 
     token_str, expires_in = create_access_token(data=session_claims(target_user))

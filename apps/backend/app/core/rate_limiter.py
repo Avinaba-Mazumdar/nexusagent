@@ -1,9 +1,8 @@
 """
-Token-Bucket Rate Limiter.
-Enforces hourly token limits per user (bucket state lives in Neon PostgreSQL):
-- Guest users: 5 requests / hour
-- Authenticated registered users: 25 requests / hour
-Guests are additionally capped per IP by in-process sliding-window counters.
+Rolling 24-hour window chat quota.
+Enforces rolling 24-hour limits:
+- Guest users: 5 chats / 24 hours, keyed by user_id + device_id + machine_hash + client_ip
+- Google accounts: 25 chats / 24 hours, keyed by user_id only
 """
 
 import logging
@@ -13,7 +12,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 
 from app.config import settings
-from app.db.models import RateLimitBucket
+from app.db.models import User
 from app.db.neon import NeonDatabase, neon_db
 
 logger = logging.getLogger("nexusagent.core.rate_limiter")
@@ -53,7 +52,6 @@ class SlidingWindowCounter:
 
 
 guest_signup_limiter = SlidingWindowCounter(limit=settings.GUEST_SIGNUPS_PER_IP_PER_HOUR)
-guest_ip_llm_limiter = SlidingWindowCounter(limit=settings.GUEST_IP_QUOTA_PER_HOUR)
 google_auth_limiter = SlidingWindowCounter(limit=settings.GOOGLE_AUTH_PER_IP_PER_HOUR)
 refresh_limiter = SlidingWindowCounter(limit=settings.REFRESH_PER_IP_PER_HOUR)
 
@@ -68,87 +66,68 @@ def enforce_ip_limit(counter: SlidingWindowCounter, client_ip: str) -> None:
         )
 
 
-REPLENISH_WINDOW = timedelta(hours=1)
-
-
-def resets_at(bucket: RateLimitBucket) -> datetime:
-    """When the bucket next refills to capacity."""
-    last = bucket.last_replenished_at
-    if last.tzinfo is None:
-        last = last.replace(tzinfo=UTC)
-    return last + REPLENISH_WINDOW
-
-
-def _quota_exhausted(bucket: RateLimitBucket | None = None) -> HTTPException:
-    retry_after = 3600
-    if bucket is not None:
-        retry_after = max(1, int((resets_at(bucket) - datetime.now(UTC)).total_seconds()))
-    return HTTPException(
-        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail="Free-tier quota limit reached. It replenishes hourly.",
-        headers={"Retry-After": str(retry_after)},
-    )
-
-
-class TokenBucketLimiter:
-    """Async token-bucket rate limiter backed by the ``rate_limit_buckets`` table."""
+class ChatQuota:
+    """Rolling 24-hour window chat quota limiter backed by the ``chat_usage`` table."""
 
     def __init__(self, db: NeonDatabase):
         self.db = db
 
-    @staticmethod
-    def _capacity(is_guest: bool) -> int:
-        return settings.GUEST_QUOTA_DEFAULT if is_guest else settings.USER_QUOTA_DEFAULT
+    def limit_for(self, user: User) -> int:
+        return settings.GUEST_QUOTA_DEFAULT if user.is_guest else settings.USER_QUOTA_DEFAULT
 
-    async def check_and_consume(
-        self,
-        user_id: UUID,
-        client_ip: str,
-        is_guest: bool = True,
-        cost: int = 1,
-    ) -> int:
-        """
-        Check and consume tokens (default: 1).
-        Returns tokens_remaining after decrement.
-        Raises HTTPException(429) if quota is depleted or insufficient.
-        """
-        if is_guest and not guest_ip_llm_limiter.hit(client_ip):
+    def _keys(self, user: User, client_ip: str | None) -> tuple[str | None, str | None, str | None]:
+        if user.is_guest:
+            return (user.device_id, user.machine_hash, client_ip)
+        return (None, None, None)
+
+    async def reserve(self, user: User, client_ip: str | None = None) -> tuple[UUID, int]:
+        device_hash, machine_hash, ip = self._keys(user, client_ip)
+        limit = self.limit_for(user)
+        usage_id, remaining, oldest = await self.db.reserve_chat(
+            user_id=user.id,
+            device_hash=device_hash,
+            machine_hash=machine_hash,
+            client_ip=ip,
+            limit=limit,
+        )
+        if usage_id is None:
+            now = datetime.now(UTC)
+            resets_at = (oldest + timedelta(hours=24)) if oldest else (now + timedelta(hours=24))
+            retry_after = max(1, int((resets_at - now).total_seconds()))
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many guest requests from this network. Try again later.",
-                headers={"Retry-After": "3600"},
+                detail="Daily chat limit reached (5 per 24 hours for guests, 25 for Google accounts).",
+                headers={"Retry-After": str(retry_after)},
             )
+        return usage_id, remaining
 
-        remaining = await self.db.consume_rate_limit(
-            user_id, default_tokens=self._capacity(is_guest), cost=cost
+    async def status(self, user: User, client_ip: str | None = None) -> tuple[int, datetime]:
+        device_hash, machine_hash, ip = self._keys(user, client_ip)
+        limit = self.limit_for(user)
+        used, oldest = await self.db.count_chats(
+            user_id=user.id,
+            device_hash=device_hash,
+            machine_hash=machine_hash,
+            client_ip=ip,
         )
-        if remaining is None:
-            raise _quota_exhausted(await self.get_bucket(user_id, is_guest))
-        return remaining
+        now = datetime.now(UTC)
+        resets_at = (oldest + timedelta(hours=24)) if oldest else (now + timedelta(hours=24))
+        remaining = max(0, limit - used)
+        return remaining, resets_at
 
-    async def get_bucket(self, user_id: UUID, is_guest: bool = True) -> RateLimitBucket:
-        """Current bucket state without consuming."""
-        return await self.db.get_or_create_rate_limit(
-            user_id, default_tokens=self._capacity(is_guest)
-        )
-
-    async def get_quota(self, user_id: UUID, is_guest: bool = True) -> int:
-        """Fetch current quota without consuming."""
-        return (await self.get_bucket(user_id, is_guest)).tokens_remaining
-
-    async def refund(self, user_id: UUID, amount: int = 1) -> None:
-        """Refund ``amount`` tokens (capped at capacity) after a failed run. Best effort."""
+    async def refund(self, usage_id: UUID | None) -> None:
+        """Best-effort release_chat. Log and swallow errors."""
+        if not usage_id:
+            return
         try:
-            await self.db.refund_rate_limit(user_id, amount)
+            await self.db.release_chat(usage_id)
         except Exception as e:  # noqa: BLE001
-            logger.warning(f"Database rate limit refund failed: {e}")
+            logger.warning(f"Database chat refund failed: {e}")
 
     def reset_for_test(self) -> None:
-        """Clear in-process counters for test isolation."""
         guest_signup_limiter.reset_for_test()
-        guest_ip_llm_limiter.reset_for_test()
         google_auth_limiter.reset_for_test()
         refresh_limiter.reset_for_test()
 
 
-default_rate_limiter = TokenBucketLimiter(db=neon_db)
+default_chat_quota = ChatQuota(db=neon_db)

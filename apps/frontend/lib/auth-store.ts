@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { UserSession, GuestPassResponse, TokenResponse } from '@nexusagent/contracts';
 import { apiClient, setAuthTokenGetter, setOnUnauthorizedCallback } from './api-client';
 import { clearChatCache } from './chat-cache';
+import { getMachineId } from './machine-id';
 
 const STORAGE_KEY_TOKEN = 'nexusagent_token';
 const STORAGE_KEY_USER = 'nexusagent_user';
@@ -247,9 +248,13 @@ export const useAuthStore = create<AuthState>((set, get) => {
             set({ isGuestLoading: true, error: null });
             try {
                 const deviceId = getOrCreateDeviceId();
+                const machineId = await getMachineId();
                 const data = await apiClient<GuestPassResponse>('/api/auth/guest', {
                     method: 'POST',
-                    body: JSON.stringify({ deviceId: deviceId || undefined })
+                    body: JSON.stringify({
+                        deviceId: deviceId || undefined,
+                        machineId: machineId || undefined
+                    })
                 });
                 applySession(data.tokens.accessToken, data.user, { remaining: data.quotaRemaining, capacity: data.bucketCapacity, resetsAt: null });
                 return true;

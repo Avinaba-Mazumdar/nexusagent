@@ -8,7 +8,6 @@ import remarkGfm from 'remark-gfm';
 import { Check, Copy, Info, Terminal } from 'lucide-react';
 import type { Citation } from '@nexusagent/contracts';
 import { CitationPill } from './CitationPill';
-import { MermaidViewer } from './MermaidViewer';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -28,8 +27,8 @@ const SAFE_HREF = /^https?:\/\//i;
 
 type RehypePlugins = NonNullable<ComponentProps<typeof ReactMarkdown>['rehypePlugins']>;
 
-// Token colours come from the theme's syntax tokens (globals.css). Mermaid is rendered as a diagram, not code.
-const REHYPE_PLUGINS: RehypePlugins = [[rehypeHighlight, { plainText: ['mermaid'] }]];
+// Token colours come from the theme's syntax tokens (globals.css).
+const REHYPE_PLUGINS: RehypePlugins = [rehypeHighlight];
 
 function CodeBlock({ language, code, highlighted }: { language: string; code: string; highlighted?: React.ReactNode }) {
     const [copied, setCopied] = React.useState(false);
@@ -238,22 +237,6 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                     );
                 }
                 const trimmed = code.replace(/\n$/, '');
-                if (language === 'mermaid') {
-                    if (unclosedFenceTail !== null && unclosedFenceTail.includes(trimmed.slice(0, 40))) {
-                        return (
-                            <div className="my-2 p-3 rounded-xl border border-dashed border-primary/40 bg-secondary/20">
-                                <div className="flex items-center gap-2 text-xs font-mono text-primary font-semibold mb-1">
-                                    <span className="h-2 w-2 rounded-full bg-primary animate-ping" />
-                                    Streaming architecture diagram syntax...
-                                </div>
-                                <pre className="text-code font-mono text-muted-foreground overflow-x-auto">
-                                    <code>{trimmed}</code>
-                                </pre>
-                            </div>
-                        );
-                    }
-                    return <MermaidViewer chart={trimmed} isDark={isDark} />;
-                }
                 return <CodeBlock language={language} code={trimmed} highlighted={trimTrailingNewline(children)} />;
             }
         };

@@ -1,7 +1,7 @@
 [project]
 name = "nexusagent-backend"
 version = "0.1.0-alpha"
-description = "NexusAgent Autonomous Architecture Intelligence & Systems Design Engine"
+description = "NexusAgent: an open-source LLM benchmark assistant"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -19,6 +19,9 @@ dependencies = [
     "langchain-core>=1.6.5",
     "langchain-google-genai>=4.4.0",
     "tzdata>=2026.6",
+    "llama-index-core>=0.14.25",
+    "pypdf>=6.21.4",
+    "mcp>=2.3.0",
 ]
 
 [dependency-groups]

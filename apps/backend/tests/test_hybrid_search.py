@@ -116,14 +116,13 @@ def test_rrf_camelcase_metadata():
             "document_id": "d1",
             "content": "Test content",
             "similarity": 0.9,
-            "metadata": {"headerPath": ["A", "B"], "startLine": 3, "endLine": 9},
+            "metadata": {"headerPath": ["A", "B"], "page": 3},
         }
     ]
     fused = compute_rrf(dense_results=dense_candidates, sparse_results=[])
     assert len(fused) == 1
     assert fused[0].header_path == ["A", "B"]
-    assert fused[0].start_line == 3
-    assert fused[0].end_line == 9
+    assert fused[0].page == 3
 
 
 @pytest.mark.asyncio
@@ -136,21 +135,6 @@ async def test_search_raises_runtime_error_when_db_disconnected(monkeypatch):
     engine = HybridSearchEngine(db=None)
     with pytest.raises(RuntimeError, match="Knowledge base unavailable: database not connected"):
         await engine.search("Raft consensus")
-
-
-@pytest.mark.asyncio
-async def test_mcp_registry_catches_runtime_error(monkeypatch):
-    """Verify default_mcp_registry._exec_hybrid_search returns isError=True on RuntimeError (L-11)."""
-    from app.db.neon import neon_db
-    from app.mcp.registry import HybridRagSearchArgs, default_mcp_registry
-
-    monkeypatch.setattr(neon_db, "pool", None)
-
-    res = await default_mcp_registry._exec_hybrid_search(
-        HybridRagSearchArgs(query="Raft consensus")
-    )
-    assert res.isError is True
-    assert "Knowledge base unavailable" in res.content[0].text
 
 
 @pytest.mark.db
@@ -322,57 +306,6 @@ async def test_search_degrades_to_sparse_only_when_embedding_fails():
     db.search_chunks_dense.assert_not_called()
 
 
-def test_mcp_tool_schema_is_generated_from_the_validation_model():
-    """SEC-06: advertised schema and validation cannot drift."""
-    from app.mcp.registry import TOOLS
-
-    props = TOOLS[0].inputSchema.properties
-    assert props["limit"]["maximum"] == 20 and props["query"]["maxLength"] == 1000
-    assert TOOLS[0].inputSchema.required == ["query"]
-
-
-@pytest.mark.parametrize(
-    "arguments",
-    [{"query": "x", "limit": "abc"}, [], {"query": "q" * 1001}, {"query": "x", "extra": 1}, {}],
-)
-@pytest.mark.asyncio
-async def test_mcp_invalid_arguments_return_invalid_params(arguments):
-    """SEC-06: bad arguments are rejected as -32602 before any quota is consumed."""
-    from app.mcp.dispatch import dispatch_mcp_method
-    from app.mcp.protocol import INVALID_PARAMS, JsonRpcRequest
-
-    req = JsonRpcRequest(
-        id=1,
-        method="tools/call",
-        params={"name": "hybrid_rag_search", "arguments": arguments},
-    )
-    res = await dispatch_mcp_method(req)
-    assert res.error is not None and res.error.code == INVALID_PARAMS
-
-
-@pytest.mark.asyncio
-async def test_mcp_search_output_is_wrapped_as_untrusted(monkeypatch):
-    """SEC-10: chunks returned to external agents sit inside untrusted-context delimiters."""
-    from unittest.mock import AsyncMock
-
-    from app.mcp import registry
-    from app.rag.hybrid_search import HybridSearchResult
-
-    chunk = HybridSearchResult(
-        id="c1",
-        document_id="d1",
-        chunk_index=0,
-        content="Raft needs a quorum.",
-        filename="a.md",
-        similarity_score=0.1,
-    )
-    monkeypatch.setattr(
-        registry.default_hybrid_search_engine, "search", AsyncMock(return_value=[chunk])
-    )
-    res = await registry.McpRegistry._exec_hybrid_search(registry.HybridRagSearchArgs(query="raft"))
-    assert "<untrusted_document_context" in res.content[0].text
-
-
 @pytest.mark.asyncio
 async def test_embedding_retries_rate_limits_then_succeeds(monkeypatch):
     """R2-LOG-01: two 429s are retried; the third response is used."""
@@ -511,6 +444,6 @@ async def test_invalid_document_id_is_a_422_and_costs_nothing_r2_log_10(fake_rat
                 "/api/rag/search", json={"query": "raft", "documentId": "not-a-uuid"}
             )
         assert res.status_code == 422
-        assert fake_rate_db.tokens == {}  # no bucket was even created
+        assert len(fake_rate_db.rows) == 0  # no usage was created
     finally:
         app.dependency_overrides.pop(get_current_user, None)

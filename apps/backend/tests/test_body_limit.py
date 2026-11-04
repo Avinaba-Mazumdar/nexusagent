@@ -28,7 +28,7 @@ def _client() -> AsyncClient:
 
 
 async def test_oversized_upload_is_rejected_before_parsing(parse_calls):
-    files = {"file": ("big.md", b"a" * (3 * MB), "text/markdown")}
+    files = {"file": ("big.md", b"a" * (6 * MB), "text/markdown")}
     async with _client() as client:
         response = await client.post(UPLOAD_URL, files=files)
     assert response.status_code == 413
@@ -44,7 +44,7 @@ async def test_oversized_chunked_upload_is_rejected(parse_calls):
 
     async def body():
         yield head
-        for _ in range(3):
+        for _ in range(6):
             yield b"a" * MB
         yield b"\r\n--x--\r\n"
 

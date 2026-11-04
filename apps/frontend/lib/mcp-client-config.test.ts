@@ -1,25 +1,17 @@
 import { describe, expect, it } from 'vite-plus/test';
-import { CLIENT_SERVER_NAME, REPO_PATH_PLACEHOLDER, buildClientConfig } from './mcp-client-config';
+import { MCP_URL, buildClientConfig } from './mcp-client-config';
 
-describe('buildClientConfig', () => {
-    it('starts the stdio launcher through uv in the backend directory', () => {
-        const config = JSON.parse(buildClientConfig('C:/work/nexus-agent'));
-        const server = config.mcpServers[CLIENT_SERVER_NAME];
-
-        expect(server.command).toBe('uv');
-        expect(server.args).toEqual(['run', '--directory', 'C:/work/nexus-agent/apps/backend', 'python', '-m', 'app.mcp.server']);
+describe('mcp-client-config', () => {
+    it('exports an MCP_URL ending with /mcp', () => {
+        expect(MCP_URL).toMatch(/\/mcp$/);
     });
 
-    it('defaults to the placeholder path so the user has to fill it in', () => {
+    it('builds valid JSON config with http transport', () => {
         const config = JSON.parse(buildClientConfig());
-
-        expect(config.mcpServers[CLIENT_SERVER_NAME].args).toContain(`${REPO_PATH_PLACEHOLDER}/apps/backend`);
-    });
-
-    it('ignores trailing slashes on the checkout path', () => {
-        const config = JSON.parse(buildClientConfig('/home/dev/nexus-agent//'));
-
-        expect(config.mcpServers[CLIENT_SERVER_NAME].args[2]).toBe('/home/dev/nexus-agent/apps/backend');
+        expect(config.mcpServers.nexusagent).toEqual({
+            type: 'http',
+            url: MCP_URL
+        });
     });
 
     it('never writes secrets or database settings into the client file', () => {

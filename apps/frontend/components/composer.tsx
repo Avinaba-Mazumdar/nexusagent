@@ -40,10 +40,10 @@ export function Composer({ prompt, onPromptChange, onSubmit, onKeyDown, isStream
                     onChange={(e) => onPromptChange(e.target.value)}
                     onKeyDown={onKeyDown}
                     rows={1}
-                    aria-label="Architecture question"
+                    aria-label="Benchmark question"
                     maxLength={MAX_QUERY_CHARS}
                     aria-describedby={showCounter ? 'query-counter' : undefined}
-                    placeholder={quotaExhausted ? 'Out of free questions for now' : 'Ask an architecture question or query the benchmark knowledge base...'}
+                    placeholder={quotaExhausted ? 'Out of free questions for now' : 'Ask a question about LLM benchmarks (evals, leaderboards, pricing)...'}
                     className="w-full resize-none min-h-11 max-h-40 py-3 pl-3 pr-24 text-sm leading-relaxed rounded-xl bg-secondary/40 border border-border text-foreground placeholder:text-muted-foreground focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 {isStreaming ? (

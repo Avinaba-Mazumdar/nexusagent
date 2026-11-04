@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from app.core.access import require_document_access
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
-from app.core.rate_limiter import default_rate_limiter
+from app.core.rate_limiter import default_chat_quota
 from app.db.models import User, WireModel
 from app.db.neon import NeonDatabase, get_db
 from app.rag.hybrid_search import (
@@ -102,11 +102,7 @@ async def hybrid_search_documents(
     if doc_uuid:
         await require_document_access(db, doc_uuid, current_user)
 
-    await default_rate_limiter.check_and_consume(
-        user_id=current_user.id,
-        client_ip=client_ip,
-        is_guest=current_user.is_guest,
-    )
+    await default_chat_quota.reserve(current_user, client_ip)
 
     engine = HybridSearchEngine(db=db)
     start_time = time.perf_counter()

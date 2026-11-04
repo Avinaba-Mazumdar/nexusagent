@@ -27,8 +27,7 @@ class HybridSearchResult(BaseModel):
     sparse_rank: int | None = None
     dense_score: float | None = None
     sparse_score: float | None = None
-    start_line: int | None = None
-    end_line: int | None = None
+    page: int | None = None
     header_path: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -123,8 +122,7 @@ def compute_rrf(
                 sparse_score=round(entry["sparse_score"], 4)
                 if entry["sparse_score"] is not None
                 else None,
-                start_line=meta.get("startLine"),
-                end_line=meta.get("endLine"),
+                page=meta.get("page"),
                 header_path=header_path,
                 metadata=meta,
             )
@@ -150,7 +148,6 @@ class HybridSearchEngine:
     async def search(
         self,
         query: str,
-        user_id: UUID | None = None,
         document_id: UUID | None = None,
         limit: int = 5,
         dense_weight: float = DEFAULT_DENSE_WEIGHT,
@@ -179,7 +176,6 @@ class HybridSearchEngine:
                 return []
             return await self.db.search_chunks_dense(
                 query_embedding=embedding,
-                user_id=user_id,
                 document_id=document_id,
                 limit=candidate_limit,
             )
@@ -188,7 +184,6 @@ class HybridSearchEngine:
             dense(),
             self.db.search_chunks_lexical(
                 query=clean_query,
-                user_id=user_id,
                 document_id=document_id,
                 limit=candidate_limit,
             ),

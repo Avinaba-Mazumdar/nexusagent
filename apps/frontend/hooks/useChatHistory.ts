@@ -7,7 +7,8 @@ import type {
     ChatHistoryResponse,
     ChatConversationDetailResponse,
     Citation,
-    InjectionWarning
+    InjectionWarning,
+    WebSource
 } from '@nexusagent/contracts';
 import { apiClient } from '@/lib/api-client';
 import { readConversations, readMessages, removeMessages, writeConversations, writeMessages } from '@/lib/chat-cache';
@@ -18,14 +19,20 @@ export interface ChatItem {
     content: string;
     citations?: Citation[];
     warnings?: InjectionWarning[];
+    webSources?: WebSource[];
     query?: string;
     error?: string;
     stopped?: boolean;
 }
 
-/** Citations are stored with the assistant message so reloaded answers keep their source pills. */
+/** Citations and web sources are stored with the assistant message so reloaded answers keep their sources. */
 function citationsOf(message: ChatMessageRecord): Citation[] | undefined {
     const stored = (message.reflectionSummary as { citations?: Citation[] } | null | undefined)?.citations;
+    return Array.isArray(stored) && stored.length > 0 ? stored : undefined;
+}
+
+function webSourcesOf(message: ChatMessageRecord): WebSource[] | undefined {
+    const stored = (message.reflectionSummary as { webSources?: WebSource[] } | null | undefined)?.webSources;
     return Array.isArray(stored) && stored.length > 0 ? stored : undefined;
 }
 
@@ -147,7 +154,8 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
                     id: m.id,
                     role: m.role as 'user' | 'assistant',
                     content: m.content,
-                    citations: citationsOf(m)
+                    citations: citationsOf(m),
+                    webSources: webSourcesOf(m)
                 }))
             );
         } else if (isLoading) {

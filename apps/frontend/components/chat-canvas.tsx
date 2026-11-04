@@ -225,6 +225,25 @@ export function ChatCanvas({
                                                 ) : (
                                                     !msg.stopped && <span className="text-muted-foreground italic">No response.</span>
                                                 )}
+                                                {msg.webSources && msg.webSources.length > 0 && (
+                                                    <div className="mt-2.5 pt-2 border-t border-border/60 text-xs" data-testid="web-sources">
+                                                        <span className="text-muted-foreground font-semibold">Sources:</span>
+                                                        <ul className="mt-1 space-y-1">
+                                                            {msg.webSources.map((s, idx) => (
+                                                                <li key={idx} className="truncate">
+                                                                    <a
+                                                                        href={s.url}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="text-primary hover:underline"
+                                                                    >
+                                                                        {s.title || s.url}
+                                                                    </a>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
                                                 {msg.warnings && msg.warnings.length > 0 && (
                                                     <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground" data-testid="injection-warning">
                                                         <Info className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />

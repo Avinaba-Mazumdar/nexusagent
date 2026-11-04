@@ -9,8 +9,7 @@ const citation: Citation = {
     chunkId: 'chunk-2',
     documentId: 'doc-1',
     filename: 'benchlm_evals.md',
-    startLine: 10,
-    endLine: 14,
+    page: 3,
     headerPath: ['Benchmarks'],
     preview: 'short'
 };
@@ -30,7 +29,7 @@ describe('SourceDialog', () => {
 
         expect(await screen.findByTestId('source-passage')).toHaveTextContent('The full cited passage.');
         expect(screen.getByText('benchlm_evals.md')).toBeInTheDocument();
-        expect(screen.getByText(/lines 10-14/)).toBeInTheDocument();
+        expect(screen.getByText(/page 3/)).toBeInTheDocument();
         expect(String(fetchMock.mock.calls[0][0])).toContain('/api/documents/doc-1/chunks/chunk-2');
     });
 

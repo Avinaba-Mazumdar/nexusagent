@@ -24,7 +24,7 @@ describe('useAgentStream Hook', () => {
         const sseEvents = [
             'event: start\ndata: {"sessionId": "test-session-123", "quotaRemaining": 3}\n\n',
             'event: plan\ndata: {"plan": [{"id": "1", "description": "Step 1: Retrieve context", "status": "pending", "agent": "retriever"}]}\n\n',
-            'event: node_start\ndata: {"node": "planner", "status": "running"}\n\n',
+            'event: node_start\ndata: {"node": "router", "status": "running"}\n\n',
             'event: token\ndata: {"token": "Hello "}\n\n',
             'event: token\ndata: {"token": "World!"}\n\n',
             'event: grounding\ndata: {"grounding": "grounded", "feedback": "Grounded in 1 retrieved sources."}\n\n',
@@ -66,11 +66,13 @@ describe('useAgentStream Hook', () => {
         expect(result.current.citations[0].filename).toBe('doc.md');
     });
 
-    it('replaces the streamed text when the server sends redact', async () => {
+    it('calls onUsage when a usage frame arrives', async () => {
+        const onUsageMock = vi.fn();
         const encoder = new TextEncoder();
         const body = [
-            'event: token\ndata: {"sessionId": "s", "token": "Partial answer "}\n\n',
-            'event: redact\ndata: {"sessionId": "s", "response": "Security Alert"}\n\n',
+            'event: start\ndata: {"sessionId": "s"}\n\n',
+            'event: usage\ndata: {"sessionId": "s", "step": "router", "model": "gemini-2.5-flash", "inputTokens": 45, "outputTokens": 10, "totalTokens": 55}\n\n',
+            'event: token\ndata: {"sessionId": "s", "token": "Answer"}\n\n',
             'event: done\ndata: {"sessionId": "s", "citations": []}\n\n'
         ].join('');
         const mockStream = new ReadableStream({
@@ -81,15 +83,64 @@ describe('useAgentStream Hook', () => {
         });
         global.fetch = vi.fn().mockResolvedValue({ ok: true, body: mockStream, status: 200 } as unknown as Response);
 
-        const { result } = renderHook(() => useAgentStream());
+        const { result } = renderHook(() => useAgentStream({ onUsage: onUsageMock }));
 
-        let run: Awaited<ReturnType<typeof result.current.startStream>> = null;
         await act(async () => {
-            run = await result.current.startStream({ query: 'Hello' });
+            await result.current.startStream({ query: 'Hello' });
         });
 
-        expect(result.current.streamedResponse).toBe('Security Alert');
-        expect(run).toMatchObject({ response: 'Security Alert' });
+        expect(onUsageMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                step: 'router',
+                model: 'gemini-2.5-flash',
+                inputTokens: 45,
+                outputTokens: 10,
+                totalTokens: 55
+            })
+        );
+    });
+
+    it('calls onToolCall and logs for google_search tool call', async () => {
+        const onToolCallMock = vi.fn();
+        const onToolResultMock = vi.fn();
+        const encoder = new TextEncoder();
+        const body = [
+            'event: start\ndata: {"sessionId": "s"}\n\n',
+            'event: tool_call\ndata: {"sessionId": "s", "tool": "google_search", "arguments": {"queries": ["weather Kolkata"]}}\n\n',
+            'event: tool_result\ndata: {"tool": "google_search", "chunksRetrieved": 1, "durationMs": 145}\n\n',
+            'event: done\ndata: {"sessionId": "s", "citations": []}\n\n'
+        ].join('');
+        const mockStream = new ReadableStream({
+            pull(controller) {
+                controller.enqueue(encoder.encode(body));
+                controller.close();
+            }
+        });
+        global.fetch = vi.fn().mockResolvedValue({ ok: true, body: mockStream, status: 200 } as unknown as Response);
+
+        const logs: Array<{ stage: string; message: string }> = [];
+        const { result } = renderHook(() =>
+            useAgentStream({
+                onLog: (e) => logs.push(e),
+                onToolCall: onToolCallMock,
+                onToolResult: onToolResultMock
+            })
+        );
+
+        await act(async () => {
+            await result.current.startStream({ query: 'weather Kolkata' });
+        });
+
+        expect(onToolCallMock).toHaveBeenCalledWith({
+            tool: 'google_search',
+            args: { queries: ['weather Kolkata'] }
+        });
+        expect(onToolResultMock).toHaveBeenCalledWith({
+            tool: 'google_search',
+            chunksRetrieved: 1,
+            durationMs: 145
+        });
+        expect(logs.some((l) => l.message.includes('Google Search: "weather Kolkata"'))).toBe(true);
     });
 
     it('handles stream HTTP error responses', async () => {

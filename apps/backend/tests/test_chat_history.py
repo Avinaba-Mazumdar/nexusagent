@@ -24,7 +24,7 @@ async def test_chat_history_guest_forbidden():
     guest_id = uuid4()
     guest_user = User(
         id=guest_id,
-        name="Guest Architect",
+        name="Guest User",
         is_guest=True,
     )
     if neon_db.pool:

@@ -215,7 +215,7 @@ export interface paths {
         };
         /**
          * List Documents
-         * @description List documents visible to the caller: seeded documents, plus the user's uploads if signed in.
+         * @description List all documents in the knowledge base.
          */
         get: operations['list_documents_api_documents_get'];
         put?: never;
@@ -237,8 +237,8 @@ export interface paths {
         put?: never;
         /**
          * Upload Document
-         * @description Upload and parse markdown or RFC documents.
-         *     Enforces file size ceiling (1MB), computes SHA-256 hash, runs the markdown header parser,
+         * @description Upload and parse PDF or markdown benchmark documents (admin only).
+         *     Enforces file size ceiling (5MB), computes SHA-256 hash, runs LlamaIndex chunking,
          *     and batch persists document record and chunk rows into Neon PostgreSQL.
          */
         post: operations['upload_document_api_documents_upload_post'];
@@ -260,7 +260,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Document
-         * @description Delete one of the caller's uploaded documents and its chunks.
+         * @description Delete a document and its chunks (admin only).
          */
         delete: operations['delete_document_api_documents__document_id__delete'];
         options?: never;
@@ -277,7 +277,7 @@ export interface paths {
         };
         /**
          * Get Document Chunk
-         * @description Fetch one chunk (the passage a citation points at) with its line-level section metadata.
+         * @description Fetch one chunk (the passage a citation points at) with its section metadata.
          */
         get: operations['get_document_chunk_api_documents__document_id__chunks__chunk_id__get'];
         put?: never;
@@ -302,70 +302,6 @@ export interface paths {
         get: operations['get_health_api_health_get'];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    '/api/mcp/messages': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Mcp Messages Endpoint
-         * @description Inbound JSON-RPC 2.0 message handler for active SSE client sessions.
-         *     Pushes response frame to client's SSE stream.
-         */
-        post: operations['mcp_messages_endpoint_api_mcp_messages_post'];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    '/api/mcp/sse': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Mcp Sse Endpoint
-         * @description MCP Server-Sent Events (SSE) stream initialization.
-         *     Complies with MCP transport specification: emits 'endpoint' event with target URL for POST messages.
-         *     Requires authentication: MCP clients reach the production database via these routes.
-         */
-        get: operations['mcp_sse_endpoint_api_mcp_sse_get'];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    '/api/mcp/v1': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Direct Jsonrpc Gateway
-         * @description Direct HTTP JSON-RPC 2.0 gateway accepting tools/list, tools/call, and resources/list.
-         *     Requires authentication: tools/call reaches the production database.
-         */
-        post: operations['direct_jsonrpc_gateway_api_mcp_v1_post'];
         delete?: never;
         options?: never;
         head?: never;
@@ -402,7 +338,10 @@ export interface components {
          * @description Payload of the final `done` SSE event. The answer text itself arrives as `token` events.
          */
         AgentDoneEventWire: {
-            /** Citations */
+            /**
+             * Citations
+             * @default []
+             */
             citations: components['schemas']['CitationWire'][];
             /**
              * Completedat
@@ -419,12 +358,13 @@ export interface components {
              * @enum {string}
              */
             grounding: 'grounded' | 'weak' | 'none';
-            /** Injectionwarnings */
+            /**
+             * Injectionwarnings
+             * @default []
+             */
             injectionWarnings: components['schemas']['InjectionWarningWire'][];
             /** Iscomplete */
             isComplete: boolean;
-            /** Mermaiddiagrams */
-            mermaidDiagrams: string[];
             /**
              * Model
              * @default null
@@ -438,17 +378,22 @@ export interface components {
             query: string;
             /** Sessionid */
             sessionId: string;
+            /**
+             * Websources
+             * @default []
+             */
+            webSources: components['schemas']['WebSourceWire'][];
         };
         /** AgentStreamRequestWire */
         AgentStreamRequestWire: {
             /**
              * Documentid
-             * @description Optional document UUID filter to scope retrieval to a specific RFC/document
+             * @description Optional document UUID filter to scope retrieval to a specific document
              */
             documentId?: string | null;
             /**
              * Query
-             * @description Natural language prompt or architectural inquiry for autonomous agent
+             * @description Natural language prompt or benchmark question for autonomous agent
              */
             query: string;
             /**
@@ -531,11 +476,6 @@ export interface components {
             chunkId: string;
             /** Documentid */
             documentId: string;
-            /**
-             * Endline
-             * @default null
-             */
-            endLine: number | null;
             /** Filename */
             filename: string;
             /** Headerpath */
@@ -544,13 +484,13 @@ export interface components {
             id: string;
             /** Label */
             label: string;
-            /** Preview */
-            preview: string;
             /**
-             * Startline
+             * Page
              * @default null
              */
-            startLine: number | null;
+            page: number | null;
+            /** Preview */
+            preview: string;
         };
         /** DocumentChunkWire */
         DocumentChunkWire: {
@@ -590,8 +530,8 @@ export interface components {
             totalChunks: number;
             /** Uploadedat */
             uploadedAt: string;
-            /** Userid */
-            userId?: string | null;
+            /** Uploadedby */
+            uploadedBy?: string | null;
         };
         /** DocumentUploadResponseWire */
         DocumentUploadResponseWire: {
@@ -612,6 +552,8 @@ export interface components {
         GuestPassRequest: {
             /** Deviceid */
             deviceId?: string | null;
+            /** Machineid */
+            machineId?: string | null;
         };
         /** GuestPassResponse */
         GuestPassResponse: {
@@ -747,18 +689,6 @@ export interface components {
             /** Tokensremaining */
             tokensRemaining: number;
         };
-        /**
-         * RetrievalToolArguments
-         * @description What the agent passes to `hybrid_rag_search`; the same values the tool audit log records.
-         */
-        RetrievalToolArguments: {
-            /** Documentscoped */
-            documentScoped: boolean;
-            /** Limit */
-            limit: number;
-            /** Query */
-            query: string;
-        };
         /** SseErrorEvent */
         SseErrorEvent: {
             /** Error */
@@ -795,16 +725,6 @@ export interface components {
             /** Sessionid */
             sessionId: string;
         };
-        /**
-         * SseRedactEvent
-         * @description Replace everything streamed so far with ``response`` (sent after a canary-token leak).
-         */
-        SseRedactEvent: {
-            /** Response */
-            response: string;
-            /** Sessionid */
-            sessionId: string;
-        };
         /** SseStartEvent */
         SseStartEvent: {
             /** Query */
@@ -834,25 +754,54 @@ export interface components {
          * @description Sent just before a tool runs. The matching `tool_result` follows when it finishes.
          */
         SseToolCallEvent: {
-            arguments: components['schemas']['RetrievalToolArguments'];
+            /** Arguments */
+            arguments: {
+                [key: string]: unknown;
+            };
             /** Sessionid */
             sessionId: string;
             /**
              * Tool
-             * @constant
+             * @enum {string}
              */
-            tool: 'hybrid_rag_search';
+            tool: 'hybrid_rag_search' | 'google_search';
         };
         /** SseToolResultEvent */
         SseToolResultEvent: {
             /** Chunksretrieved */
             chunksRetrieved: number;
-            /** Citations */
+            /**
+             * Citations
+             * @default []
+             */
             citations: components['schemas']['CitationWire'][];
-            /** Injectionwarnings */
+            /**
+             * Durationms
+             * @default null
+             */
+            durationMs: number | null;
+            /**
+             * Injectionwarnings
+             * @default []
+             */
             injectionWarnings: components['schemas']['InjectionWarningWire'][];
             /** Tool */
             tool: string;
+        };
+        /** SseUsageEvent */
+        SseUsageEvent: {
+            /** Inputtokens */
+            inputTokens: number;
+            /** Model */
+            model: string;
+            /** Outputtokens */
+            outputTokens: number;
+            /** Sessionid */
+            sessionId: string;
+            /** Step */
+            step: string;
+            /** Totaltokens */
+            totalTokens: number;
         };
         /** SuccessResponse */
         SuccessResponse: {
@@ -894,6 +843,11 @@ export interface components {
             email?: string | null;
             /** Id */
             id: string;
+            /**
+             * Isadmin
+             * @default false
+             */
+            isAdmin: boolean;
             /** Isguest */
             isGuest: boolean;
             /** Lastseenat */
@@ -913,6 +867,13 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WebSourceWire */
+        WebSourceWire: {
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
     };
     responses: never;
@@ -945,20 +906,20 @@ export type InjectionWarningWire = components['schemas']['InjectionWarningWire']
 export type MeResponse = components['schemas']['MeResponse'];
 export type PlanStepWire = components['schemas']['PlanStepWire'];
 export type QuotaStatus = components['schemas']['QuotaStatus'];
-export type RetrievalToolArguments = components['schemas']['RetrievalToolArguments'];
 export type SseErrorEvent = components['schemas']['SseErrorEvent'];
 export type SseGroundingEvent = components['schemas']['SseGroundingEvent'];
 export type SseNodeStartEvent = components['schemas']['SseNodeStartEvent'];
 export type SsePlanEvent = components['schemas']['SsePlanEvent'];
-export type SseRedactEvent = components['schemas']['SseRedactEvent'];
 export type SseStartEvent = components['schemas']['SseStartEvent'];
 export type SseTokenEvent = components['schemas']['SseTokenEvent'];
 export type SseToolCallEvent = components['schemas']['SseToolCallEvent'];
 export type SseToolResultEvent = components['schemas']['SseToolResultEvent'];
+export type SseUsageEvent = components['schemas']['SseUsageEvent'];
 export type SuccessResponse = components['schemas']['SuccessResponse'];
 export type TokenResponse = components['schemas']['TokenResponse'];
 export type UserSession = components['schemas']['UserSession'];
 export type ValidationError = components['schemas']['ValidationError'];
+export type WebSourceWire = components['schemas']['WebSourceWire'];
 export type $defs = Record<string, never>;
 export interface operations {
     root__get: {
@@ -1381,78 +1342,6 @@ export interface operations {
         };
     };
     get_health_api_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': unknown;
-                };
-            };
-        };
-    };
-    mcp_messages_endpoint_api_mcp_messages_post: {
-        parameters: {
-            query: {
-                /** @description Active MCP SSE session ID */
-                sessionId: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
-        };
-    };
-    mcp_sse_endpoint_api_mcp_sse_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': unknown;
-                };
-            };
-        };
-    };
-    direct_jsonrpc_gateway_api_mcp_v1_post: {
         parameters: {
             query?: never;
             header?: never;

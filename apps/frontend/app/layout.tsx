@@ -28,9 +28,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-    title: 'NexusAgent — Autonomous Systems Analyst',
-    description:
-        'Enterprise-grade autonomous systems analyst and architecture intelligence engine powered by LangGraph, Neon PostgreSQL 18, and the Model Context Protocol.',
+    title: 'NexusAgent: an open-source LLM benchmark assistant',
+    description: 'An open-source LLM benchmark assistant powered by LangGraph, Neon PostgreSQL 18, and the Model Context Protocol.',
     icons: {
         icon: [
             { url: '/favicon.ico', sizes: 'any' },

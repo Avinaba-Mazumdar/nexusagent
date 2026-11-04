@@ -5,14 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.agent.graph import AgentGraph, classify_query_intent, default_agent_graph
+from app.agent.graph import AgentGraph, default_agent_graph, prefilter
 from app.agent.run import AgentRun
 from app.agent.state import Intent
 from app.config import settings
 from app.core.access import require_document_access
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
-from app.core.rate_limiter import default_rate_limiter
+from app.core.rate_limiter import default_chat_quota
 from app.db.models import User
 from app.db.neon import neon_db
 
@@ -24,11 +24,11 @@ class AgentStreamRequestWire(BaseModel):
         ...,
         min_length=1,
         max_length=2000,
-        description="Natural language prompt or architectural inquiry for autonomous agent",
+        description="Natural language prompt or benchmark question for autonomous agent",
     )
     documentId: str | None = Field(
         None,
-        description="Optional document UUID filter to scope retrieval to a specific RFC/document",
+        description="Optional document UUID filter to scope retrieval to a specific document",
     )
     sessionId: str | None = Field(
         None,
@@ -48,6 +48,7 @@ def generate_agent_stream(
     quota_charged: bool = True,
     chat_history: list[dict[str, str]] | None = None,
     conversation_id: UUID | None = None,
+    usage_id: UUID | None = None,
 ) -> AsyncIterator[str]:
     """SSE frames for one agent run; the event order is documented on ``AgentRun``."""
     return AgentRun(
@@ -62,6 +63,7 @@ def generate_agent_stream(
         quota_charged=quota_charged,
         chat_history=chat_history,
         conversation_id=conversation_id,
+        usage_id=usage_id,
     ).frames()
 
 
@@ -87,7 +89,7 @@ async def stream_agent_execution(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid documentId UUID format",
             )
-        await require_document_access(neon_db, doc_uuid, current_user)
+        await require_document_access(neon_db, doc_uuid)
 
     session_id = uuid4().hex
     chat_history: list[dict[str, str]] = []
@@ -106,20 +108,16 @@ async def stream_agent_execution(
                 resumed_conversation = requested
                 chat_history = [{"role": r["role"], "content": r["content"]} for r in rows]
 
-    # Out-of-scope refusals cost nothing, so they are not metered.
-    intent = classify_query_intent(payload.query, has_history=bool(chat_history))
-    quota_charged = intent != "out_of_scope"
-    if quota_charged:
-        remaining = await default_rate_limiter.check_and_consume(
-            user_id=current_user.id,
-            client_ip=client_ip,
-            is_guest=current_user.is_guest,
-        )
+    # Prefilter refusals cost nothing and are not metered; router refusals are metered.
+    if prefilter(payload.query):
+        intent: Intent | None = "refuse"
+        quota_charged = False
+        usage_id: UUID | None = None
+        remaining, _ = await default_chat_quota.status(current_user, client_ip)
     else:
-        remaining = await default_rate_limiter.get_quota(
-            user_id=current_user.id,
-            is_guest=current_user.is_guest,
-        )
+        intent = None
+        quota_charged = True
+        usage_id, remaining = await default_chat_quota.reserve(current_user, client_ip)
 
     return StreamingResponse(
         generate_agent_stream(
@@ -134,6 +132,7 @@ async def stream_agent_execution(
             quota_charged=quota_charged,
             chat_history=chat_history,
             conversation_id=resumed_conversation,
+            usage_id=usage_id,
         ),
         media_type="text/event-stream",
         headers={

@@ -66,10 +66,13 @@ class ModelRouter:
         self._clock = clock
         self._cooling_until: dict[str, float] = {}
 
-    def candidates(self) -> list[str]:
+    def candidates(self, prefer_lite: bool = False) -> list[str]:
         """Configured models that are not cooling down, in preference order."""
         now = self._clock()
-        return [m for m in self.models if self._cooling_until.get(m, 0.0) <= now]
+        available = [m for m in self.models if self._cooling_until.get(m, 0.0) <= now]
+        if prefer_lite:
+            return sorted(available, key=lambda m: 0 if "lite" in m.lower() else 1)
+        return available
 
     def mark_rate_limited(self, model: str, exc: BaseException) -> None:
         seconds = rate_limit_cooldown(exc, self._clock())

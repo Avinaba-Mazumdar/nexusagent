@@ -35,7 +35,6 @@ async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentS
                     CitationWire.model_validate(c).model_dump(by_alias=True)
                     for c in state.citations
                 ],
-                "mermaidDiagrams": state.mermaid_diagrams,
             },
         )
         return str(conv["id"])

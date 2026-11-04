@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-NexusAgent scheduled cleanup: expired guest sessions and old audit rows.
+NexusAgent scheduled cleanup: expired guest sessions, old chat usage, and old audit rows.
 Purges guest users older than specified TTL (default 24 hours).
 Foreign keys automatically cascade deletion to:
-  - rate_limit_buckets
   - documents (guest-uploaded)
   - document_chunks
 
@@ -57,6 +56,9 @@ async def main():
         logger.info(f"Running guest TTL pruner for records older than {args.ttl} hours...")
         deleted_count = await neon_db.prune_expired_guests(ttl_hours=args.ttl)
         logger.info(f"Cleanup complete. Total pruned guest sessions: {deleted_count}")
+
+        usage_deleted = await neon_db.prune_chat_usage(older_than_hours=48)
+        logger.info(f"Total chat_usage rows older than 48 hours removed: {usage_deleted}")
 
         audit_deleted = await neon_db.prune_audit_logs(retention_days=args.audit_days)
         logger.info(f"Total audit rows older than {args.audit_days} days removed: {audit_deleted}")

@@ -4,7 +4,7 @@ import os
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.config import settings
+from app.config import REPO_ROOT, settings
 from app.db.neon import neon_db
 from app.main import app
 
@@ -139,6 +139,7 @@ def test_importing_the_app_enables_info_logging_r2_ops_05():
     code = "import logging; import app.main; print(logging.getLogger().getEffectiveLevel())"
     result = subprocess.run(
         [sys.executable, "-c", code],
+        cwd=str(REPO_ROOT / "apps" / "backend"),
         capture_output=True,
         text=True,
         env={**os.environ, "ENVIRONMENT": "test", "LOG_LEVEL": "INFO"},

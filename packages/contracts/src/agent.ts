@@ -1,4 +1,4 @@
-import type { AgentDoneEventWire, CitationWire, InjectionWarningWire, PlanStepWire } from './generated';
+import type { AgentDoneEventWire, CitationWire, InjectionWarningWire, PlanStepWire, SseUsageEvent, WebSourceWire } from './generated';
 
 export type PlanStep = PlanStepWire;
 
@@ -10,6 +10,12 @@ export type Grounding = AgentDoneEventWire['grounding'];
 /** Retrieved text that looks like instructions (kept inside untrusted delimiters, but reported). */
 export type InjectionWarning = InjectionWarningWire;
 
+/** Token usage record for a pipeline step. */
+export type UsageEvent = SseUsageEvent;
+
+/** Web source from Google Search grounding. */
+export type WebSource = WebSourceWire;
+
 /** Payload of the final `done` SSE event. */
 export type AgentInvokeResponse = AgentDoneEventWire;
 
@@ -19,9 +25,10 @@ export type {
     SseGroundingEvent,
     SseNodeStartEvent,
     SsePlanEvent,
-    SseRedactEvent,
     SseStartEvent,
     SseTokenEvent,
     SseToolCallEvent,
-    SseToolResultEvent
+    SseToolResultEvent,
+    SseUsageEvent,
+    WebSourceWire
 } from './generated';

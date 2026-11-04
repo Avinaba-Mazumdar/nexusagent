@@ -10,8 +10,7 @@ const mockCitation: Citation = {
     chunkId: 'chk-1',
     documentId: 'doc-1',
     filename: 'RFC-104-Raft.md',
-    startLine: 120,
-    endLine: 145,
+    page: 12,
     headerPath: ['Consensus', 'Leader Election'],
     preview: 'In Raft, leader election is initiated when a follower election timeout elapses.'
 };
@@ -24,18 +23,18 @@ const renderPill = (citation: Citation, onClick?: (c: Citation) => void) =>
     );
 
 describe('CitationPill Component', () => {
-    it('renders label, filename and line range badge', () => {
+    it('renders label, filename and page badge', () => {
         renderPill(mockCitation);
 
         expect(screen.getByText('S1')).toBeInTheDocument();
         expect(screen.getByText('RFC-104-Raft.md')).toBeInTheDocument();
-        expect(screen.getByText('L120-145')).toBeInTheDocument();
+        expect(screen.getByText('p. 12')).toBeInTheDocument();
     });
 
-    it('renders single line notation when startLine equals endLine', () => {
-        renderPill({ ...mockCitation, filename: 'benchmark.md', startLine: 42, endLine: 42 });
+    it('renders without page badge when page is null', () => {
+        renderPill({ ...mockCitation, filename: 'benchmark.md', page: null });
 
-        expect(screen.getByText('L42')).toBeInTheDocument();
+        expect(screen.queryByText(/p\./)).not.toBeInTheDocument();
     });
 
     it('passes the full citation to onClick', () => {

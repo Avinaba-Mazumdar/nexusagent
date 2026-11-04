@@ -7,7 +7,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from '@/lib/limits';
 import { HireMeModal } from '@/components/hire-me-modal';
-import { ObservabilityPanel, type LogEntry, type TelemetryMetrics } from '@/components/observability-panel';
+import { ObservabilityPanel, type LogEntry, type TelemetryMetrics, type ToolCallItem } from '@/components/observability-panel';
 import { AgentStreamError, useAgentStream } from '@/hooks/useAgentStream';
 import { AppHeader } from '@/components/app-header';
 import { SignInDialog } from '@/components/sign-in-dialog';
@@ -15,7 +15,7 @@ import { WorkspaceSidebar, type WorkspaceDoc, type UploadState } from '@/compone
 import { ChatCanvas } from '@/components/chat-canvas';
 import { Composer } from '@/components/composer';
 import { useChatHistory, type ChatItem } from '@/hooks/useChatHistory';
-import type { ChatConversation, Citation, DocumentListResponse, DocumentMetadata, DocumentUploadResponse } from '@nexusagent/contracts';
+import type { ChatConversation, Citation, DocumentListResponse, DocumentMetadata, DocumentUploadResponse, UsageEvent } from '@nexusagent/contracts';
 import { SourceDialog } from '@/components/canvas';
 
 const MAX_LOG_ENTRIES = 200;
@@ -58,6 +58,9 @@ export default function Home() {
 
     const [metrics, setMetrics] = React.useState<TelemetryMetrics>({ firstTokenMs: null, totalLatencyMs: null });
     const [logs, setLogs] = React.useState<LogEntry[]>([]);
+    const [usage, setUsage] = React.useState<UsageEvent[]>([]);
+    const [sessionTokens, setSessionTokens] = React.useState<{ input: number; output: number; total: number }>({ input: 0, output: 0, total: 0 });
+    const [toolCalls, setToolCalls] = React.useState<ToolCallItem[]>([]);
 
     const {
         user,
@@ -102,7 +105,32 @@ export default function Home() {
     const agentStream = useAgentStream({
         onLog: (entry) => setLogs((prev) => [...prev, entry].slice(-MAX_LOG_ENTRIES)),
         onMetricUpdate: (updater) => setMetrics(updater),
-        onQuota: (remaining) => setQuotaRemaining(remaining)
+        onQuota: (remaining) => setQuotaRemaining(remaining),
+        onUsage: (event) => {
+            setUsage((prev) => [...prev, event]);
+            setSessionTokens((prev) => ({
+                input: prev.input + (event.inputTokens || 0),
+                output: prev.output + (event.outputTokens || 0),
+                total: prev.total + (event.totalTokens || 0)
+            }));
+        },
+        onToolCall: (call) => {
+            setToolCalls((prev) => [...prev, { tool: call.tool, args: call.args }]);
+        },
+        onToolResult: (result) => {
+            setToolCalls((prev) => {
+                const idx = [...prev].reverse().findIndex((c) => c.tool === result.tool);
+                if (idx === -1) return prev;
+                const realIdx = prev.length - 1 - idx;
+                const updated = [...prev];
+                updated[realIdx] = {
+                    ...updated[realIdx],
+                    durationMs: result.durationMs,
+                    resultsCount: result.chunksRetrieved
+                };
+                return updated;
+            });
+        }
     });
 
     const streamedResponseRef = React.useRef('');
@@ -281,6 +309,8 @@ export default function Home() {
     const streamInto = async (query: string, assistantMsgId: string) => {
         if (!token) return;
 
+        setUsage([]);
+        setToolCalls([]);
         stickToBottomRef.current = true;
         setStreamingMsgId(assistantMsgId);
         setLiveStatus('Generating response…');
@@ -337,7 +367,15 @@ export default function Home() {
             setMessages((prev) =>
                 prev.map((m) =>
                     m.id === assistantMsgId
-                        ? { ...m, content: result.response, citations: result.citations, warnings: result.injectionWarnings, error: undefined, stopped: false }
+                        ? {
+                              ...m,
+                              content: result.response,
+                              citations: result.citations,
+                              warnings: result.injectionWarnings,
+                              webSources: result.webSources,
+                              error: undefined,
+                              stopped: false
+                          }
                         : m
                 )
             );
@@ -424,6 +462,7 @@ export default function Home() {
             <div className="flex-1 flex overflow-hidden">
                 {/* 2. Workspace Panel (Left) */}
                 <WorkspaceSidebar
+                    isAdmin={Boolean(user?.isAdmin)}
                     mobileActiveTab={mobileActiveTab}
                     openCategories={openCategories}
                     onToggleCategory={toggleCategory}
@@ -489,8 +528,12 @@ export default function Home() {
                     metrics={metrics}
                     logs={logs}
                     currentNode={agentStream.currentNode}
+                    nodeHistory={agentStream.nodeHistory}
                     plan={agentStream.plan}
                     grounding={agentStream.grounding}
+                    usage={usage}
+                    sessionTokens={sessionTokens}
+                    toolCalls={toolCalls}
                     isStreaming={agentStream.isStreaming}
                     onClose={() => setIsObservabilityOpen(false)}
                     className={mobileActiveTab === 'observability' ? 'flex' : isObservabilityOpen ? 'hidden xl:flex' : 'hidden'}
@@ -527,7 +570,6 @@ export default function Home() {
                 isGoogleLoading={isGoogleLoading}
                 isGuestLoading={isGuestLoading}
                 error={error}
-                hasGuestDocuments={Boolean(user?.isGuest) && docs.some((d) => !d.isSeeded)}
                 onGuestLogin={async () => {
                     const ok = await loginGuest();
                     if (ok) setDialogOpen(false);

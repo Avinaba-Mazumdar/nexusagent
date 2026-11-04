@@ -80,7 +80,7 @@ export default function TermsAndConditionsPage() {
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">Fair Usage &amp; Quotas</h3>
                             <p className="text-xs text-muted-foreground leading-snug">
-                                Requests are subject to hourly token bucket quotas to ensure fair resource allocation across all users.
+                                Requests are subject to rolling 24-hour quotas to ensure fair resource allocation across all users.
                             </p>
                         </CardContent>
                     </Card>
@@ -166,14 +166,15 @@ export default function TermsAndConditionsPage() {
                             3. Autonomous Execution Disclaimer
                         </h2>
                         <p>
-                            NexusAgent utilizes autonomous agent planning algorithms that evaluate user inputs and can call a single read-only tool that
-                            searches the knowledge base and your uploaded documents. It never modifies data or executes code. You acknowledge and agree that:
+                            NexusAgent is an open-source assistant for LLM benchmark questions. It utilizes agent routing algorithms and reads public benchmark
+                            documents via read-only tools or Google Search for live facts. It never modifies data or executes code. You acknowledge and agree
+                            that:
                         </p>
                         <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
                             <p className="text-xs">
-                                Large language models are probabilistic and may produce hallucinations, inaccuracies, or incomplete architectural
-                                recommendations. All generated architecture blueprints, Mermaid diagrams, and benchmark evaluations must be independently
-                                validated before use in production settings.
+                                Large language models are probabilistic and may produce hallucinations, inaccuracies, or incomplete benchmark analysis. All
+                                generated evaluations, benchmark metrics, and source citations must be independently validated before use in production
+                                settings.
                             </p>
                         </div>
                     </section>
@@ -184,11 +185,14 @@ export default function TermsAndConditionsPage() {
                             <KeyRound className="h-4 w-4 text-primary" />
                             4. Usage Quotas &amp; Rate Limits
                         </h2>
-                        <p>To prevent abuse and ensure equitable availability, all requests are metered using an hourly token-bucket rate limiter.</p>
+                        <p>
+                            To prevent abuse and ensure equitable availability, all requests are metered using a rolling 24-hour window: 5 chats for guests, 25
+                            for Google accounts.
+                        </p>
                         <ul className="space-y-1.5 list-disc pl-5">
-                            <li>Guest sessions receive a small allowance of requests per hour.</li>
-                            <li>Google-authenticated sessions receive a larger allowance per hour. Your remaining allowance is shown in the app header.</li>
-                            <li>Exceeding the quota results in an HTTP 429 response until the bucket replenishes.</li>
+                            <li>Guest sessions receive 5 chats per rolling 24 hours.</li>
+                            <li>Google-authenticated sessions receive 25 chats per rolling 24 hours. Your remaining allowance is shown in the app header.</li>
+                            <li>Exceeding the quota results in an HTTP 429 response until the rolling window clears older chats.</li>
                         </ul>
                     </section>
 

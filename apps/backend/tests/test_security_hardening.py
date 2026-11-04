@@ -80,34 +80,6 @@ def test_wrap_untrusted_context_carries_label():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_mcp_gateway_requires_authentication():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        res = await client.post(
-            "/api/mcp/v1", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
-        )
-        assert res.status_code == 401
-
-
-@pytest.mark.db
-@pytest.mark.asyncio
-async def test_mcp_gateway_authenticated_roundtrip():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        guest = await client.post("/api/auth/guest", json={})
-        token = guest.json()["tokens"]["accessToken"]
-        headers = {"Authorization": f"Bearer {token}"}
-
-        res = await client.post(
-            "/api/mcp/v1",
-            headers=headers,
-            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
-        )
-        assert res.status_code == 200
-        assert "hybrid_rag_search" in [t["name"] for t in res.json()["result"]["tools"]]
-
-
 # ---------------------------------------------------------------------------
 # Audit-logs endpoint reads persisted DB rows
 # ---------------------------------------------------------------------------

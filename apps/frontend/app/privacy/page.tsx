@@ -54,8 +54,8 @@ export default function PrivacyPolicyPage() {
                     <h1 className="text-3xl sm:text-4xl font-heading font-extrabold tracking-tight text-foreground">Privacy Policy</h1>
                     <p className="text-sm sm:text-base text-muted-foreground leading-relaxed max-w-3xl">
                         This Privacy Policy governs the collection, processing, and protection of data on{' '}
-                        <strong className="text-foreground font-semibold">{SITE_HOST}</strong>, an open-source autonomous systems analyst and architecture
-                        intelligence platform. We keep the data we hold to a minimum and describe it below.
+                        <strong className="text-foreground font-semibold">{SITE_HOST}</strong>, an open-source LLM benchmark assistant. We keep the data we hold
+                        to a minimum and describe it below.
                     </p>
                 </div>
 
@@ -117,8 +117,11 @@ export default function PrivacyPolicyPage() {
                                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                                 <div>
                                     <strong className="text-foreground">Ephemeral Guest Pass Data:</strong> When launching an instant guest session, we create a
-                                    random account ID. We store your IP address and a hash of a device identifier (not the identifier itself) to enforce rate
-                                    limits and prevent abuse. No name, email, or physical identifier is collected.
+                                    random guest account ID. To enforce the 5 chats per rolling 24 hours allowance and prevent abuse, we store your client IP
+                                    address, a SHA-256 hash of a local random device identifier, and a SHA-256 hash of a browser-derived machine identifier
+                                    (neither raw identifier is ever stored or transmitted in plain text). Each query creates an entry in our chat usage ledger
+                                    containing these hashes and timestamp to compute your rolling 24-hour quota. No name, email, or physical identifier is
+                                    collected for guests.
                                 </div>
                             </li>
                             <li className="flex items-start gap-2">
@@ -126,16 +129,17 @@ export default function PrivacyPolicyPage() {
                                 <div>
                                     <strong className="text-foreground">Google OAuth Profile:</strong> If you elect to authenticate using Google Identity
                                     Services, we receive your verified email address, full name, and avatar URL. This allows persisting your conversation
-                                    history across devices. We also store the IP address of your most recent request for rate limiting.
+                                    history across devices. We also store your client IP and record query timestamps in the chat usage ledger to compute your
+                                    rolling 24-hour quota (25 chats per rolling 24 hours).
                                 </div>
                             </li>
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                                 <div>
-                                    <strong className="text-foreground">System Queries &amp; Document Ingestion:</strong> Prompts submitted to the Synthesis
-                                    Canvas and Markdown documents uploaded to the Document Vault are parsed and stored with vector embeddings in Neon
-                                    PostgreSQL. Your uploaded documents are only visible to your account (enforced by access checks in the application). The
-                                    text of your questions is also recorded in a tool audit log.
+                                    <strong className="text-foreground">System Queries &amp; Benchmark Documents:</strong> Prompts submitted to the chat
+                                    interface are evaluated against pre-indexed benchmark documents (Artificial Analysis, BenchLM, CursorBench, OpenRouter).
+                                    Document uploads (PDF and Markdown) are restricted strictly to authorized system administrators. The text of questions and
+                                    executed retrieval operations is recorded in an append-only tool audit log for security governance.
                                 </div>
                             </li>
                         </ul>

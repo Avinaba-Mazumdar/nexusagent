@@ -15,11 +15,10 @@ from app.core.auth import (
     verify_google_token,
 )
 from app.core.rate_limiter import (
-    default_rate_limiter,
+    default_chat_quota,
     enforce_ip_limit,
     google_auth_limiter,
     refresh_limiter,
-    resets_at,
 )
 from app.db.models import (
     GoogleAuthRequest,
@@ -46,7 +45,8 @@ async def create_guest_pass(
     """Issue 1-Click Ephemeral Guest Pass token pre-loaded with quota."""
     client_ip = get_client_ip(request)
     device_id = payload.deviceId if payload else None
-    return await issue_guest_pass(db, client_ip, device_id)
+    machine_id = payload.machineId if payload else None
+    return await issue_guest_pass(db, client_ip, device_id, machine_id)
 
 
 @router.post("/google", response_model=TokenResponse)
@@ -68,10 +68,7 @@ async def google_auth(
         client_ip=client_ip,
     )
 
-    tokens_remaining = await default_rate_limiter.get_quota(
-        user_id=user.id,
-        is_guest=False,
-    )
+    remaining, _resets_at = await default_chat_quota.status(user, client_ip)
 
     token_str, expires_in = create_access_token(data=session_claims(user))
 
@@ -80,7 +77,7 @@ async def google_auth(
         tokenType="bearer",
         expiresIn=expires_in,
         user=UserSession.model_validate(user),
-        quotaRemaining=tokens_remaining,
+        quotaRemaining=remaining,
         bucketCapacity=settings.USER_QUOTA_DEFAULT,
     )
 
@@ -96,19 +93,16 @@ async def get_current_user_profile(
     await db.update_user_last_seen(current_user.id, client_ip)
     current_user.client_ip = client_ip
 
-    bucket = await default_rate_limiter.get_bucket(
-        user_id=current_user.id,
-        is_guest=current_user.is_guest,
-    )
+    remaining, resets_at = await default_chat_quota.status(current_user, client_ip)
 
     return {
         "user": UserSession.model_validate(current_user),
         "quota": QuotaStatus(
-            tokensRemaining=bucket.tokens_remaining,
+            tokensRemaining=remaining,
             bucketCapacity=settings.GUEST_QUOTA_DEFAULT
             if current_user.is_guest
             else settings.USER_QUOTA_DEFAULT,
-            resetsAt=resets_at(bucket).isoformat(),
+            resetsAt=resets_at.isoformat(),
         ),
     }
 
@@ -148,10 +142,7 @@ async def refresh_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    tokens_remaining = await default_rate_limiter.get_quota(
-        user_id=current_user.id,
-        is_guest=current_user.is_guest,
-    )
+    remaining, _resets_at = await default_chat_quota.status(current_user, get_client_ip(request))
     token_str, expires_in = create_access_token(
         data=session_claims(current_user, auth_time=auth_time),
     )
@@ -161,7 +152,7 @@ async def refresh_token(
         tokenType="bearer",
         expiresIn=expires_in,
         user=UserSession.model_validate(current_user),
-        quotaRemaining=tokens_remaining,
+        quotaRemaining=remaining,
         bucketCapacity=settings.GUEST_QUOTA_DEFAULT
         if current_user.is_guest
         else settings.USER_QUOTA_DEFAULT,

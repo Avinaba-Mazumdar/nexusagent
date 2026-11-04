@@ -11,13 +11,12 @@ from app.agent.sse import (
     error_frame,
     node_frames,
     node_start_frame,
-    redact_frame,
     start_frame,
     token_frame,
     tool_call_frame,
 )
 from app.agent.state import AgentState, Intent
-from app.core.rate_limiter import default_rate_limiter
+from app.core.rate_limiter import default_chat_quota
 from app.services.conversations import persist_turn
 
 logger = logging.getLogger("nexusagent.agent.run")
@@ -40,7 +39,7 @@ class AgentRun:
         self,
         *,
         query: str,
-        intent: Intent,
+        intent: Intent | None = None,
         user_id: UUID | None,
         document_id: UUID | None,
         session_id: str,
@@ -50,6 +49,7 @@ class AgentRun:
         quota_charged: bool = True,
         chat_history: list[dict[str, str]] | None = None,
         conversation_id: UUID | None = None,
+        usage_id: UUID | None = None,
     ) -> None:
         self.query = query
         self.session_id = session_id
@@ -58,6 +58,7 @@ class AgentRun:
         self.is_guest = is_guest
         self.quota_remaining = quota_remaining
         self.quota_charged = quota_charged
+        self.usage_id = usage_id
         self.state = AgentState(
             session_id=session_id,
             user_id=user_id,
@@ -69,6 +70,7 @@ class AgentRun:
         )
         self._frames: asyncio.Queue[str | None] = asyncio.Queue()
         self._tokens_sent = False
+        self._usage_sent = 0
 
     async def frames(self) -> AsyncIterator[str]:
         """Run the pipeline in a task and yield its frames as they are produced."""
@@ -94,14 +96,15 @@ class AgentRun:
 
     async def _run_pipeline(self) -> None:
         try:
-            self._send(node_start_frame(self.session_id, "planner"))
+            self._send(node_start_frame(self.session_id, "router"))
             final_state = self.state
             async for node_name, step_state in self.graph.stream_steps(
                 self.state, on_token=self._on_token
             ):
                 final_state = step_state
-                for frame in node_frames(node_name, self.session_id, step_state):
+                for frame in node_frames(node_name, self.session_id, step_state, self._usage_sent):
                     self._send(frame)
+                self._usage_sent = len(step_state.usage)
                 self._announce_next(node_name, step_state)
 
             if final_state.error:
@@ -139,9 +142,6 @@ class AgentRun:
         # Planner refusals are fixed text, not model output: send them as one chunk.
         if not self._tokens_sent and final_state.response:
             self._send(token_frame(self.session_id, final_state.response))
-        # After a canary leak the streamed text is withdrawn and replaced by the alert.
-        elif final_state.canary_leaked:
-            self._send(redact_frame(self.session_id, final_state.response))
 
         # Persist before `done` so a client refetch sees the conversation; shield it so a
         # disconnect cannot cancel the write half-way.
@@ -153,9 +153,6 @@ class AgentRun:
         self._send(done_frame(self.session_id, conversation_id, self.query, final_state))
 
     async def _refund_unless_streamed(self) -> None:
-        if self._tokens_sent or not (self.user_id and self.quota_charged):
+        if self._tokens_sent or not self.usage_id:
             return
-        try:
-            await default_rate_limiter.refund(user_id=self.user_id)
-        except Exception as refund_err:  # noqa: BLE001
-            logger.warning(f"Could not refund rate limit token: {refund_err}")
+        await default_chat_quota.refund(self.usage_id)

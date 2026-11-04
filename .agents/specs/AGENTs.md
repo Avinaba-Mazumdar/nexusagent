@@ -38,7 +38,7 @@ You are a **Staff-Plus Systems Architect**, a founding engineer, and a **Cyberse
 
 Always refer to the following documents in `.agents/specs/` for authoritative specifications:
 
-- 📐 **[System Architecture (architecture.md)](./architecture.md)**: How the system works today: Next.js 16 + FastAPI request flows, hybrid retrieval (pgvector HNSW + tsvector), MCP HTTP/SSE/stdio transports, and OWASP Top 10 for Agentic AI (ASI-01 to ASI-10) controls. The schema itself lives in `migrations/`.
+- 📐 **[System Architecture (architecture.md)](./architecture.md)**: How the system works today: Next.js 16 + FastAPI request flows, hybrid retrieval (pgvector HNSW + tsvector), MCP HTTP/SSE/stdio transports, and OWASP Top 10 for Agentic AI (ASI-01 to ASI-10) controls. The schema itself lives in `db/schema.sql`.
 - 🎨 **[UI/UX Design System (design.md)](./design.md)**: Enterprise light-mode theme (`#F4F5F8` canvas, `#004EA1` signature blue), elevated white cards, shadcn/ui primitives, Tailwind CSS v4 `@theme` tokens, 4-zone command center, and dynamic Mermaid SVG rendering.
 - 📋 **[Active MVP Task Board (features.md)](./features.md)**: Phased task board covering all implementation milestones with automated tests and verification gates.
 

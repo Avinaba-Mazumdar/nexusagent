@@ -24,7 +24,7 @@ export function HireMeModal({ open, onOpenChange }: HireMeModalProps) {
                     <div className="flex items-center gap-2 mb-2">
                         <Badge variant="soft" className="gap-1 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider">
                             <Sparkles className="h-3 w-3 text-primary" />
-                            Custom Enterprise Architecture
+                            Custom Agent Systems
                         </Badge>
                     </div>
                     <DialogTitle className="text-xl font-heading font-extrabold tracking-tight text-foreground">
@@ -83,7 +83,7 @@ export function HireMeModal({ open, onOpenChange }: HireMeModalProps) {
                         <Button asChild variant="default" className="flex-1 justify-center gap-2 text-xs font-bold rounded-xl h-10 shadow-xs">
                             <a href={calUrl} target="_blank" rel="noreferrer">
                                 <Calendar className="h-4 w-4" />
-                                <span>Book Architecture Call</span>
+                                <span>Book an Intro Call</span>
                                 <ChevronRight className="h-3.5 w-3.5 opacity-70" />
                             </a>
                         </Button>

@@ -57,7 +57,12 @@ export function AppHeader({
         >
             <div className="flex items-center gap-3 min-w-0">
                 <NexusLogo className="h-8 w-8 rounded-xl shadow-xs shrink-0" aria-hidden="true" />
-                <span className="font-heading font-bold text-sm tracking-tight text-foreground truncate">NexusAgent</span>
+                <div className="flex items-baseline gap-2 min-w-0">
+                    <span className="font-heading font-bold text-sm tracking-tight text-foreground shrink-0">NexusAgent</span>
+                    <span className="hidden lg:inline text-xs text-muted-foreground truncate border-l border-border pl-2">
+                        an open-source LLM benchmark assistant
+                    </span>
+                </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
@@ -152,7 +157,7 @@ export function AppHeader({
                                 <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden">
                                     <div className="bg-primary h-full rounded-full transition-all duration-300" style={{ width: `${quotaPercent}%` }} />
                                 </div>
-                                <p className="text-xs text-muted-foreground">Refills every hour</p>
+                                <p className="text-xs text-muted-foreground">Rolling 24-hour quota</p>
                             </div>
 
                             {/* Theme Switch */}
