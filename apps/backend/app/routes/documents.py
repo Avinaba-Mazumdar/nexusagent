@@ -14,7 +14,6 @@ from app.core.auth import get_client_ip, get_current_user, get_current_user_opti
 from app.core.rate_limiter import default_rate_limiter
 from app.db.models import (
     Document,
-    DocumentChunk,
     DocumentChunkWire,
     DocumentListResponseWire,
     DocumentMetadataWire,
@@ -47,30 +46,6 @@ def safe_filename(raw: str | None) -> str:
     return name or "uploaded_document.md"
 
 
-def document_to_wire(d: Document) -> DocumentMetadataWire:
-    return DocumentMetadataWire(
-        id=str(d.id),
-        userId=str(d.user_id) if d.user_id else None,
-        filename=d.filename,
-        mimeType=d.mime_type,
-        sha256Hash=d.sha256_hash,
-        totalChunks=d.total_chunks,
-        isSeeded=d.is_seeded,
-        uploadedAt=d.uploaded_at.isoformat(),
-    )
-
-
-def chunk_to_wire(c: DocumentChunk) -> DocumentChunkWire:
-    return DocumentChunkWire(
-        id=str(c.id),
-        documentId=str(c.document_id),
-        chunkIndex=c.chunk_index,
-        content=c.content,
-        metadata=c.metadata,
-        createdAt=c.created_at.isoformat(),
-    )
-
-
 @router.get("", response_model=DocumentListResponseWire)
 async def list_documents(
     current_user: User | None = Depends(get_current_user_optional),
@@ -80,7 +55,9 @@ async def list_documents(
     List documents visible to the caller: seeded documents, plus the user's uploads if signed in.
     """
     docs = await db.list_all_documents(user_id=current_user.id if current_user else None)
-    return {"documents": [document_to_wire(d) for d in docs]}
+    return DocumentListResponseWire(
+        documents=[DocumentMetadataWire.model_validate(d) for d in docs]
+    )
 
 
 @router.get("/{document_id}/chunks/{chunk_id}", response_model=DocumentChunkWire)
@@ -95,7 +72,7 @@ async def get_document_chunk(
     chunk = await db.get_document_chunk(document_id, chunk_id)
     if not chunk:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found")
-    return chunk_to_wire(chunk)
+    return DocumentChunkWire.model_validate(chunk)
 
 
 @router.delete("/{document_id}", response_model=SuccessResponse)
@@ -181,10 +158,10 @@ async def upload_document(
             user_id=current_user.id, is_guest=current_user.is_guest
         )
         return DocumentUploadResponseWire(
-            document=document_to_wire(existing_doc),
-            chunksCount=existing_doc.total_chunks,
-            previewChunks=[chunk_to_wire(c) for c in existing_chunks],
-            quotaRemaining=current_quota,
+            document=DocumentMetadataWire.model_validate(existing_doc),
+            chunks_count=existing_doc.total_chunks,
+            preview_chunks=[DocumentChunkWire.model_validate(c) for c in existing_chunks],
+            quota_remaining=current_quota,
         )
 
     if not default_embedding_service.api_key:
@@ -263,8 +240,8 @@ async def upload_document(
     )
 
     return DocumentUploadResponseWire(
-        document=document_to_wire(saved_doc),
-        chunksCount=len(chunks),
-        previewChunks=[chunk_to_wire(c) for c in chunks[:5]],
-        quotaRemaining=remaining_quota,
+        document=DocumentMetadataWire.model_validate(saved_doc),
+        chunks_count=len(chunks),
+        preview_chunks=[DocumentChunkWire.model_validate(c) for c in chunks[:5]],
+        quota_remaining=remaining_quota,
     )

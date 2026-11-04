@@ -139,4 +139,54 @@ describe('useAgentStream Hook', () => {
         });
         expect(result.current.isStreaming).toBe(false);
     });
+
+    it('logs the retrieval call before its result arrives', async () => {
+        const encoder = new TextEncoder();
+        const body = [
+            'event: tool_call\ndata: {"sessionId": "s", "tool": "hybrid_rag_search", "arguments": {"query": "raft", "limit": 5, "documentScoped": false}}\n\n',
+            'event: tool_result\ndata: {"tool": "hybrid_rag_search", "chunksRetrieved": 0, "citations": [], "injectionWarnings": []}\n\n',
+            'event: done\ndata: {"sessionId": "s", "citations": []}\n\n'
+        ].join('');
+        const mockStream = new ReadableStream({
+            pull(controller) {
+                controller.enqueue(encoder.encode(body));
+                controller.close();
+            }
+        });
+        global.fetch = vi.fn().mockResolvedValue({ ok: true, body: mockStream, status: 200 } as unknown as Response);
+
+        const logs: Array<{ stage: string; message: string }> = [];
+        const { result } = renderHook(() => useAgentStream({ onLog: (entry) => logs.push(entry) }));
+
+        await act(async () => {
+            await result.current.startStream({ query: 'raft' });
+        });
+
+        const messages = logs.map((entry) => entry.message);
+        const callIndex = messages.indexOf('Calling hybrid_rag_search over all sources (top 5)');
+        expect(callIndex).toBeGreaterThan(-1);
+        expect(logs[callIndex].stage).toBe('RAG');
+        expect(messages.findIndex((m) => m.startsWith('Retrieved'))).toBeGreaterThan(callIndex);
+    });
+
+    it('names the selected document when the retrieval call is scoped to one', async () => {
+        const encoder = new TextEncoder();
+        const body =
+            'event: tool_call\ndata: {"sessionId": "s", "tool": "hybrid_rag_search", "arguments": {"query": "q", "limit": 5, "documentScoped": true}}\n\n';
+        const mockStream = new ReadableStream({
+            pull(controller) {
+                controller.enqueue(encoder.encode(body));
+                controller.close();
+            }
+        });
+        global.fetch = vi.fn().mockResolvedValue({ ok: true, body: mockStream, status: 200 } as unknown as Response);
+
+        const logs: Array<{ message: string }> = [];
+        const { result } = renderHook(() => useAgentStream({ onLog: (entry) => logs.push(entry) }));
+
+        await act(async () => {
+            await expect(result.current.startStream({ query: 'q' })).rejects.toThrow('The stream ended before a response was produced.');
+        });
+        expect(logs.map((entry) => entry.message)).toContain('Calling hybrid_rag_search over the selected document (top 5)');
+    });
 });

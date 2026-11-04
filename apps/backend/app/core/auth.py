@@ -92,19 +92,6 @@ def session_claims(user: User, auth_time: int | None = None) -> dict:
     }
 
 
-def user_to_session(user: User) -> UserSession:
-    """Convert User model to UserSession contract schema."""
-    return UserSession(
-        id=str(user.id),
-        email=user.email,
-        name=user.name,
-        avatarUrl=user.avatar_url,
-        isGuest=user.is_guest,
-        createdAt=user.created_at.isoformat(),
-        lastSeenAt=user.last_seen_at.isoformat(),
-    )
-
-
 def hash_device_id(device_id: str) -> str:
     """SHA-256 hash of device_id, so the raw credential is never stored or exposed."""
     return hashlib.sha256(device_id.encode("utf-8")).hexdigest()
@@ -214,7 +201,7 @@ async def issue_guest_pass(
     token_str, expires_in = create_access_token(data=session_claims(target_user))
 
     return GuestPassResponse(
-        user=user_to_session(target_user),
+        user=UserSession.model_validate(target_user),
         tokens=AuthTokens(
             accessToken=token_str,
             tokenType="bearer",

@@ -44,6 +44,14 @@
     --citation-bg: #e8f3fc;
     --citation-text: #004182;
     --citation-border: #93c5fd;
+
+    --syntax-keyword: #7c3aed;
+    --syntax-string: #047857;
+    --syntax-number: #b45309;
+    --syntax-comment: #64748b;
+    --syntax-title: #004ea1;
+    --syntax-type: #0e7490;
+    --syntax-attr: #be123c;
 }
 
 .dark {
@@ -88,6 +96,14 @@
     --citation-bg: #1e293b;
     --citation-text: #60a5fa;
     --citation-border: #3b82f6;
+
+    --syntax-keyword: #c4b5fd;
+    --syntax-string: #6ee7b7;
+    --syntax-number: #fcd34d;
+    --syntax-comment: #94a3b8;
+    --syntax-title: #60a5fa;
+    --syntax-type: #67e8f9;
+    --syntax-attr: #fda4af;
 }
 
 @theme {
@@ -132,6 +148,14 @@
     --color-citation-bg: var(--citation-bg);
     --color-citation-text: var(--citation-text);
     --color-citation-border: var(--citation-border);
+
+    --color-syntax-keyword: var(--syntax-keyword);
+    --color-syntax-string: var(--syntax-string);
+    --color-syntax-number: var(--syntax-number);
+    --color-syntax-comment: var(--syntax-comment);
+    --color-syntax-title: var(--syntax-title);
+    --color-syntax-type: var(--syntax-type);
+    --color-syntax-attr: var(--syntax-attr);
 
     --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
     --font-heading: 'Outfit', system-ui, -apple-system, sans-serif;
@@ -189,4 +213,58 @@ body {
 
 .skip-link:focus {
     top: 0;
+}
+
+/* Code-block syntax colours. rehype-highlight emits these hljs-* classes; colours are theme tokens. */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-doctag {
+    color: var(--color-syntax-keyword);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-template-tag {
+    color: var(--color-syntax-string);
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet {
+    color: var(--color-syntax-number);
+}
+
+.hljs-comment,
+.hljs-quote {
+    color: var(--color-syntax-comment);
+    font-style: italic;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-name {
+    color: var(--color-syntax-title);
+}
+
+.hljs-type,
+.hljs-title.class_ {
+    color: var(--color-syntax-type);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-property,
+.hljs-params {
+    color: var(--color-syntax-attr);
+}
+
+.hljs-emphasis {
+    font-style: italic;
+}
+
+.hljs-strong {
+    font-weight: 700;
 }

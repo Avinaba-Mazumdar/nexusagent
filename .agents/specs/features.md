@@ -61,25 +61,25 @@ The AST-denylist sandbox was escapable and ran on the API host. Removed together
 
 ### Phase 8: Streaming & Observability [Done]
 
-- [x] `POST /api/agent/stream` (SSE): `start`, `node_start`, `plan`, `tool_result`, `grounding`, `token`, `done`, `error`
+- [x] `POST /api/agent/stream` (SSE): `start`, `node_start`, `plan`, `tool_call`, `tool_result`, `grounding`, `token`, `done`, `error`
 - [x] `token` events carry the model's chunks as they arrive
 - [x] `useAgentStream` hook and observability panel (client-measured first-token and total latency)
-- [ ] `tool_call` event (the pipeline emits `tool_result` only)
+- [x] `tool_call` event, sent before the retrieval runs (`agent/run.py`, `agent/sse.py`)
 
 ### Phase 9: Canvas [Done]
 
 - [x] Markdown renderer on react-markdown (tables, callouts, code blocks with copy)
 - [x] Mermaid diagrams with pan/zoom, sanitised SVG
 - [x] Citations: answers cite `[S1]`; pills open a dialog with the full source passage
-- [ ] Syntax highlighting in code blocks
+- [x] Syntax highlighting in code blocks (`rehype-highlight`; colours are theme tokens in `styles/globals.css`)
 
 ### Phase 10: MCP [Partial]
 
 - [x] Hand-rolled JSON-RPC 2.0 server: HTTP gateway, SSE transport, stdio (`python -m app.mcp.server`)
 - [x] `hybrid_rag_search` with Pydantic-validated arguments, metered per user, results wrapped as untrusted content
 - [x] Frontend MCP inspector
-- [ ] Client configuration snippets for Claude Desktop and Cursor
-- [ ] Migrate to the official `fastmcp` SDK (current server is custom and spec-version `2024-11-05`)
+- [x] Client configuration snippets for Claude Desktop and Cursor (MCP inspector, _Setup snippet_). Verified against the stdio launcher; not yet run inside either client.
+- [ ] Migrate to the official `fastmcp` SDK (current server is custom and spec-version `2024-11-05`). Blocked: `architecture.md` lists the official SDK as not implemented, so the owner must decide which document wins.
 
 ### Phase 11: Security Controls [Done]
 
@@ -90,14 +90,14 @@ The AST-denylist sandbox was escapable and ran on the API host. Removed together
 - [x] Per-request CSP nonce (`proxy.ts`), no script `unsafe-inline`
 - [Removed] Human-in-the-loop approval: all tools are read-only, so there is nothing to approve
 
-### Phase 12: Demo Experience [Partial]
+### Phase 12: Demo Experience [Done]
 
 - [x] Pre-seeded benchmark knowledge base (`knowledge_base/`, `scripts/seed_kb.py`)
 - [x] One-click guest access with quota badge and refill time
 - [x] Source URL and retrieval date for every benchmark table (knowledge base re-scraped 2026-10-30)
 - [Removed] Deterministic offline simulator: a Gemini API key is required for answers and uploads
 
-### Phase 13: Quality [Partial]
+### Phase 13: Quality [Done]
 
 - [x] Offline backend suite and frontend suite green; CI workflow in `.github/workflows/ci.yml`
 - [x] Route across all Gemini free-tier text models (`GEMINI_MODELS`, `ModelRouter`); a rate-limited model is skipped until its quota resets

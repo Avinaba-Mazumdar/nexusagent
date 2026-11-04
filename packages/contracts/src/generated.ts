@@ -747,6 +747,18 @@ export interface components {
             /** Tokensremaining */
             tokensRemaining: number;
         };
+        /**
+         * RetrievalToolArguments
+         * @description What the agent passes to `hybrid_rag_search`; the same values the tool audit log records.
+         */
+        RetrievalToolArguments: {
+            /** Documentscoped */
+            documentScoped: boolean;
+            /** Limit */
+            limit: number;
+            /** Query */
+            query: string;
+        };
         /** SseErrorEvent */
         SseErrorEvent: {
             /** Error */
@@ -816,6 +828,20 @@ export interface components {
             sessionId: string;
             /** Token */
             token: string;
+        };
+        /**
+         * SseToolCallEvent
+         * @description Sent just before a tool runs. The matching `tool_result` follows when it finishes.
+         */
+        SseToolCallEvent: {
+            arguments: components['schemas']['RetrievalToolArguments'];
+            /** Sessionid */
+            sessionId: string;
+            /**
+             * Tool
+             * @constant
+             */
+            tool: 'hybrid_rag_search';
         };
         /** SseToolResultEvent */
         SseToolResultEvent: {
@@ -919,6 +945,7 @@ export type InjectionWarningWire = components['schemas']['InjectionWarningWire']
 export type MeResponse = components['schemas']['MeResponse'];
 export type PlanStepWire = components['schemas']['PlanStepWire'];
 export type QuotaStatus = components['schemas']['QuotaStatus'];
+export type RetrievalToolArguments = components['schemas']['RetrievalToolArguments'];
 export type SseErrorEvent = components['schemas']['SseErrorEvent'];
 export type SseGroundingEvent = components['schemas']['SseGroundingEvent'];
 export type SseNodeStartEvent = components['schemas']['SseNodeStartEvent'];
@@ -926,6 +953,7 @@ export type SsePlanEvent = components['schemas']['SsePlanEvent'];
 export type SseRedactEvent = components['schemas']['SseRedactEvent'];
 export type SseStartEvent = components['schemas']['SseStartEvent'];
 export type SseTokenEvent = components['schemas']['SseTokenEvent'];
+export type SseToolCallEvent = components['schemas']['SseToolCallEvent'];
 export type SseToolResultEvent = components['schemas']['SseToolResultEvent'];
 export type SuccessResponse = components['schemas']['SuccessResponse'];
 export type TokenResponse = components['schemas']['TokenResponse'];

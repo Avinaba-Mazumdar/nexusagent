@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { API_BASE, apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/auth-store';
+import { CLIENT_SERVER_NAME, REPO_PATH_PLACEHOLDER, buildClientConfig } from '@/lib/mcp-client-config';
 import { MCP_DEFAULT_QUERY } from '@/lib/starter-prompts';
 
 const MCP_TOOL = {
@@ -18,6 +19,9 @@ const MCP_TOOL = {
 };
 
 const SSE_ENDPOINT = `${API_BASE.replace(/\/$/, '')}/api/mcp/sse`;
+const CLIENT_CONFIG = buildClientConfig();
+
+type CopiedItem = 'endpoint' | 'token' | 'config';
 
 interface McpInspectorProps {
     onOpenSignIn?: () => void;
@@ -32,9 +36,10 @@ export function McpInspector({ onOpenSignIn }: McpInspectorProps) {
     const [latencyMs, setLatencyMs] = React.useState<number | null>(null);
     const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
     const [modalOpen, setModalOpen] = React.useState(false);
-    const [copied, setCopied] = React.useState<'endpoint' | 'token' | null>(null);
+    const [setupOpen, setSetupOpen] = React.useState(false);
+    const [copied, setCopied] = React.useState<CopiedItem | null>(null);
 
-    const copyToClipboard = async (value: string, what: 'endpoint' | 'token') => {
+    const copyToClipboard = async (value: string, what: CopiedItem) => {
         try {
             await navigator.clipboard.writeText(value);
             setCopied(what);
@@ -231,6 +236,61 @@ export function McpInspector({ onOpenSignIn }: McpInspectorProps) {
                         </button>
                     </div>
                     <code className="block font-mono text-xs text-foreground break-all">{SSE_ENDPOINT}</code>
+                    <div className="flex items-center justify-between gap-2">
+                        <span>Claude Desktop or Cursor, run locally over stdio (not metered):</span>
+                        <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
+                            <DialogTrigger asChild>
+                                <button type="button" className="inline-flex items-center gap-1 text-primary hover:underline cursor-pointer shrink-0">
+                                    <span>Setup snippet</span>
+                                </button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-xl max-h-4/5 flex flex-col p-4">
+                                <DialogHeader>
+                                    <DialogTitle className="text-sm font-heading flex items-center gap-1.5">
+                                        <Terminal className="h-4 w-4 text-primary" />
+                                        Connect Claude Desktop or Cursor
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs">
+                                        The client runs the MCP server on this machine. It reads its database and API keys from apps/backend/.env.local, so copy
+                                        .env.example there first.
+                                    </DialogDescription>
+                                </DialogHeader>
+
+                                <ol className="ml-4 list-decimal space-y-1 text-xs text-foreground/90 pt-2">
+                                    <li>
+                                        Replace <code className="font-mono">{REPO_PATH_PLACEHOLDER}</code> with the full path to your checkout.
+                                    </li>
+                                    <li>
+                                        Merge the block into <code className="font-mono">claude_desktop_config.json</code> (Claude Desktop) or{' '}
+                                        <code className="font-mono">~/.cursor/mcp.json</code> (Cursor).
+                                    </li>
+                                    <li>
+                                        Restart the client and check that <code className="font-mono">{CLIENT_SERVER_NAME}</code> lists{' '}
+                                        <code className="font-mono">{MCP_TOOL.name}</code>.
+                                    </li>
+                                </ol>
+
+                                <pre className="flex-1 overflow-auto bg-background p-2.5 mt-2 rounded-lg border border-border font-mono text-xs text-foreground">
+                                    {CLIENT_CONFIG}
+                                </pre>
+                                <div className="flex justify-end pt-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => copyToClipboard(CLIENT_CONFIG, 'config')}
+                                        className="h-8 text-xs gap-1.5"
+                                    >
+                                        {copied === 'config' ? (
+                                            <Check className="h-3 w-3" aria-hidden="true" />
+                                        ) : (
+                                            <Copy className="h-3 w-3" aria-hidden="true" />
+                                        )}
+                                        <span>{copied === 'config' ? 'Copied' : 'Copy config'}</span>
+                                    </Button>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                     {token && (
                         <div className="flex items-center justify-between gap-2">
                             <span>Clients send your access token as a Bearer header. It expires in 24 hours; don&apos;t share it.</span>

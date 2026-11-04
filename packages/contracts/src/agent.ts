@@ -22,5 +22,6 @@ export type {
     SseRedactEvent,
     SseStartEvent,
     SseTokenEvent,
+    SseToolCallEvent,
     SseToolResultEvent
 } from './generated';

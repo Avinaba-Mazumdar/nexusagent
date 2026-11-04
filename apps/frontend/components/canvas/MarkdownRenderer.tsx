@@ -1,7 +1,9 @@
 'use client';
 
 import * as React from 'react';
+import type { ComponentProps } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
+import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import { Check, Copy, Info, Terminal } from 'lucide-react';
 import type { Citation } from '@nexusagent/contracts';
@@ -24,7 +26,12 @@ const ALERT_MARKER = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i;
 const NUMBERED_HEADING = /^(\d+)\.\s+(.*)$/;
 const SAFE_HREF = /^https?:\/\//i;
 
-function CodeBlock({ language, code }: { language: string; code: string }) {
+type RehypePlugins = NonNullable<ComponentProps<typeof ReactMarkdown>['rehypePlugins']>;
+
+// Token colours come from the theme's syntax tokens (globals.css). Mermaid is rendered as a diagram, not code.
+const REHYPE_PLUGINS: RehypePlugins = [[rehypeHighlight, { plainText: ['mermaid'] }]];
+
+function CodeBlock({ language, code, highlighted }: { language: string; code: string; highlighted?: React.ReactNode }) {
     const [copied, setCopied] = React.useState(false);
 
     const handleCopy = async () => {
@@ -56,18 +63,31 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
                 </Button>
             </div>
             <pre className="p-3 overflow-x-auto font-mono text-code text-foreground bg-card/60">
-                <code>{code}</code>
+                <code>{highlighted ?? code}</code>
             </pre>
         </div>
     );
 }
 
-/** Plain text of a React subtree (used to read headings and alert markers). */
+/** Plain text of a React subtree (used to read headings, alert markers and code). */
 function textOf(node: React.ReactNode): string {
     if (typeof node === 'string' || typeof node === 'number') return String(node);
     if (Array.isArray(node)) return node.map(textOf).join('');
     if (React.isValidElement<{ children?: React.ReactNode }>(node)) return textOf(node.props.children);
     return '';
+}
+
+/** Drop the newline that closes a fenced block, wherever it sits in a highlighted subtree. */
+function trimTrailingNewline(node: React.ReactNode): React.ReactNode {
+    if (typeof node === 'string') return node.replace(/\n$/, '');
+    if (Array.isArray(node)) {
+        const last = node.length - 1;
+        return node.map((child, index) => (index === last ? trimTrailingNewline(child) : child));
+    }
+    if (React.isValidElement<{ children?: React.ReactNode }>(node)) {
+        return React.cloneElement(node, undefined, trimTrailingNewline(node.props.children));
+    }
+    return node;
 }
 
 export function MarkdownRenderer({ content, isStreaming = false, citations = [], isDark = false, onCitationClick, className = '' }: MarkdownRendererProps) {
@@ -207,9 +227,8 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
             pre: ({ children }) => <>{children}</>,
             code: ({ className: codeClass, children }) => {
                 const language = /language-(\S+)/.exec(codeClass ?? '')?.[1]?.toLowerCase() ?? '';
-                const code = React.Children.toArray(children)
-                    .filter((c): c is string | number => typeof c === 'string' || typeof c === 'number')
-                    .join('');
+                // Children are highlighted spans for known languages, so read the plain text from the tree.
+                const code = textOf(children);
                 const isBlock = Boolean(language) || code.endsWith('\n');
                 if (!isBlock) {
                     return (
@@ -235,7 +254,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                     }
                     return <MermaidViewer chart={trimmed} isDark={isDark} />;
                 }
-                return <CodeBlock language={language} code={trimmed} />;
+                return <CodeBlock language={language} code={trimmed} highlighted={trimTrailingNewline(children)} />;
             }
         };
     }, [withCitations, isDark, unclosedFenceTail]);
@@ -243,7 +262,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
     return (
         <TooltipProvider delayDuration={150}>
             <div className={`markdown-content text-sm leading-relaxed ${className}`}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={REHYPE_PLUGINS} components={components}>
                     {content}
                 </ReactMarkdown>
                 {isStreaming && (

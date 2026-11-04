@@ -53,10 +53,21 @@ describe('MarkdownRenderer Component', () => {
 
     it('renders code blocks with language badge', () => {
         const markdown = '```python\nprint("hello world")\n```';
-        render(<MarkdownRenderer content={markdown} />);
+        const { container } = render(<MarkdownRenderer content={markdown} />);
 
         expect(screen.getByText('python')).toBeInTheDocument();
-        expect(screen.getByText('print("hello world")')).toBeInTheDocument();
+        expect(container.querySelector('pre code')?.textContent).toBe('print("hello world")');
+    });
+
+    it('highlights known languages with theme token classes and leaves unknown ones plain', () => {
+        const markdown = '```python\ndef total():\n    return 1\n```\n\n```nosuchlanguage\nplain text\n```';
+        const { container } = render(<MarkdownRenderer content={markdown} />);
+
+        expect(screen.getByText('def')).toHaveClass('hljs-keyword');
+        const blocks = container.querySelectorAll('pre code');
+        expect(blocks[0].textContent).toBe('def total():\n    return 1');
+        expect(blocks[1].textContent).toBe('plain text');
+        expect(blocks[1].querySelector('[class*="hljs"]')).toBeNull();
     });
 
     it('turns [S1] markers into pills for known sources and leaves unknown labels as text', () => {

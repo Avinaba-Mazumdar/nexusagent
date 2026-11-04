@@ -1,5 +1,3 @@
-import asyncio
-import logging
 from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
 
@@ -7,38 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.agent.graph import (
-    AgentGraph,
-    classify_query_intent,
-    default_agent_graph,
-    next_node,
-)
-from app.agent.sse import format_sse
-from app.agent.state import AgentState, Intent
+from app.agent.graph import AgentGraph, classify_query_intent, default_agent_graph
+from app.agent.run import AgentRun
+from app.agent.state import Intent
 from app.config import settings
 from app.core.access import require_document_access
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
 from app.core.rate_limiter import default_rate_limiter
-from app.db.models import (
-    AgentDoneEventWire,
-    CitationWire,
-    InjectionWarningWire,
-    PlanStepWire,
-    SseErrorEvent,
-    SseGroundingEvent,
-    SseNodeStartEvent,
-    SsePlanEvent,
-    SseRedactEvent,
-    SseStartEvent,
-    SseTokenEvent,
-    SseToolResultEvent,
-    User,
-)
+from app.db.models import User
 from app.db.neon import neon_db
-from app.services.conversations import persist_turn
-
-logger = logging.getLogger("nexusagent.routes.agent")
 
 router = APIRouter(prefix="/agent", tags=["Agent Autonomous Orchestration & SSE Streaming"])
 
@@ -60,7 +36,7 @@ class AgentStreamRequestWire(BaseModel):
     )
 
 
-async def generate_agent_stream(
+def generate_agent_stream(
     query: str,
     intent: Intent,
     user_id: UUID | None,
@@ -73,189 +49,20 @@ async def generate_agent_stream(
     chat_history: list[dict[str, str]] | None = None,
     conversation_id: UUID | None = None,
 ) -> AsyncIterator[str]:
-    """
-    Run the agent pipeline and yield SSE frames:
-    start -> node_start / plan / tool_result / grounding -> token* -> done | error.
-    """
-    initial_state = AgentState(
-        session_id=session_id,
-        user_id=user_id,
-        conversation_id=conversation_id,
+    """SSE frames for one agent run; the event order is documented on ``AgentRun``."""
+    return AgentRun(
         query=query,
-        document_id=document_id,
-        chat_history=chat_history or [],
         intent=intent,
-    )
-
-    event_queue: asyncio.Queue[str | None] = asyncio.Queue()
-
-    start_payload = SseStartEvent(
-        sessionId=session_id,
-        query=query,
-        timestamp=initial_state.created_at.isoformat(),
-        quotaRemaining=quota_remaining,
-    )
-    await event_queue.put(format_sse("start", start_payload))
-
-    async def refund_if_charged() -> None:
-        if user_id and quota_charged:
-            try:
-                await default_rate_limiter.refund(user_id=user_id)
-            except Exception as refund_err:  # noqa: BLE001
-                logger.warning(f"Could not refund rate limit token: {refund_err}")
-
-    async def run_pipeline():
-        tokens_sent = False
-
-        async def on_token(text: str) -> None:
-            nonlocal tokens_sent
-            tokens_sent = True
-            await event_queue.put(
-                format_sse("token", SseTokenEvent(sessionId=session_id, token=text))
-            )
-
-        try:
-            final_state = initial_state
-            await event_queue.put(
-                format_sse("node_start", SseNodeStartEvent(node="planner", sessionId=session_id))
-            )
-            async for node_name, step_state in graph.stream_steps(initial_state, on_token=on_token):
-                final_state = step_state
-
-                if node_name == "planner":
-                    await event_queue.put(
-                        format_sse(
-                            "plan",
-                            SsePlanEvent(
-                                sessionId=session_id,
-                                plan=[PlanStepWire.model_validate(s) for s in step_state.plan],
-                            ),
-                        )
-                    )
-                elif node_name == "retriever":
-                    await event_queue.put(
-                        format_sse(
-                            "tool_result",
-                            SseToolResultEvent(
-                                tool="hybrid_rag_search",
-                                chunksRetrieved=len(step_state.retrieved_chunks),
-                                citations=[
-                                    CitationWire.model_validate(c) for c in step_state.citations
-                                ],
-                                injectionWarnings=[
-                                    InjectionWarningWire.model_validate(w)
-                                    for w in step_state.injection_warnings
-                                ],
-                            ),
-                        )
-                    )
-                elif node_name == "grounding":
-                    await event_queue.put(
-                        format_sse(
-                            "grounding",
-                            SseGroundingEvent(
-                                sessionId=session_id,
-                                grounding=step_state.grounding,
-                                feedback=step_state.grounding_feedback,
-                            ),
-                        )
-                    )
-
-                upcoming = next_node(node_name, step_state)
-                if upcoming:
-                    await event_queue.put(
-                        format_sse(
-                            "node_start", SseNodeStartEvent(node=upcoming, sessionId=session_id)
-                        )
-                    )
-
-            if final_state.error:
-                # Failures such as "no model configured" happen before any output and stay refundable.
-                if not tokens_sent:
-                    await refund_if_charged()
-                await event_queue.put(
-                    format_sse(
-                        "error", SseErrorEvent(error=final_state.error, sessionId=session_id)
-                    )
-                )
-                return
-
-            # Planner refusals are fixed text, not model output: send them as one chunk.
-            if not tokens_sent and final_state.response:
-                await event_queue.put(
-                    format_sse(
-                        "token", SseTokenEvent(sessionId=session_id, token=final_state.response)
-                    )
-                )
-            # After a canary leak the streamed text is withdrawn and replaced by the alert.
-            elif final_state.canary_leaked:
-                await event_queue.put(
-                    format_sse(
-                        "redact",
-                        SseRedactEvent(sessionId=session_id, response=final_state.response),
-                    )
-                )
-
-            # Persist before `done` so a client refetch sees the conversation; shield it so a
-            # disconnect cannot cancel the write half-way.
-            conversation_id_out: str | None = None
-            if user_id and not is_guest:
-                conversation_id_out = await asyncio.shield(
-                    persist_turn(user_id, session_id, query, final_state)
-                )
-
-            await event_queue.put(
-                format_sse(
-                    "done",
-                    AgentDoneEventWire(
-                        sessionId=session_id,
-                        conversationId=conversation_id_out,
-                        query=query,
-                        nodeHistory=final_state.node_history,
-                        plan=[PlanStepWire.model_validate(s) for s in final_state.plan],
-                        citations=[CitationWire.model_validate(c) for c in final_state.citations],
-                        injectionWarnings=[
-                            InjectionWarningWire.model_validate(w)
-                            for w in final_state.injection_warnings
-                        ],
-                        mermaidDiagrams=final_state.mermaid_diagrams,
-                        grounding=final_state.grounding,
-                        model=final_state.model,
-                        isComplete=True,
-                        completedAt=final_state.completed_at.isoformat()
-                        if final_state.completed_at
-                        else None,
-                    ),
-                )
-            )
-
-        except asyncio.CancelledError:
-            # No refund: retrieval (embedding call, searches) and the model request may already
-            # have run, so refunding on abort would let a client get the work for free.
-            logger.info("Agent pipeline cancelled (client disconnect or abort)")
-            raise
-        except Exception:
-            logger.exception("Error during agent SSE streaming")
-            if not tokens_sent:
-                await refund_if_charged()
-            masked_error = "Internal error. Reference: " + session_id[:8]
-            await event_queue.put(
-                format_sse("error", SseErrorEvent(error=masked_error, sessionId=session_id))
-            )
-        finally:
-            await event_queue.put(None)
-
-    pipeline_task = asyncio.create_task(run_pipeline())
-
-    try:
-        while True:
-            chunk = await event_queue.get()
-            if chunk is None:
-                break
-            yield chunk
-    finally:
-        if not pipeline_task.done():
-            pipeline_task.cancel()
+        user_id=user_id,
+        document_id=document_id,
+        session_id=session_id,
+        graph=graph,
+        is_guest=is_guest,
+        quota_remaining=quota_remaining,
+        quota_charged=quota_charged,
+        chat_history=chat_history,
+        conversation_id=conversation_id,
+    ).frames()
 
 
 @router.post("/stream")

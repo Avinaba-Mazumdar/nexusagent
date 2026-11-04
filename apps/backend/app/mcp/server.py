@@ -52,21 +52,28 @@ async def handle_jsonrpc_request(req_dict: object) -> dict:
         ).model_dump(exclude_none=True)
 
 
+async def read_stdin_lines():
+    """
+    Yield raw lines from stdin until EOF, without blocking the event loop.
+
+    asyncio's pipe transport cannot read the stdin pipes that clients create on Windows (they are
+    not overlapped handles; the transport fails with WinError 6), so the blocking reads run in a
+    worker thread instead. The same code path serves every platform.
+    """
+    while True:
+        line_bytes = await asyncio.to_thread(sys.stdin.buffer.readline)
+        if not line_bytes:
+            return
+        yield line_bytes
+
+
 async def main():
     """Stdio main loop reading lines from stdin and writing JSON-RPC to stdout."""
     # Local, trusted process: tools/call is unmetered but still needs the knowledge-base database.
     if not await neon_db.connect():
         logger.error("Database unavailable; hybrid_rag_search will report the knowledge base down.")
-    reader = asyncio.StreamReader()
-    protocol = asyncio.StreamReaderProtocol(reader)
-    loop = asyncio.get_running_loop()
-    await loop.connect_read_pipe(lambda: protocol, sys.stdin)
 
-    while True:
-        line_bytes = await reader.readline()
-        if not line_bytes:
-            break
-
+    async for line_bytes in read_stdin_lines():
         line = line_bytes.decode("utf-8").strip()
         if not line:
             continue

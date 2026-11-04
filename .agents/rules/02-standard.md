@@ -30,7 +30,7 @@ Visual numbers are defined once, in `design.md`. This list only names which prop
 - [ ] `prefers-reduced-motion` respected for any animation.
 - [ ] Contrast, touch targets, and focus match `.agents/specs/design.md` (including its 4.5:1 normal-text contrast requirement).
 
-Launch regression gates are Phase 12 in `.agents/specs/versions.md`. They are not required to close an earlier phase.
+Launch regression gates are tracked in Phase 13 (Quality) of `.agents/specs/features.md`. They are not required to close an earlier phase.
 
 ## Definition of done
 

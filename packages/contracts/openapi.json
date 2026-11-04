@@ -811,6 +811,26 @@
                 "title": "QuotaStatus",
                 "type": "object"
             },
+            "RetrievalToolArguments": {
+                "description": "What the agent passes to `hybrid_rag_search`; the same values the tool audit log records.",
+                "properties": {
+                    "documentScoped": {
+                        "title": "Documentscoped",
+                        "type": "boolean"
+                    },
+                    "limit": {
+                        "title": "Limit",
+                        "type": "integer"
+                    },
+                    "query": {
+                        "title": "Query",
+                        "type": "string"
+                    }
+                },
+                "required": ["query", "limit", "documentScoped"],
+                "title": "RetrievalToolArguments",
+                "type": "object"
+            },
             "SseErrorEvent": {
                 "properties": {
                     "error": {
@@ -948,6 +968,26 @@
                 },
                 "required": ["sessionId", "token"],
                 "title": "SseTokenEvent",
+                "type": "object"
+            },
+            "SseToolCallEvent": {
+                "description": "Sent just before a tool runs. The matching `tool_result` follows when it finishes.",
+                "properties": {
+                    "arguments": {
+                        "$ref": "#/components/schemas/RetrievalToolArguments"
+                    },
+                    "sessionId": {
+                        "title": "Sessionid",
+                        "type": "string"
+                    },
+                    "tool": {
+                        "const": "hybrid_rag_search",
+                        "title": "Tool",
+                        "type": "string"
+                    }
+                },
+                "required": ["sessionId", "tool", "arguments"],
+                "title": "SseToolCallEvent",
                 "type": "object"
             },
             "SseToolResultEvent": {

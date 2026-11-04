@@ -274,3 +274,45 @@ async def test_abort_after_retrieval_keeps_the_quota_charge(stream_client):
     await asyncio.sleep(0.1)  # let the cancelled pipeline task unwind
 
     assert list(db.tokens.values()) == [4]
+
+
+@pytest.mark.asyncio
+async def test_tool_call_is_announced_right_before_retrieval(stream_client, fake_llm):
+    """`tool_call` follows the retriever's node_start and precedes its tool_result."""
+    fake_llm(["Quorum is a majority [S1]."])
+    client, _user, _db = stream_client
+
+    async with client:
+        res = await client.post("/api/agent/stream", json={"query": "Explain Raft quorum"})
+
+    events = _parse_sse(res.text)
+    names = [name for name, _ in events]
+    retriever_start = next(
+        i
+        for i, (name, data) in enumerate(events)
+        if name == "node_start" and data["node"] == "retriever"
+    )
+    tool_call_index = names.index("tool_call")
+    assert tool_call_index == retriever_start + 1
+    assert tool_call_index < names.index("tool_result")
+
+    call = events[tool_call_index][1]
+    assert call["sessionId"] == events[0][1]["sessionId"]
+    assert call["tool"] == "hybrid_rag_search"
+    assert call["arguments"] == {
+        "query": "Explain Raft quorum",
+        "limit": 5,
+        "documentScoped": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_greeting_makes_no_tool_call(stream_client, fake_llm):
+    fake_llm(["Hello, I analyse distributed systems."])
+    client, _user, _db = stream_client
+
+    async with client:
+        res = await client.post("/api/agent/stream", json={"query": "hi"})
+
+    names = [name for name, _ in _parse_sse(res.text)]
+    assert "tool_call" not in names and "tool_result" not in names

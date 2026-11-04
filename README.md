@@ -32,8 +32,7 @@ nexusagent/
 │       ├── architecture.md   # How the system works today: flows, limits, security
 │       ├── design.md         # UI layout, tokens, accessibility
 │       ├── AGENTs.md         # AI Agent context, system master, coding invariants
-│       ├── features.md       # Phase board (what is done, partial, removed)
-│       └── versions.md       # Versioned milestones
+│       └── features.md       # Phase board (what is done, partial, removed)
 └── knowledge_base/
     └── benchmarks/       # Pre-seeded corpus (BenchLM, CursorBench, OpenRouter metrics, AA)
 ```

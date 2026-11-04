@@ -72,7 +72,7 @@ scripts/             seed_kb.py, prune_guests.py (guests + audit retention)
     - **grounding**: reports `grounded | weak | none` from the retrieved chunks. It is a plain function, not an LLM step.
     - **synthesizer**: streams Gemini's answer. The prompt contains the labelled, delimited sources; the answer cites `[S1]`.
 
-4. SSE events: `start`, `node_start`, `plan`, `tool_result` (citations, `injectionWarnings`), `grounding`, `token` (the model's chunks), then `done` or `error`. The turn is saved (Google users) **before** `done`, so `done` carries `conversationId`.
+4. SSE events: `start`, `node_start`, `plan`, `tool_call` (sent before the retrieval runs, with its arguments), `tool_result` (citations, `injectionWarnings`), `grounding`, `token` (the model's chunks), then `done` or `error`. The turn is saved (Google users) **before** `done`, so `done` carries `conversationId`.
 5. On error, or when a disconnect happens before any output, the charged token is refunded.
 
 ### 4.2 Document ingestion (`POST /api/documents/upload`)

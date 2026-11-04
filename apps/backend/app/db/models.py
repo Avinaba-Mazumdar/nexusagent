@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 
@@ -72,8 +72,30 @@ class DocumentChunk(BaseModel):
             return v
 
 
+def _wire_id(value: Any) -> Any:
+    """UUIDs travel as their canonical string form."""
+    return str(value) if isinstance(value, UUID) else value
+
+
+def _wire_timestamp(value: Any) -> Any:
+    """Datetimes travel as ISO-8601 strings."""
+    return value.isoformat() if isinstance(value, datetime) else value
+
+
+def _wire_count(value: Any) -> Any:
+    """Message counts are never null on the wire: a missing count is zero."""
+    return 0 if value is None else value
+
+
+WireId = Annotated[str, BeforeValidator(_wire_id)]
+WireTimestamp = Annotated[str, BeforeValidator(_wire_timestamp)]
+
+
 class WireModel(BaseModel):
-    """Wire schema with snake_case fields that serialise as camelCase (read from objects of the same shape)."""
+    """
+    Wire schema with snake_case fields that serialise as camelCase. Built straight from objects
+    or row dicts of the same shape (``model_validate``); UUIDs and datetimes become strings.
+    """
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
 
@@ -81,14 +103,14 @@ class WireModel(BaseModel):
 # Wire Schemas matching packages/contracts/src/auth.ts
 
 
-class UserSession(BaseModel):
-    id: str
+class UserSession(WireModel):
+    id: WireId
     email: str | None = None
     name: str
-    avatarUrl: str | None = None
-    isGuest: bool
-    createdAt: str
-    lastSeenAt: str
+    avatar_url: str | None = None
+    is_guest: bool
+    created_at: WireTimestamp
+    last_seen_at: WireTimestamp
 
 
 class GuestPassRequest(BaseModel):
@@ -128,34 +150,34 @@ class TokenResponse(BaseModel):
     bucketCapacity: int = 25
 
 
-class DocumentMetadataWire(BaseModel):
-    id: str
-    userId: str | None = None
+class DocumentMetadataWire(WireModel):
+    id: WireId
+    user_id: WireId | None = None
     filename: str
-    mimeType: str
-    sha256Hash: str
-    totalChunks: int
-    isSeeded: bool
-    uploadedAt: str
+    mime_type: str
+    sha256_hash: str
+    total_chunks: int
+    is_seeded: bool
+    uploaded_at: WireTimestamp
 
 
-class DocumentChunkWire(BaseModel):
-    id: str
-    documentId: str
-    chunkIndex: int
+class DocumentChunkWire(WireModel):
+    id: WireId
+    document_id: WireId
+    chunk_index: int
     content: str
     metadata: dict[str, Any]
-    createdAt: str
+    created_at: WireTimestamp
 
 
-class DocumentUploadResponseWire(BaseModel):
+class DocumentUploadResponseWire(WireModel):
     document: DocumentMetadataWire
-    chunksCount: int
-    previewChunks: list[DocumentChunkWire]
-    quotaRemaining: int | None = None
+    chunks_count: int
+    preview_chunks: list[DocumentChunkWire]
+    quota_remaining: int | None = None
 
 
-class DocumentListResponseWire(BaseModel):
+class DocumentListResponseWire(WireModel):
     documents: list[DocumentMetadataWire]
 
 
@@ -172,31 +194,31 @@ class SuccessResponse(BaseModel):
 # Wire Schemas matching packages/contracts/src/chat.ts
 
 
-class ChatConversationWire(BaseModel):
-    id: str
-    userId: str
+class ChatConversationWire(WireModel):
+    id: WireId
+    user_id: WireId
     title: str
-    createdAt: str
-    updatedAt: str | None = None
-    messageCount: int | None = None
-    lastSnippet: str | None = None
+    created_at: WireTimestamp
+    updated_at: WireTimestamp | None = None
+    message_count: Annotated[int | None, BeforeValidator(_wire_count)] = None
+    last_snippet: str | None = None
 
 
-class ChatMessageWire(BaseModel):
-    id: str
-    conversationId: str
+class ChatMessageWire(WireModel):
+    id: WireId
+    conversation_id: WireId
     role: Literal["user", "assistant", "system"]
     content: str
-    planTrace: Any = None
-    reflectionSummary: Any = None
-    createdAt: str
+    plan_trace: Any = None
+    reflection_summary: Any = None
+    created_at: WireTimestamp
 
 
-class ChatHistoryResponseWire(BaseModel):
+class ChatHistoryResponseWire(WireModel):
     conversations: list[ChatConversationWire]
 
 
-class ChatConversationDetailWire(BaseModel):
+class ChatConversationDetailWire(WireModel):
     conversation: ChatConversationWire
     messages: list[ChatMessageWire]
 
@@ -247,6 +269,22 @@ class SseNodeStartEvent(BaseModel):
 class SsePlanEvent(BaseModel):
     sessionId: str
     plan: list[PlanStepWire]
+
+
+class RetrievalToolArguments(BaseModel):
+    """What the agent passes to `hybrid_rag_search`; the same values the tool audit log records."""
+
+    query: str
+    limit: int
+    documentScoped: bool
+
+
+class SseToolCallEvent(BaseModel):
+    """Sent just before a tool runs. The matching `tool_result` follows when it finishes."""
+
+    sessionId: str
+    tool: Literal["hybrid_rag_search"]
+    arguments: RetrievalToolArguments
 
 
 class SseToolResultEvent(BaseModel):
@@ -303,6 +341,7 @@ SSE_WIRE_MODELS: list[type[BaseModel]] = [
     SseStartEvent,
     SseNodeStartEvent,
     SsePlanEvent,
+    SseToolCallEvent,
     SseToolResultEvent,
     SseGroundingEvent,
     SseTokenEvent,

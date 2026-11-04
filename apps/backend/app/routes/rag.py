@@ -78,9 +78,9 @@ class HybridSearchResultWire(WireModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class HybridSearchResponseWire(BaseModel):
+class HybridSearchResponseWire(WireModel):
     query: str
-    totalResults: int
+    total_results: int
     results: list[HybridSearchResultWire]
 
 
@@ -133,6 +133,6 @@ async def hybrid_search_documents(
 
     return HybridSearchResponseWire(
         query=payload.query,
-        totalResults=len(wire_results),
+        total_results=len(wire_results),
         results=wire_results,
     )

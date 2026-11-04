@@ -12,7 +12,6 @@ from app.core.auth import (
     resolve_session,
     security_bearer,
     session_claims,
-    user_to_session,
     verify_google_token,
 )
 from app.core.rate_limiter import (
@@ -31,6 +30,7 @@ from app.db.models import (
     SuccessResponse,
     TokenResponse,
     User,
+    UserSession,
 )
 from app.db.neon import NeonDatabase, get_db
 
@@ -79,7 +79,7 @@ async def google_auth(
         accessToken=token_str,
         tokenType="bearer",
         expiresIn=expires_in,
-        user=user_to_session(user),
+        user=UserSession.model_validate(user),
         quotaRemaining=tokens_remaining,
         bucketCapacity=settings.USER_QUOTA_DEFAULT,
     )
@@ -102,7 +102,7 @@ async def get_current_user_profile(
     )
 
     return {
-        "user": user_to_session(current_user),
+        "user": UserSession.model_validate(current_user),
         "quota": QuotaStatus(
             tokensRemaining=bucket.tokens_remaining,
             bucketCapacity=settings.GUEST_QUOTA_DEFAULT
@@ -160,7 +160,7 @@ async def refresh_token(
         accessToken=token_str,
         tokenType="bearer",
         expiresIn=expires_in,
-        user=user_to_session(current_user),
+        user=UserSession.model_validate(current_user),
         quotaRemaining=tokens_remaining,
         bucketCapacity=settings.GUEST_QUOTA_DEFAULT
         if current_user.is_guest

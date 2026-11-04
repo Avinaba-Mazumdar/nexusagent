@@ -186,6 +186,12 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     }
                                     break;
 
+                                case 'tool_call': {
+                                    const scope = data.arguments?.documentScoped ? 'the selected document' : 'all sources';
+                                    emitLog('RAG', `Calling ${data.tool} over ${scope} (top ${data.arguments?.limit ?? '?'})`);
+                                    break;
+                                }
+
                                 case 'tool_result':
                                     if (data.tool === 'hybrid_rag_search' && Array.isArray(data.citations)) {
                                         setCitations(data.citations);

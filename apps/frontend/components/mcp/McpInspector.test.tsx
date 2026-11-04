@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vite-plus/test';
 import { McpInspector } from './McpInspector';
 import { useAuthStore } from '@/lib/auth-store';
@@ -87,5 +87,19 @@ describe('McpInspector Component', () => {
         fireEvent.click(screen.getByRole('button', { name: /Invoke Tool/i }));
 
         await waitFor(() => expect(screen.getByText(/Invalid JSON arguments:/i)).toBeInTheDocument());
+    });
+
+    it('offers a stdio client config for Claude Desktop and Cursor that carries no secrets', async () => {
+        useAuthStore.setState({ token: null });
+        render(<McpInspector />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Setup snippet/i }));
+
+        const dialog = await screen.findByRole('dialog');
+        const config = dialog.querySelector('pre');
+        expect(config?.textContent).toContain('"app.mcp.server"');
+        expect(config?.textContent).toContain('<ABSOLUTE_PATH_TO_NEXUS_AGENT>/apps/backend');
+        expect(config?.textContent).not.toMatch(/GEMINI|NEON|DATABASE|API_KEY/);
+        expect(within(dialog).getByRole('button', { name: /Copy config/i })).toBeInTheDocument();
     });
 });

@@ -45,6 +45,7 @@ logger = logging.getLogger("nexusagent.agent.graph")
 
 TokenSink = Callable[[str], Awaitable[None]]
 
+RETRIEVAL_TOOL = "hybrid_rag_search"
 RETRIEVAL_LIMIT = 5
 # The agent leans slightly toward semantic matches; the public search endpoint defaults to 0.5/0.5.
 AGENT_DENSE_WEIGHT = 0.6
@@ -282,7 +283,7 @@ async def planner_node(state: AgentState) -> AgentState:
             step_number=1,
             description=f"Perform hybrid dense & lexical search across the knowledge base for: '{state.query}'",
             status="in_progress",
-            tool="hybrid_rag_search",
+            tool=RETRIEVAL_TOOL,
         ),
         PlanStep(
             step_number=2,
@@ -340,7 +341,7 @@ async def retriever_node(
         )
 
     await default_audit_logger.log_tool_audit(
-        tool_name="hybrid_rag_search",
+        tool_name=RETRIEVAL_TOOL,
         input_args={"query": state.query, "limit": RETRIEVAL_LIMIT},
         output_summary={"chunks_found": len(chunks), "flagged": len(flagged)},
         duration_ms=duration_ms,
@@ -558,7 +559,7 @@ def route_after_planner(state: AgentState) -> str:
     return "retriever"
 
 
-# Fixed edges after the planner's conditional edge; routes/agent.py uses this for its node_start events.
+# Fixed edges after the planner's conditional edge; agent/run.py uses this for its node_start events.
 PIPELINE_NEXT = {"retriever": "grounding", "grounding": "synthesizer"}
 
 

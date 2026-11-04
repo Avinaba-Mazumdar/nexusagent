@@ -7,7 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.core.auth import get_current_user
 from app.db.models import (
     ChatConversationDetailWire,
+    ChatConversationWire,
     ChatHistoryResponseWire,
+    ChatMessageWire,
     SuccessResponse,
     User,
 )
@@ -25,30 +27,6 @@ def ensure_google_user(current_user: User) -> None:
         )
 
 
-def conversation_to_wire(c: dict) -> dict:
-    return {
-        "id": str(c["id"]),
-        "userId": str(c["user_id"]),
-        "title": c["title"],
-        "createdAt": c["created_at"].isoformat(),
-        "updatedAt": c["updated_at"].isoformat() if c.get("updated_at") else None,
-        "messageCount": int(c.get("message_count") or 0),
-        "lastSnippet": c.get("last_snippet"),
-    }
-
-
-def message_to_wire(m: dict) -> dict:
-    return {
-        "id": str(m["id"]),
-        "conversationId": str(m["conversation_id"]),
-        "role": m["role"],
-        "content": m["content"],
-        "planTrace": m.get("plan_trace"),
-        "reflectionSummary": m.get("reflection_summary"),
-        "createdAt": m["created_at"].isoformat(),
-    }
-
-
 @router.get("/history", response_model=ChatHistoryResponseWire)
 async def list_chat_history(
     limit: int = Query(50, ge=1, le=100),
@@ -58,7 +36,9 @@ async def list_chat_history(
     """List persistent conversations for authenticated Google user."""
     ensure_google_user(current_user)
     conversations = await db.list_conversations(current_user.id, limit=limit)
-    return {"conversations": [conversation_to_wire(c) for c in conversations]}
+    return ChatHistoryResponseWire(
+        conversations=[ChatConversationWire.model_validate(c) for c in conversations]
+    )
 
 
 @router.get("/history/{conversation_id}", response_model=ChatConversationDetailWire)
@@ -76,10 +56,10 @@ async def get_chat_conversation(
             detail="Conversation not found or unauthorized.",
         )
 
-    return {
-        "conversation": conversation_to_wire(conv),
-        "messages": [message_to_wire(m) for m in messages],
-    }
+    return ChatConversationDetailWire(
+        conversation=ChatConversationWire.model_validate(conv),
+        messages=[ChatMessageWire.model_validate(m) for m in messages],
+    )
 
 
 @router.delete("/history/{conversation_id}", response_model=SuccessResponse)
