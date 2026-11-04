@@ -53,7 +53,7 @@ export interface paths {
         /**
          * Stream Agent Execution
          * @description Server-Sent Events (SSE) streaming endpoint for the agent pipeline.
-         *     Enforces the token-bucket rate limiter with automatic 429 and retry headers.
+         *     Enforces the rolling 24-hour chat quota with automatic 429 and retry headers.
          */
         post: operations['stream_agent_execution_api_agent_stream_post'];
         delete?: never;
@@ -320,7 +320,7 @@ export interface paths {
         /**
          * Hybrid Search Documents
          * @description Execute hybrid dense (pgvector HNSW) and sparse (BM25 tsvector GIN) search
-         *     with Reciprocal Rank Fusion (RRF) re-ranking. Metered by token bucket rate limiter.
+         *     with Reciprocal Rank Fusion (RRF) re-ranking. Each search counts as one chat in the rolling 24-hour quota.
          */
         post: operations['hybrid_search_documents_api_rag_search_post'];
         delete?: never;

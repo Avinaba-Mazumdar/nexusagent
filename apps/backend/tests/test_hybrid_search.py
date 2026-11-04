@@ -411,7 +411,7 @@ async def test_dense_search_finds_user_chunks_behind_many_seeded_chunks_r2_log_0
     try:
         await neon_db.create_document_with_chunks(seeded_doc, seeded_chunks)
         await neon_db.create_document_with_chunks(user_doc, user_chunks)
-        rows = await neon_db.search_chunks_dense(query_vec, user_id=user.id, limit=400)
+        rows = await neon_db.search_chunks_dense(query_vec, document_id=user_doc.id, limit=400)
         assert {r["content"] for r in rows if r["content"].startswith("mine")} == {
             "mine 0",
             "mine 1",
@@ -420,7 +420,9 @@ async def test_dense_search_finds_user_chunks_behind_many_seeded_chunks_r2_log_0
     finally:
         pool = neon_db.get_pool()
         async with pool.acquire() as conn:
-            await conn.execute("DELETE FROM documents WHERE id = ANY($1::uuid[]);", [seeded_doc.id])
+            await conn.execute(
+                "DELETE FROM documents WHERE id = ANY($1::uuid[]);", [seeded_doc.id, user_doc.id]
+            )
             await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
 
 

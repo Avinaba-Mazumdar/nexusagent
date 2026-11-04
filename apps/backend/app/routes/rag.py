@@ -93,14 +93,14 @@ async def hybrid_search_documents(
 ):
     """
     Execute hybrid dense (pgvector HNSW) and sparse (BM25 tsvector GIN) search
-    with Reciprocal Rank Fusion (RRF) re-ranking. Metered by token bucket rate limiter.
+    with Reciprocal Rank Fusion (RRF) re-ranking. Each search counts as one chat in the rolling 24-hour quota.
     """
     client_ip = get_client_ip(request)
 
     # Validate input and tenancy before charging the quota.
     doc_uuid = payload.documentId
     if doc_uuid:
-        await require_document_access(db, doc_uuid, current_user)
+        await require_document_access(db, doc_uuid)
 
     await default_chat_quota.reserve(current_user, client_ip)
 
@@ -108,7 +108,6 @@ async def hybrid_search_documents(
     start_time = time.perf_counter()
     results = await engine.search(
         query=payload.query,
-        user_id=current_user.id,
         document_id=doc_uuid,
         limit=payload.limit,
         dense_weight=payload.denseWeight,

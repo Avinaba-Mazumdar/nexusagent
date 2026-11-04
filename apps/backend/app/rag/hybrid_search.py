@@ -28,6 +28,8 @@ class HybridSearchResult(BaseModel):
     dense_score: float | None = None
     sparse_score: float | None = None
     page: int | None = None
+    start_line: int | None = None
+    end_line: int | None = None
     header_path: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -123,6 +125,8 @@ def compute_rrf(
                 if entry["sparse_score"] is not None
                 else None,
                 page=meta.get("page"),
+                start_line=meta.get("startLine") or meta.get("start_line"),
+                end_line=meta.get("endLine") or meta.get("end_line"),
                 header_path=header_path,
                 metadata=meta,
             )

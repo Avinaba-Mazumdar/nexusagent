@@ -86,7 +86,7 @@ Dense vector search (`pgvector` cosine similarity) and sparse keyword search (`t
 
 ### 4.4 Public MCP server (`/mcp`)
 
-FastMCP Streamable HTTP server mounted at `/mcp` (e.g. `https://nexusagent.avinaba.com/mcp`):
+FastMCP Streamable HTTP server mounted at `/mcp` (e.g. `https://nexusagent-oss.onrender.com/mcp` in production, or `http://localhost:8000/mcp` locally):
 
 - Stateless HTTP mode with JSON response formatting.
 - Rate-limited to 60 requests/minute per client IP via `SlidingWindowCounter`.

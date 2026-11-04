@@ -38,7 +38,7 @@ def ensure_single_worker() -> None:
         return
     if workers > 1 and not settings.is_dev:
         raise RuntimeError(
-            "NexusAgent keeps abuse counters and in-memory rate limits in memory; "
+            "NexusAgent keeps abuse counters and MCP rate limits in process memory; "
             "run exactly one worker (see README)."
         )
 

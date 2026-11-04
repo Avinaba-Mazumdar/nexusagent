@@ -1274,7 +1274,7 @@
         },
         "/api/agent/stream": {
             "post": {
-                "description": "Server-Sent Events (SSE) streaming endpoint for the agent pipeline.\nEnforces the token-bucket rate limiter with automatic 429 and retry headers.",
+                "description": "Server-Sent Events (SSE) streaming endpoint for the agent pipeline.\nEnforces the rolling 24-hour chat quota with automatic 429 and retry headers.",
                 "operationId": "stream_agent_execution_api_agent_stream_post",
                 "requestBody": {
                     "content": {
@@ -1812,7 +1812,7 @@
         },
         "/api/rag/search": {
             "post": {
-                "description": "Execute hybrid dense (pgvector HNSW) and sparse (BM25 tsvector GIN) search\nwith Reciprocal Rank Fusion (RRF) re-ranking. Metered by token bucket rate limiter.",
+                "description": "Execute hybrid dense (pgvector HNSW) and sparse (BM25 tsvector GIN) search\nwith Reciprocal Rank Fusion (RRF) re-ranking. Each search counts as one chat in the rolling 24-hour quota.",
                 "operationId": "hybrid_search_documents_api_rag_search_post",
                 "requestBody": {
                     "content": {

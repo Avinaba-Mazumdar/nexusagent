@@ -94,7 +94,8 @@ export default function PrivacyPolicyPage() {
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">Zero Third-Party Trackers</h3>
                             <p className="text-xs text-muted-foreground leading-snug">
-                                We run no third-party analytics, behavioral tracking, or fingerprinting scripts on our platform.
+                                We run no third-party analytics or behavioral tracking. A hashed browser identifier is used only to enforce guest quotas (see
+                                section 2).
                             </p>
                         </CardContent>
                     </Card>

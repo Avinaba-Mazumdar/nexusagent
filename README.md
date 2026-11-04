@@ -45,17 +45,17 @@ Local development and production share a single Neon database (`apps/backend/.en
 
 ## 🌐 Connecting External MCP Clients
 
-NexusAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (e.g. `https://nexusagent.avinaba.com/mcp` or `http://localhost:8000/mcp`):
+NexusAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (`https://nexusagent-oss.onrender.com/mcp` in production, or `http://localhost:8000/mcp` for local use):
 
-- **Claude (claude.ai / Desktop)**: `Settings` → `Connectors` → `Add custom connector` → paste `https://nexusagent.avinaba.com/mcp`.
-- **ChatGPT**: `Settings` → `Apps & Connectors` → `Advanced` → `Developer mode` → `Create connector` → paste `https://nexusagent.avinaba.com/mcp` (Authentication: None).
-- **Cursor / Claude Code**: Add the HTTP transport entry to `mcpServers`:
+- **Claude (claude.ai / Desktop)**: `Settings` → `Connectors` → `Add custom connector` → paste `https://nexusagent-oss.onrender.com/mcp`.
+- **ChatGPT**: `Settings` → `Apps & Connectors` → `Advanced` → `Developer mode` → `Create connector` → paste `https://nexusagent-oss.onrender.com/mcp` (Authentication: None).
+- **Cursor / Claude Code**: Add the HTTP transport entry to `mcpServers` (or use `http://localhost:8000/mcp` locally):
     ```json
     {
         "mcpServers": {
             "nexusagent": {
                 "type": "http",
-                "url": "https://nexusagent.avinaba.com/mcp"
+                "url": "https://nexusagent-oss.onrender.com/mcp"
             }
         }
     }

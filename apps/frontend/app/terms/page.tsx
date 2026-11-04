@@ -232,9 +232,9 @@ export default function TermsAndConditionsPage() {
                     <section className="space-y-2">
                         <h2 className="text-base font-heading font-bold text-foreground">7. Quota Allocation &amp; Access Termination</h2>
                         <p>
-                            Complimentary guest quotas and token buckets are provided at our sole discretion. We reserve the right to throttle, suspend, or
-                            permanently terminate access to any IP address or user account that exhibits abusive behavior, automated bot scraping, or violations
-                            of these Terms.
+                            Complimentary guest chat quotas are provided at our sole discretion. We reserve the right to throttle, suspend, or permanently
+                            terminate access to any IP address or user account that exhibits abusive behavior, automated bot scraping, or violations of these
+                            Terms.
                         </p>
                     </section>
 

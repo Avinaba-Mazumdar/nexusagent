@@ -76,7 +76,7 @@ async def stream_agent_execution(
 ):
     """
     Server-Sent Events (SSE) streaming endpoint for the agent pipeline.
-    Enforces the token-bucket rate limiter with automatic 429 and retry headers.
+    Enforces the rolling 24-hour chat quota with automatic 429 and retry headers.
     """
     client_ip = get_client_ip(request)
 
