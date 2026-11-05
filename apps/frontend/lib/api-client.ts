@@ -3,7 +3,7 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:800
 let authTokenGetter: () => string | null = () => {
     if (typeof window === 'undefined') return null;
     try {
-        return localStorage.getItem('nexusagent_token');
+        return localStorage.getItem('airankagent_token');
     } catch {
         return null;
     }

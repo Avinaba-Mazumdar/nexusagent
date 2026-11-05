@@ -1,4 +1,4 @@
-# NexusAgent — Implementation Board
+# AIRankAgent — Implementation Board
 
 > **Definition of Done (DoD) Quality Gate:**
 > No task or phase may be checked `[x]` until:
@@ -65,7 +65,7 @@
 
 ### Phase 8: Rebrand & Documentation [Done]
 
-- [x] Universal tagline: "NexusAgent: an open-source LLM benchmark assistant"
+- [x] Universal tagline: "AIRankAgent: an open-source LLM benchmark assistant"
 - [x] Updated README with technology index, rolling quotas, admin access, and MCP connection
 - [x] Disclosed machine ID hashing and IP quota tracking in Privacy Policy
 - [x] System Architecture and Active Board updated

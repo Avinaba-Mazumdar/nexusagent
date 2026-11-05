@@ -6,7 +6,7 @@ import { Activity, CheckCircle2, ChevronRight, Cpu, GitFork, Loader2, RefreshCw,
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { Grounding, PlanStep, UsageEvent } from '@nexusagent/contracts';
+import type { Grounding, PlanStep, UsageEvent } from '@airankagent/contracts';
 
 export interface LogEntry {
     id: string;

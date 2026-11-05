@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vite-plus/test';
-import type { UserSession } from '@nexusagent/contracts';
+import type { UserSession } from '@airankagent/contracts';
 import { AppHeader } from './app-header';
 import userEvent from '@testing-library/user-event';
 

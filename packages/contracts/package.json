@@ -1,7 +1,7 @@
 {
-    "name": "@nexusagent/contracts",
+    "name": "@airankagent/contracts",
     "version": "0.1.0-alpha",
-    "description": "Shared TypeScript types, interfaces, and schemas for NexusAgent",
+    "description": "Shared TypeScript types, interfaces, and schemas for AIRankAgent",
     "files": [
         "dist"
     ],

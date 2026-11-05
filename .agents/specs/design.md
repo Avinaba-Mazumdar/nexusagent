@@ -1,7 +1,7 @@
 ---
 version: alpha
-name: NexusAgent-Design-System
-description: A clean, anti-slop light-mode systems intelligence and architecture observability console inspired by modern enterprise cloud dashboards (Datadog, Linear, Stripe). Anchored on an airy neutral canvas (#F4F5F8), crisp elevated white cards (#FFFFFF), refined hairline borders (#CBD5E1), and signature Nexus Blue (#004EA1) accents with high-contrast charcoal action pills (#1E232A). Engineered for Next.js 16 + React 19 + shadcn/ui + Tailwind CSS v4, with real-time streaming observability, WCAG 2.2 AA accessibility (4.5:1 text contrast, skip link), and line-level citation inspection.
+name: AIRankAgent-Design-System
+description: A clean, anti-slop light-mode systems intelligence and architecture observability console inspired by modern enterprise cloud dashboards (Datadog, Linear, Stripe). Anchored on an airy neutral canvas (#F4F5F8), crisp elevated white cards (#FFFFFF), refined hairline borders (#CBD5E1), and signature AIRank Blue (#004EA1) accents with high-contrast charcoal action pills (#1E232A). Engineered for Next.js 16 + React 19 + shadcn/ui + Tailwind CSS v4, with real-time streaming observability, WCAG 2.2 AA accessibility (4.5:1 text contrast, skip link), and line-level citation inspection.
 
 colors:
     primary: '#004ea1'
@@ -89,7 +89,7 @@ typography:
         letterSpacing: -0.2px
 ---
 
-# NexusAgent — UI/UX Design System
+# AIRankAgent — UI/UX Design System
 
 ## 1. Design philosophy
 

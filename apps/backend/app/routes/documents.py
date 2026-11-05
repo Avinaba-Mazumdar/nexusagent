@@ -23,7 +23,7 @@ from app.db.neon import NeonDatabase, get_db
 from app.rag.embeddings import EmbeddingUnavailable, default_embedding_service
 from app.rag.ingest import build_chunks
 
-logger = logging.getLogger("nexusagent.documents")
+logger = logging.getLogger("airankagent.documents")
 
 router = APIRouter(prefix="/documents", tags=["Document Ingestion & Vault"])
 

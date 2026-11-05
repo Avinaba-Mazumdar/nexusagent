@@ -1,7 +1,7 @@
-import type { ChatConversation, ChatMessageRecord } from '@nexusagent/contracts';
+import type { ChatConversation, ChatMessageRecord } from '@airankagent/contracts';
 
-const CONVERSATIONS_PREFIX = 'nexusagent_chat_history_';
-const MESSAGES_PREFIX = 'nexusagent_msgs_';
+const CONVERSATIONS_PREFIX = 'airankagent_chat_history_';
+const MESSAGES_PREFIX = 'airankagent_msgs_';
 
 function read<T>(key: string): T | null {
     try {

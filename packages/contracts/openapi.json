@@ -1202,8 +1202,8 @@
         }
     },
     "info": {
-        "description": "NexusAgent: an open-source LLM benchmark assistant.",
-        "title": "NexusAgent",
+        "description": "AIRankAgent: an open-source LLM benchmark assistant.",
+        "title": "AIRankAgent",
         "version": "0.1.0-alpha"
     },
     "openapi": "3.1.0",

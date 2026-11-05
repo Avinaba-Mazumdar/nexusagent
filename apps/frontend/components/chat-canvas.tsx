@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MarkdownRenderer } from '@/components/canvas';
 import { STARTER_PROMPTS } from '@/lib/starter-prompts';
-import type { UserSession, Citation } from '@nexusagent/contracts';
+import type { UserSession, Citation } from '@airankagent/contracts';
 import type { ChatItem } from '@/hooks/useChatHistory';
 
 export interface ChatCanvasProps {

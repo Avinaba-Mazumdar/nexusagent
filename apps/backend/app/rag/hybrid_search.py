@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.db.neon import NeonDatabase, neon_db
 from app.rag.embeddings import EmbeddingService, default_embedding_service
 
-logger = logging.getLogger("nexusagent.rag.hybrid_search")
+logger = logging.getLogger("airankagent.rag.hybrid_search")
 
 
 class HybridSearchResult(BaseModel):

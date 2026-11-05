@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for the NexusAgent backend test suite.
+"""Shared pytest fixtures for the AIRankAgent backend test suite.
 
 The suite is hermetic by default: tests that require a live Neon PostgreSQL instance are
 marked ``@pytest.mark.db`` and skipped when ``TEST_DATABASE_URL`` is missing or unreachable,

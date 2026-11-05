@@ -7,7 +7,7 @@ from app.agent.state import AgentState
 from app.db.models import CitationWire, PlanStepWire
 from app.db.neon import neon_db
 
-logger = logging.getLogger("nexusagent.services.conversations")
+logger = logging.getLogger("airankagent.services.conversations")
 
 TITLE_MAX_CHARS = 60
 

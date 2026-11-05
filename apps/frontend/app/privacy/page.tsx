@@ -1,15 +1,15 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, Database, Eye, Globe, KeyRound, Lock, Server, Shield, Trash2, UserCheck } from 'lucide-react';
-import { NexusLogo } from '@/components/icons';
+import { AIRankLogo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AUDIT_RETENTION_DAYS, SITE_HOST } from '@/lib/site';
 
 export const metadata: Metadata = {
-    title: 'Privacy Policy | NexusAgent',
-    description: `Privacy Policy and data governance practices for NexusAgent hosted on ${SITE_HOST}.`
+    title: 'Privacy Policy | AIRankAgent',
+    description: `Privacy Policy and data governance practices for AIRankAgent hosted on ${SITE_HOST}.`
 };
 
 export default function PrivacyPolicyPage() {
@@ -20,9 +20,9 @@ export default function PrivacyPolicyPage() {
             {/* Header / Navigation Bar */}
             <header className="h-14 bg-card border-b border-border px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md bg-card/90">
                 <div className="flex items-center gap-3">
-                    <Link href="/" className="flex items-center gap-2 group cursor-pointer" aria-label="Return to NexusAgent Studio">
-                        <NexusLogo className="h-8 w-8 rounded-xl shadow-xs shrink-0 transition-transform group-hover:scale-105" />
-                        <span className="font-heading font-bold text-sm tracking-tight text-foreground">NexusAgent</span>
+                    <Link href="/" className="flex items-center gap-2 group cursor-pointer" aria-label="Return to AIRankAgent Studio">
+                        <AIRankLogo className="h-8 w-8 rounded-xl shadow-xs shrink-0 transition-transform group-hover:scale-105" />
+                        <span className="font-heading font-bold text-sm tracking-tight text-foreground">AIRankAgent</span>
                     </Link>
                     <span className="text-muted-foreground text-xs hidden sm:inline-block">/</span>
                     <Badge variant="outline" className="hidden sm:inline-flex text-xs font-mono border-border text-muted-foreground">
@@ -110,7 +110,7 @@ export default function PrivacyPolicyPage() {
                             1. Information We Collect
                         </h2>
                         <p>
-                            Depending on whether you access NexusAgent via a 1-Click Guest Pass or via Google Authentication, we collect only the minimal data
+                            Depending on whether you access AIRankAgent via a 1-Click Guest Pass or via Google Authentication, we collect only the minimal data
                             required to operate the autonomous analysis engine:
                         </p>
                         <ul className="space-y-2 list-none pl-1">
@@ -153,8 +153,9 @@ export default function PrivacyPolicyPage() {
                             2. Subdomain Architecture &amp; Security Boundary
                         </h2>
                         <p>
-                            NexusAgent is deployed exclusively at the dedicated subdomain <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>
-                            . To safeguard your session against cross-origin or cross-subdomain attacks:
+                            AIRankAgent is deployed exclusively at the dedicated subdomain{' '}
+                            <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>. To safeguard your session against cross-origin or
+                            cross-subdomain attacks:
                         </p>
                         <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
                             <p className="font-semibold text-foreground text-xs">Host-Only Token Scoping:</p>
@@ -278,7 +279,7 @@ export default function PrivacyPolicyPage() {
 
                 {/* Footer Notice */}
                 <div className="pt-8 border-t border-border text-center text-xs text-muted-foreground space-y-2">
-                    <p>NexusAgent is an open-source project. View source and architectural specifications on GitHub.</p>
+                    <p>AIRankAgent is an open-source project. View source and architectural specifications on GitHub.</p>
                     <div className="flex items-center justify-center gap-4 text-xs font-medium">
                         <Link href="/terms" className="hover:text-primary transition-colors">
                             Terms &amp; Conditions

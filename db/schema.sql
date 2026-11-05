@@ -1,4 +1,4 @@
--- NexusAgent schema (single source of truth). Applied by hand in the Neon SQL editor.
+-- AIRankAgent schema (single source of truth). Applied by hand in the Neon SQL editor.
 -- Fresh install: run this whole file.
 -- Reset an existing database (DELETES ALL DATA): DROP SCHEMA public CASCADE; CREATE SCHEMA public; then run this file.
 -- Make someone an admin (only way): UPDATE users SET is_admin = TRUE WHERE email = 'you@example.com';
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS tool_audit_logs (
     conversation_id UUID REFERENCES agent_conversations(id) ON DELETE SET NULL,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     tool_name VARCHAR(100) NOT NULL,
-    mcp_server VARCHAR(100) NOT NULL DEFAULT 'nexusagent-internal',
+    mcp_server VARCHAR(100) NOT NULL DEFAULT 'airankagent-internal',
     input_args JSONB NOT NULL,
     output_summary JSONB,
     duration_ms INT NOT NULL DEFAULT 0,
@@ -123,10 +123,10 @@ CREATE INDEX IF NOT EXISTS idx_tool_audit_logs_executed_at ON tool_audit_logs(ex
 
 -- Append-only, with two exceptions:
 --  * foreign-key cleanup may NULL user_id / conversation_id
---  * the retention job may DELETE old rows by setting nexusagent.audit_retention = 'on'
+--  * the retention job may DELETE old rows by setting airankagent.audit_retention = 'on'
 CREATE OR REPLACE FUNCTION tool_audit_logs_guard() RETURNS trigger AS $$
 BEGIN
-    IF TG_OP = 'DELETE' AND current_setting('nexusagent.audit_retention', true) = 'on' THEN
+    IF TG_OP = 'DELETE' AND current_setting('airankagent.audit_retention', true) = 'on' THEN
         RETURN OLD;
     END IF;
 

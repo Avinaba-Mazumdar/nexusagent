@@ -1,10 +1,10 @@
 import * as React from 'react';
 
-export interface NexusLogoProps extends React.SVGProps<SVGSVGElement> {
+export interface AIRankLogoProps extends React.SVGProps<SVGSVGElement> {
     size?: number | string;
 }
 
-export function NexusLogo({ size, className = '', ...props }: NexusLogoProps) {
+export function AIRankLogo({ size, className = '', ...props }: AIRankLogoProps) {
     return (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width={size} height={size} fill="none" className={className} {...props}>
             <rect width="512" height="512" rx="116" fill="var(--primary, #004ea1)" />

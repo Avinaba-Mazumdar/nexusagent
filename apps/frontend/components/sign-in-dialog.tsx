@@ -33,7 +33,7 @@ export function SignInDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-120 p-6 sm:p-7 rounded-3xl gap-4 border border-border/80 shadow-2xl">
                 <DialogHeader className="text-left space-y-1">
-                    <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground font-heading">Sign In to NexusAgent</DialogTitle>
+                    <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground font-heading">Sign In to AIRankAgent</DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
                         Choose an option to begin exploring LLM benchmarks with your complimentary live quota.
                     </DialogDescription>

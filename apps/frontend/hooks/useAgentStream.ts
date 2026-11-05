@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import type { AgentInvokeResponse, Citation, Grounding, PlanStep, UsageEvent, WebSource } from '@nexusagent/contracts';
+import type { AgentInvokeResponse, Citation, Grounding, PlanStep, UsageEvent, WebSource } from '@airankagent/contracts';
 import type { LogEntry, TelemetryMetrics } from '@/components/observability-panel';
 
 import { API_BASE, getAuthToken, notifyUnauthorized } from '@/lib/api-client';

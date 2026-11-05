@@ -9,7 +9,7 @@ import type {
     Citation,
     InjectionWarning,
     WebSource
-} from '@nexusagent/contracts';
+} from '@airankagent/contracts';
 import { apiClient } from '@/lib/api-client';
 import { readConversations, readMessages, removeMessages, writeConversations, writeMessages } from '@/lib/chat-cache';
 

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { SourceDialog } from './SourceDialog';
-import type { Citation } from '@nexusagent/contracts';
+import type { Citation } from '@airankagent/contracts';
 
 const citation: Citation = {
     id: 'c1',

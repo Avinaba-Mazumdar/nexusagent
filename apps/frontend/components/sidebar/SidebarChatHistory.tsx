@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Check, Clock, Loader2, LogIn, MessageSquare, Search, Trash2, X } from 'lucide-react';
-import type { ChatConversation } from '@nexusagent/contracts';
+import type { ChatConversation } from '@airankagent/contracts';
 import { Button } from '@/components/ui/button';
 
 export interface SidebarChatHistoryProps {

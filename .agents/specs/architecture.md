@@ -1,4 +1,4 @@
-# NexusAgent — System Architecture
+# AIRankAgent — System Architecture
 
 This document describes what the code does today. The database schema lives only in [`db/schema.sql`](../../db/schema.sql); this file does not repeat it.
 
@@ -86,7 +86,7 @@ Dense vector search (`pgvector` cosine similarity) and sparse keyword search (`t
 
 ### 4.4 Public MCP server (`/mcp`)
 
-FastMCP Streamable HTTP server mounted at `/mcp` (e.g. `https://nexusagent-oss.onrender.com/mcp` in production, or `http://localhost:8000/mcp` locally):
+FastMCP Streamable HTTP server mounted at `/mcp` (e.g. `https://airankagent.onrender.com/mcp` in production, or `http://localhost:8000/mcp` locally):
 
 - Stateless HTTP mode with JSON response formatting.
 - Rate-limited to 60 requests/minute per client IP via `SlidingWindowCounter`.

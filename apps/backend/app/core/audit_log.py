@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 from app.db.neon import NeonDatabase, neon_db
 
-logger = logging.getLogger("nexusagent.core.audit")
+logger = logging.getLogger("airankagent.core.audit")
 
 INSERT_QUERY = """
     INSERT INTO tool_audit_logs (
@@ -50,7 +50,7 @@ class ToolAuditLogger:
         duration_ms: int,
         user_id: UUID | None = None,
         conversation_id: UUID | None = None,
-        mcp_server: str = "nexusagent-internal",
+        mcp_server: str = "airankagent-internal",
     ) -> UUID | None:
         """Insert one audit row (retrying once). Returns the record id, or None if not stored."""
         if not self.db.pool:

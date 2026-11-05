@@ -49,7 +49,7 @@ describe('McpInspector Component', () => {
     it('renders JSON client config for Cursor/Claude Code and allows copying it', async () => {
         render(<McpInspector />);
 
-        const pre = screen.getByText(/nexusagent/);
+        const pre = screen.getByText(/airankagent/);
         expect(pre).toBeInTheDocument();
         expect(pre.textContent).toContain('"type": "http"');
 
@@ -58,6 +58,6 @@ describe('McpInspector Component', () => {
             fireEvent.click(copyJsonButton);
         });
 
-        expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining('"nexusagent"'));
+        expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining('"airankagent"'));
     });
 });

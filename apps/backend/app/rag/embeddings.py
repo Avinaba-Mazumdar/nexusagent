@@ -6,7 +6,7 @@ import httpx
 
 from app.config import settings
 
-logger = logging.getLogger("nexusagent.rag.embeddings")
+logger = logging.getLogger("airankagent.rag.embeddings")
 
 EMBEDDING_DIMENSION = 768
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"

@@ -22,12 +22,12 @@ from app.routes.documents import router as documents_router
 from app.routes.health import router as health_router
 from app.routes.rag import router as rag_router
 
-# Uvicorn only configures its own loggers; without this the nexusagent.* INFO records are dropped.
+# Uvicorn only configures its own loggers; without this the airankagent.* INFO records are dropped.
 logging.basicConfig(
     level=settings.LOG_LEVEL.upper(),
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
-logger = logging.getLogger("nexusagent.main")
+logger = logging.getLogger("airankagent.main")
 
 
 def ensure_single_worker() -> None:
@@ -38,7 +38,7 @@ def ensure_single_worker() -> None:
         return
     if workers > 1 and not settings.is_dev:
         raise RuntimeError(
-            "NexusAgent keeps abuse counters and MCP rate limits in process memory; "
+            "AIRankAgent keeps abuse counters and MCP rate limits in process memory; "
             "run exactly one worker (see README)."
         )
 
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.VERSION,
-    description="NexusAgent: an open-source LLM benchmark assistant.",
+    description="AIRankAgent: an open-source LLM benchmark assistant.",
     docs_url="/docs" if settings.is_dev else None,
     redoc_url="/redoc" if settings.is_dev else None,
     openapi_url="/openapi.json" if settings.is_dev else None,
@@ -133,7 +133,7 @@ app.include_router(chat_router, prefix="/api")
 @app.get("/", tags=["Root"])
 async def root():
     return {
-        "message": "Welcome to NexusAgent: an open-source LLM benchmark assistant.",
+        "message": "Welcome to AIRankAgent: an open-source LLM benchmark assistant.",
         "version": settings.VERSION,
         "docs": "/docs" if settings.is_dev else None,
         "health": "/api/health",

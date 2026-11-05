@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import type { Citation, DocumentChunkResponse } from '@nexusagent/contracts';
+import type { Citation, DocumentChunkResponse } from '@airankagent/contracts';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { apiClient } from '@/lib/api-client';
 

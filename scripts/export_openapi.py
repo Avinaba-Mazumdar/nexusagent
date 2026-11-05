@@ -3,7 +3,7 @@
 Write the API's OpenAPI schema to packages/contracts/openapi.json.
 
 The schema is the single source for the TypeScript contracts: `pnpm --filter
-@nexusagent/contracts generate` turns it into src/generated.ts. SSE payloads are not
+@airankagent/contracts generate` turns it into src/generated.ts. SSE payloads are not
 route responses, so their models (SSE_WIRE_MODELS) are added to components.schemas here.
 
 Usage:

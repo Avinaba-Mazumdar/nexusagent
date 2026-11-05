@@ -11,7 +11,7 @@ from pgvector.asyncpg import register_vector
 from app.config import settings
 from app.db.models import Document, DocumentChunk, User
 
-logger = logging.getLogger("nexusagent.db.neon")
+logger = logging.getLogger("airankagent.db.neon")
 
 
 INSERT_CHUNK_SQL = """
@@ -396,7 +396,7 @@ class NeonDatabase:
             return 0
         async with self.pool.acquire() as conn, conn.transaction():
             # Transaction-local switch that the append-only trigger honours for DELETE.
-            await conn.execute("SELECT set_config('nexusagent.audit_retention', 'on', true);")
+            await conn.execute("SELECT set_config('airankagent.audit_retention', 'on', true);")
             result = await conn.execute(
                 "DELETE FROM tool_audit_logs WHERE executed_at < NOW() - ($1 * INTERVAL '1 day');",
                 retention_days,

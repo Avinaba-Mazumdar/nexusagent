@@ -3,13 +3,13 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Activity, LogOut, Moon, Sun, LogIn } from 'lucide-react';
-import { NexusLogo } from '@/components/icons';
+import { AIRankLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
-import type { UserSession } from '@nexusagent/contracts';
+import type { UserSession } from '@airankagent/contracts';
 
 export interface AppHeaderProps {
     user: UserSession | null;
@@ -56,9 +56,9 @@ export function AppHeader({
             className="h-14 bg-card border-b border-border px-4 md:px-6 flex items-center justify-between gap-2 shrink-0 z-30"
         >
             <div className="flex items-center gap-3 min-w-0">
-                <NexusLogo className="h-8 w-8 rounded-xl shadow-xs shrink-0" aria-hidden="true" />
+                <AIRankLogo className="h-8 w-8 rounded-xl shadow-xs shrink-0" aria-hidden="true" />
                 <div className="flex items-baseline gap-2 min-w-0">
-                    <span className="font-heading font-bold text-sm tracking-tight text-foreground shrink-0">NexusAgent</span>
+                    <span className="font-heading font-bold text-sm tracking-tight text-foreground shrink-0">AIRankAgent</span>
                     <span className="hidden lg:inline text-xs text-muted-foreground truncate border-l border-border pl-2">
                         an open-source LLM benchmark assistant
                     </span>

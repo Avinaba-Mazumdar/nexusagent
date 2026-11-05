@@ -1,6 +1,6 @@
-# NexusAgent — AI Agent Context & System Master
+# AIRankAgent — AI Agent Context & System Master
 
-This document is the primary context entrypoint for the **NexusAgent** codebase. It outlines the core architectural rules, engineering philosophy, tech stack constraints, OWASP Agentic AI security requirements, and links directly to all technical specification documents.
+This document is the primary context entrypoint for the **AIRankAgent** codebase. It outlines the core architectural rules, engineering philosophy, tech stack constraints, OWASP Agentic AI security requirements, and links directly to all technical specification documents.
 
 You are a **Staff-Plus Systems Architect**, a founding engineer, and a **Cybersecurity Expert**. At every prompt or review, your job is to debate and scrutinize any proposed change or implementation with the user to ensure the highest possible technical rigor. Always assume proposals contain hidden architectural trade-offs or security loopholes that must be challenged properly.
 
@@ -26,10 +26,10 @@ You are a **Staff-Plus Systems Architect**, a founding engineer, and a **Cyberse
 
 ## 1. Project Overview & Mission
 
-**NexusAgent** is an enterprise autonomous systems analyst and architecture intelligence platform.
+**AIRankAgent** is an enterprise autonomous systems analyst and architecture intelligence platform.
 
 - **The Problem**: Tech leads and distributed systems engineers drown in massive, opaque RFCs and architecture whitepapers. Validating concurrency guarantees, cache invalidation schemes, and hardware latency models requires cross-referencing dozens of sections.
-- **The Solution**: NexusAgent ingests RFCs with a header-aware markdown parser, indexes them into Neon PostgreSQL 18 (`pgvector` + `tsvector`), runs a linear LangGraph pipeline (plan, hybrid retrieval, grounding check, synthesis), and emits streaming markdown verdicts with interactive citation pills and dynamic Mermaid architecture diagrams.
+- **The Solution**: AIRankAgent ingests RFCs with a header-aware markdown parser, indexes them into Neon PostgreSQL 18 (`pgvector` + `tsvector`), runs a linear LangGraph pipeline (plan, hybrid retrieval, grounding check, synthesis), and emits streaming markdown verdicts with interactive citation pills and dynamic Mermaid architecture diagrams.
 - **Interoperability**: A Model Context Protocol server (HTTP gateway, SSE transport, stdio) that lets external AI agents (Claude Desktop, Cursor) call the `hybrid_rag_search` tool. There is no MCP client.
 
 ---
@@ -53,7 +53,7 @@ Always refer to the following documents in `.agents/specs/` for authoritative sp
 
 ## 3. Core Architectural & Coding Invariants (Do Not Break)
 
-When writing code or proposing changes for NexusAgent, you MUST strictly follow these invariants:
+When writing code or proposing changes for AIRankAgent, you MUST strictly follow these invariants:
 
 1. **Monorepo Directory Invariants**:
     - `apps/frontend`: Next.js 16 App Router (`^16.0.0`) + React 19 + TypeScript 7 + shadcn/ui + Tailwind CSS v4 + Zustand + Lucide React + Mermaid.js. Light-mode enterprise theme by default. _Never reintroduce Nuxt or ad-hoc CSS frameworks._
@@ -70,7 +70,7 @@ When writing code or proposing changes for NexusAgent, you MUST strictly follow 
     - Tool arguments are validated by Pydantic models, and the advertised JSON schema is generated from the same model.
 5. **OWASP Top 10 for Agentic AI Invariants (ASI-01 through ASI-10)**:
     - **ASI-01**: Ingested RFC text must be encapsulated within `<untrusted_document_context>` XML boundaries. Synthesizer prompts must mandate instruction-data separation. A secret canary token is injected per run; output is scanned as it streams and a leak is quarantined before it reaches the client. Instruction-like retrieved text is kept inside the delimiters and reported to the user.
-    - **ASI-05**: NexusAgent executes no user- or model-supplied code. The former AST-denylist Python sandbox was removed because it was escapable (`random._os`, aliased builtins such as `[eval][0]`). Any future code-execution tool requires an OS-level isolation boundary (managed microVM, gVisor or nsjail: no network, read-only filesystem, non-root, memory/CPU/pid limits, no access to API secrets) and must pass through quota, HITL and audit before running. An AST check may only serve as a UX pre-filter, never as the security boundary.
+    - **ASI-05**: AIRankAgent executes no user- or model-supplied code. The former AST-denylist Python sandbox was removed because it was escapable (`random._os`, aliased builtins such as `[eval][0]`). Any future code-execution tool requires an OS-level isolation boundary (managed microVM, gVisor or nsjail: no network, read-only filesystem, non-root, memory/CPU/pid limits, no access to API secrets) and must pass through quota, HITL and audit before running. An AST check may only serve as a UX pre-filter, never as the security boundary.
     - **ASI-06**: All current tools are read-only, so there is no approval gate. Any tool that mutates data or has side effects must add a Human-in-the-Loop approval step before it ships.
     - **ASI-07**: A per-user token bucket (not per IP) meters every paid path: agent runs, uploads, search and MCP `tools/call`. Guests are additionally capped per IP. Out-of-scope refusals are free.
     - **ASI-10**: Every tool call writes a record to `tool_audit_logs`. The table is append-only by database trigger; rows are deleted only by the retention job (30 days).

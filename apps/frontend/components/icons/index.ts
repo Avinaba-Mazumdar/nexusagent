@@ -1,1 +1,1 @@
-export { NexusLogo, type NexusLogoProps } from './nexus-logo';
+export { AIRankLogo, type AIRankLogoProps } from './airank-logo';

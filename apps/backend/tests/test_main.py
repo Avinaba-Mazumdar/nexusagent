@@ -17,7 +17,7 @@ async def test_root_endpoint():
         response = await client.get("/")
         assert response.status_code == 200
         data = response.json()
-        assert "Welcome to NexusAgent" in data["message"]
+        assert "Welcome to AIRankAgent" in data["message"]
         assert data["version"] == settings.VERSION
         assert data["health"] == "/api/health"
         assert "health_check" not in data

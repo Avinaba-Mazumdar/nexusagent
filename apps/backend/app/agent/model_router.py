@@ -20,7 +20,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-logger = logging.getLogger("nexusagent.agent.model_router")
+logger = logging.getLogger("airankagent.agent.model_router")
 
 PACIFIC = ZoneInfo("America/Los_Angeles")
 DEFAULT_COOLDOWN_SECONDS = 60.0

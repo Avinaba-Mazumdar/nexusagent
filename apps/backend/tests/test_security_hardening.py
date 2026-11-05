@@ -130,7 +130,7 @@ def test_localhost_origins_are_only_allowed_in_development_r2_sec_09():
         JWT_SECRET_KEY="x" * 40,
         GOOGLE_CLIENT_ID="client",
     )
-    assert prod.CORS_ORIGINS == ["https://nexusagent.avinaba.com"]
+    assert prod.CORS_ORIGINS == ["https://airankagent.avinaba.com"]
     dev = Settings(ENVIRONMENT="development")
     assert "http://localhost:3000" in dev.CORS_ORIGINS
-    assert "https://nexusagent.avinaba.com" in dev.CORS_ORIGINS
+    assert "https://airankagent.avinaba.com" in dev.CORS_ORIGINS

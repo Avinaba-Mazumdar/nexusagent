@@ -15,7 +15,7 @@ import { WorkspaceSidebar, type WorkspaceDoc, type UploadState } from '@/compone
 import { ChatCanvas } from '@/components/chat-canvas';
 import { Composer } from '@/components/composer';
 import { useChatHistory, type ChatItem } from '@/hooks/useChatHistory';
-import type { ChatConversation, Citation, DocumentListResponse, DocumentMetadata, DocumentUploadResponse, UsageEvent } from '@nexusagent/contracts';
+import type { ChatConversation, Citation, DocumentListResponse, DocumentMetadata, DocumentUploadResponse, UsageEvent } from '@airankagent/contracts';
 import { SourceDialog } from '@/components/canvas';
 
 const MAX_LOG_ENTRIES = 200;
@@ -161,7 +161,7 @@ export default function Home() {
         if (!themeToggledRef.current) return;
         document.documentElement.classList.toggle('dark', isDarkTheme);
         try {
-            localStorage.setItem('nexusagent_theme', isDarkTheme ? 'dark' : 'light');
+            localStorage.setItem('airankagent_theme', isDarkTheme ? 'dark' : 'light');
         } catch {
             // Storage unavailable (private mode): the theme still applies for this tab.
         }

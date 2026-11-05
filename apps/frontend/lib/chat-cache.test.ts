@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
-import type { ChatConversation, ChatMessageRecord } from '@nexusagent/contracts';
+import type { ChatConversation, ChatMessageRecord } from '@airankagent/contracts';
 import { clearChatCache, readConversations, readMessages, removeMessages, writeConversations, writeMessages } from './chat-cache';
 
 const conversation = { id: 'c1', userId: 'u1', title: 'T', createdAt: '2026-01-01T00:00:00Z' } as ChatConversation;
@@ -23,17 +23,17 @@ describe('chat-cache', () => {
     it('clearChatCache removes chats but leaves other keys', () => {
         writeConversations('u1', [conversation]);
         writeMessages('c1', [message]);
-        localStorage.setItem('nexusagent_theme', 'dark');
+        localStorage.setItem('airankagent_theme', 'dark');
 
         clearChatCache();
 
         expect(readConversations('u1')).toEqual([]);
         expect(readMessages('c1')).toBeNull();
-        expect(localStorage.getItem('nexusagent_theme')).toBe('dark');
+        expect(localStorage.getItem('airankagent_theme')).toBe('dark');
     });
 
     it('never throws when storage is unavailable or corrupt', () => {
-        localStorage.setItem('nexusagent_msgs_c1', '{not json');
+        localStorage.setItem('airankagent_msgs_c1', '{not json');
         expect(readMessages('c1')).toBeNull();
 
         const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {

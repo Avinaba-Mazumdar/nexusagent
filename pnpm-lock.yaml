@@ -183,7 +183,7 @@ importers:
 
   apps/frontend:
     dependencies:
-      '@nexusagent/contracts':
+      '@airankagent/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@radix-ui/react-avatar':

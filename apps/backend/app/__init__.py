@@ -1,1 +1,1 @@
-"""NexusAgent Backend Application Package."""
+"""AIRankAgent Backend Application Package."""

@@ -8,7 +8,7 @@ describe('mcp-client-config', () => {
 
     it('builds valid JSON config with http transport', () => {
         const config = JSON.parse(buildClientConfig());
-        expect(config.mcpServers.nexusagent).toEqual({
+        expect(config.mcpServers.airankagent).toEqual({
             type: 'http',
             url: MCP_URL
         });

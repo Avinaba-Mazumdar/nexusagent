@@ -15,7 +15,7 @@ describe('Home Page - Layout and Header Controls', () => {
 
         // 1. Header
         expect(screen.getByRole('banner', { name: /command center navigation/i })).toBeInTheDocument();
-        expect(screen.getByText('NexusAgent')).toBeInTheDocument();
+        expect(screen.getByText('AIRankAgent')).toBeInTheDocument();
         expect(screen.queryByText('v0.1.0')).not.toBeInTheDocument();
         expect(screen.queryByText(/quota/i)).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^sign in$/i })).toBeInTheDocument();
@@ -62,7 +62,7 @@ describe('Home Page - Layout and Header Controls', () => {
         await user.click(signInButton);
 
         expect(screen.getByRole('dialog')).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: 'Sign In to NexusAgent' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Sign In to AIRankAgent' })).toBeInTheDocument();
         expect(screen.getByText(/sign-in isn.t configured/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /start as guest/i })).toBeInTheDocument();
         expect(screen.queryByRole('tab', { name: /email account/i })).not.toBeInTheDocument();
@@ -137,7 +137,7 @@ describe('Home Page - Layout and Header Controls', () => {
             expiresIn: 86400,
             user: {
                 id: '44444444-4444-4444-4444-444444444444',
-                email: 'developer@nexusagent.internal',
+                email: 'developer@airankagent.internal',
                 name: 'Lead Systems Architect',
                 avatarUrl: null,
                 isGuest: false,
@@ -215,12 +215,12 @@ describe('Home Page - Layout and Header Controls', () => {
         // Toggle on -> dark class added & stored
         await user.click(themeSwitch);
         expect(document.documentElement.classList.contains('dark')).toBe(true);
-        expect(localStorage.getItem('nexusagent_theme')).toBe('dark');
+        expect(localStorage.getItem('airankagent_theme')).toBe('dark');
 
         // Toggle off -> dark class removed & light stored
         await user.click(themeSwitch);
         expect(document.documentElement.classList.contains('dark')).toBe(false);
-        expect(localStorage.getItem('nexusagent_theme')).toBe('light');
+        expect(localStorage.getItem('airankagent_theme')).toBe('light');
 
         global.fetch = originalFetch;
     });
@@ -304,24 +304,24 @@ describe('Home Page - Layout and Header Controls', () => {
     });
 
     it('clears cached chat history from localStorage on sign out', () => {
-        localStorage.setItem('nexusagent_chat_history_user-1', '[]');
-        localStorage.setItem('nexusagent_msgs_conv-1', '[]');
-        localStorage.setItem('nexusagent_theme', 'dark');
+        localStorage.setItem('airankagent_chat_history_user-1', '[]');
+        localStorage.setItem('airankagent_msgs_conv-1', '[]');
+        localStorage.setItem('airankagent_theme', 'dark');
 
         useAuthStore.getState().logout();
 
-        expect(localStorage.getItem('nexusagent_chat_history_user-1')).toBeNull();
-        expect(localStorage.getItem('nexusagent_msgs_conv-1')).toBeNull();
-        expect(localStorage.getItem('nexusagent_theme')).toBe('dark');
+        expect(localStorage.getItem('airankagent_chat_history_user-1')).toBeNull();
+        expect(localStorage.getItem('airankagent_msgs_conv-1')).toBeNull();
+        expect(localStorage.getItem('airankagent_theme')).toBe('dark');
     });
 
     it('invalidates stale session when server returns 401 on init', async () => {
-        localStorage.setItem('nexusagent_token', 'stale.jwt.token');
+        localStorage.setItem('airankagent_token', 'stale.jwt.token');
         localStorage.setItem(
-            'nexusagent_user',
+            'airankagent_user',
             JSON.stringify({
                 id: '33333333-3333-3333-3333-333333333333',
-                email: 'deleted@nexusagent.internal',
+                email: 'deleted@airankagent.internal',
                 name: 'Deleted User',
                 avatarUrl: null,
                 isGuest: false,
@@ -329,7 +329,7 @@ describe('Home Page - Layout and Header Controls', () => {
                 lastSeenAt: '2026-09-13T00:00:00Z'
             })
         );
-        localStorage.setItem('nexusagent_quota', JSON.stringify({ remaining: 25, capacity: 25, resetsAt: null }));
+        localStorage.setItem('airankagent_quota', JSON.stringify({ remaining: 25, capacity: 25, resetsAt: null }));
 
         const originalFetch = global.fetch;
         global.fetch = vi.fn().mockResolvedValue({
@@ -343,7 +343,7 @@ describe('Home Page - Layout and Header Controls', () => {
         // Should revert to logged-out state with Sign In button visible
         expect(await screen.findByRole('button', { name: /^sign in$/i })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /user profile menu/i })).not.toBeInTheDocument();
-        expect(localStorage.getItem('nexusagent_token')).toBeNull();
+        expect(localStorage.getItem('airankagent_token')).toBeNull();
 
         global.fetch = originalFetch;
     });
