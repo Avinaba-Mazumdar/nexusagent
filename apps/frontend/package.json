@@ -1,5 +1,5 @@
 {
-    "name": "@airankagent/frontend",
+    "name": "@nexusagent/frontend",
     "version": "0.1.0-alpha",
     "private": true,
     "scripts": {
@@ -10,7 +10,7 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "@airankagent/contracts": "workspace:*",
+        "@nexusagent/contracts": "workspace:*",
         "@radix-ui/react-avatar": "^1.2.6",
         "@radix-ui/react-dialog": "^1.1.6",
         "@radix-ui/react-popover": "^1.1.6",

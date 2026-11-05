@@ -48,15 +48,15 @@ describe('theme', () => {
     it('boot script restores the stored theme before paint', () => {
         const boot = new Function(THEME_BOOT_SCRIPT);
 
-        localStorage.setItem('airankagent_theme', 'black');
+        localStorage.setItem('nexusagent_theme', 'black');
         boot();
         expect(readThemeFromDocument()).toBe('black');
 
-        localStorage.setItem('airankagent_theme', 'dark');
+        localStorage.setItem('nexusagent_theme', 'dark');
         boot();
         expect(readThemeFromDocument()).toBe('dark');
 
-        localStorage.setItem('airankagent_theme', 'bogus');
+        localStorage.setItem('nexusagent_theme', 'bogus');
         boot();
         expect(readThemeFromDocument()).toBe('light');
     });

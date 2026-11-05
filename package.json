@@ -1,18 +1,18 @@
 {
-    "name": "airankagent-monorepo",
+    "name": "nexusagent-monorepo",
     "version": "0.1.0-alpha",
     "private": true,
-    "description": "AIRankAgent Autonomous Systems Analyst Monorepo",
+    "description": "NexusAgent Autonomous Systems Analyst Monorepo",
     "scripts": {
         "dev": "vp run -r dev",
-        "dev:fe": "pnpm --filter @airankagent/frontend dev",
+        "dev:fe": "pnpm --filter @nexusagent/frontend dev",
         "dev:be": "uv run --project apps/backend python -m uvicorn app.main:app --app-dir apps/backend --reload --reload-dir apps/backend/app --port 8000",
         "build": "vp run -r build",
         "test": "vp run -r test",
-        "test:fe": "pnpm --filter @airankagent/frontend test",
+        "test:fe": "pnpm --filter @nexusagent/frontend test",
         "test:be": "uv run --project apps/backend python -m pytest apps/backend/tests",
         "lint": "vp lint",
-        "contracts:generate": "uv run --project apps/backend python scripts/export_openapi.py && pnpm --filter @airankagent/contracts generate && vp fmt packages/contracts/openapi.json packages/contracts/src/generated.ts",
+        "contracts:generate": "uv run --project apps/backend python scripts/export_openapi.py && pnpm --filter @nexusagent/contracts generate && vp fmt packages/contracts/openapi.json packages/contracts/src/generated.ts",
         "format": "vp fmt",
         "format:check": "vp fmt --check"
     },

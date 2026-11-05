@@ -32,7 +32,7 @@ export function Composer({ prompt, onPromptChange, onSubmit, onKeyDown, isStream
     const showCounter = prompt.length > QUERY_COUNTER_FROM;
 
     return (
-        <form onSubmit={onSubmit} aria-label="Ask AIRankAgent" className="p-4 bg-card border-t border-border shrink-0">
+        <form onSubmit={onSubmit} aria-label="Ask NexusAgent" className="p-4 bg-card border-t border-border shrink-0">
             <div className="relative flex items-end">
                 <textarea
                     ref={textareaRef}

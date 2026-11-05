@@ -1,4 +1,4 @@
-# AIRankAgent Backend
+# NexusAgent Backend
 
 An open-source LLM benchmark assistant built with FastAPI, LangGraph, and Neon PostgreSQL 18.
 

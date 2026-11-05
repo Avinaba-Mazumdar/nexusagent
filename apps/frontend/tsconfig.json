@@ -20,8 +20,8 @@
         ],
         "paths": {
             "@/*": ["./*"],
-            "@airankagent/contracts": ["../../packages/contracts/src/index.ts"],
-            "@airankagent/contracts/*": ["../../packages/contracts/src/*"]
+            "@nexusagent/contracts": ["../../packages/contracts/src/index.ts"],
+            "@nexusagent/contracts/*": ["../../packages/contracts/src/*"]
         }
     },
     "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", "**/*.mts"],

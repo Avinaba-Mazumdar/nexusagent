@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Bookmark, FileText } from 'lucide-react';
-import type { Citation } from '@airankagent/contracts';
+import type { Citation } from '@nexusagent/contracts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export interface CitationPillProps {

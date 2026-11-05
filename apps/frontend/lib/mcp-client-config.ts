@@ -4,7 +4,7 @@ export function buildClientConfig(): string {
     return JSON.stringify(
         {
             mcpServers: {
-                airankagent: {
+                nexusagent: {
                     type: 'http',
                     url: MCP_URL
                 }

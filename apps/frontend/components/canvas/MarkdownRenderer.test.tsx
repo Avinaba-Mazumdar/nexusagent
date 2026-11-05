@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vite-plus/test';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import type { Citation } from '@airankagent/contracts';
+import type { Citation } from '@nexusagent/contracts';
 
 describe('MarkdownRenderer Component', () => {
     const mockCitations: Citation[] = [

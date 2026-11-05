@@ -21,7 +21,7 @@ async def test_list_seeded_documents_without_auth():
     # A fresh database has no seeded corpus; add whichever of the four documents is missing.
     created = []
     for name in names:
-        doc_id = uuid5(NAMESPACE_URL, f"airankagent:kb:{name}")
+        doc_id = uuid5(NAMESPACE_URL, f"nexusagent:kb:{name}")
         if await neon_db.get_document_by_id(doc_id) is None:
             doc = Document(
                 id=doc_id,

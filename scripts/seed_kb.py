@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AIRankAgent Predefined Knowledge Base Seeding Pipeline.
+NexusAgent Predefined Knowledge Base Seeding Pipeline.
 Reads markdown files in knowledge_base/benchmarks/, creates semantic chunks using
 the app's header-aware markdown parser, generates 768-dimensional embeddings via Gemini,
 and upserts into Neon PostgreSQL inside an atomic transaction.
@@ -59,7 +59,7 @@ async def seed_knowledge_base():
     for doc_path in files:
         raw_bytes = doc_path.read_bytes()
         # Stable ID: re-seeding must not invalidate stored citation documentIds.
-        doc_id = uuid5(NAMESPACE_URL, f"airankagent:kb:{doc_path.name}")
+        doc_id = uuid5(NAMESPACE_URL, f"nexusagent:kb:{doc_path.name}")
         sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
 
         chunks = build_chunks(

@@ -47,7 +47,7 @@ async def test_chat_history_google_user_crud():
     user_id = uuid4()
     google_user = User(
         id=user_id,
-        email=f"developer-{uuid4().hex[:8]}@airankagent.test",
+        email=f"developer-{uuid4().hex[:8]}@nexusagent.test",
         name="Google Dev",
         is_guest=False,
     )
@@ -96,7 +96,7 @@ async def test_follow_up_turn_keeps_first_title():
     await neon_db.create_user(
         User(
             id=user_id,
-            email=f"title-{uuid4().hex[:8]}@airankagent.test",
+            email=f"title-{uuid4().hex[:8]}@nexusagent.test",
             name="Title Tester",
             is_guest=False,
         )

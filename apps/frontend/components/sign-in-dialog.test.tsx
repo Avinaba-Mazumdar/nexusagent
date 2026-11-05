@@ -21,7 +21,7 @@ function renderDialog() {
 describe('SignInDialog', () => {
     it('renders the sign in options and title', () => {
         renderDialog();
-        expect(screen.getByText('Sign In to AIRankAgent')).toBeInTheDocument();
+        expect(screen.getByText('Sign In to NexusAgent')).toBeInTheDocument();
         expect(screen.getByText('Sign in with Google')).toBeInTheDocument();
         expect(screen.getByText('Continue as Guest')).toBeInTheDocument();
     });

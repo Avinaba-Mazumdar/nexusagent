@@ -1,7 +1,7 @@
 [project]
-name = "airankagent-backend"
+name = "nexusagent-backend"
 version = "0.1.0-alpha"
-description = "AIRankAgent: an open-source LLM benchmark assistant"
+description = "NexusAgent: an open-source LLM benchmark assistant"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [

@@ -147,7 +147,7 @@ async def test_garbage_google_token_is_rejected():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
             "/api/auth/google",
-            json={"credential": "mock-google-token:attacker@airankagent.internal:Attacker"},
+            json={"credential": "mock-google-token:attacker@nexusagent.internal:Attacker"},
         )
         assert resp.status_code == 401
 

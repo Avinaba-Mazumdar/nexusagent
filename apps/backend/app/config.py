@@ -9,7 +9,7 @@ KNOWLEDGE_BASE_DIR: Path = REPO_ROOT / "knowledge_base" / "benchmarks"
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "AIRankAgent"
+    APP_NAME: str = "NexusAgent"
     VERSION: str = "0.1.0-alpha"
     ENVIRONMENT: str = "production"
     DEBUG: bool = False
@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "gemini-embedding-001"
 
     PORT: int = 8000
-    PUBLIC_SITE_HOST: str = "airankagent.avinaba.com"
-    CORS_ORIGINS: str | list[str] = ["https://airankagent.avinaba.com"]
+    PUBLIC_SITE_HOST: str = "nexusagent.avinaba.com"
+    CORS_ORIGINS: str | list[str] = ["https://nexusagent.avinaba.com"]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -54,8 +54,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     # Refreshing cannot extend a login beyond this age; the user must sign in again.
     MAX_SESSION_AGE_DAYS: int = 7
-    JWT_ISSUER: str = "airankagent-api"
-    JWT_AUDIENCE: str = "airankagent-web"
+    JWT_ISSUER: str = "nexusagent-api"
+    JWT_AUDIENCE: str = "nexusagent-web"
     GUEST_QUOTA_DEFAULT: int = 5
     USER_QUOTA_DEFAULT: int = 25
     CHAT_HISTORY_MESSAGES: int = 6
@@ -88,7 +88,7 @@ class Settings(BaseSettings):
                 *self.CORS_ORIGINS,
             ]
             if not self.JWT_SECRET_KEY:
-                self.JWT_SECRET_KEY = "airankagent-local-dev-only-secret-not-for-production"
+                self.JWT_SECRET_KEY = "nexusagent-local-dev-only-secret-not-for-production"
             return self
         if len(self.JWT_SECRET_KEY) < 32:
             raise ValueError("JWT_SECRET_KEY must be set (>= 32 chars) outside development/test.")

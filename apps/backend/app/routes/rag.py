@@ -19,7 +19,7 @@ from app.rag.hybrid_search import (
     HybridSearchEngine,
 )
 
-logger = logging.getLogger("airankagent.routes.rag")
+logger = logging.getLogger("nexusagent.routes.rag")
 
 router = APIRouter(prefix="/rag", tags=["RAG Hybrid Search & Embeddings"])
 

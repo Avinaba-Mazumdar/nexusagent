@@ -1,4 +1,4 @@
-# AIRankAgent: Full Codebase Audit Report (Round 2)
+# NexusAgent: Full Codebase Audit Report (Round 2)
 
 - **Date:** 2026-10-30
 - **Commit audited:** `ac1c4d9` (branch `master`, clean tree)
@@ -30,7 +30,7 @@ Standard gates (run after every commit):
 
 ```bash
 cd apps/backend && uv run pytest -q && uv run ruff check . && uv run ruff format --check .
-pnpm --filter @airankagent/frontend typecheck && pnpm lint && pnpm format:check && pnpm --filter @airankagent/frontend test
+pnpm --filter @nexusagent/frontend typecheck && pnpm lint && pnpm format:check && pnpm --filter @nexusagent/frontend test
 ```
 
 Severity legend:
@@ -270,7 +270,7 @@ Parameterised SQL everywhere, per-user tenancy checks, local Google ID-token ver
 
 - **Where:** `app/core/rate_limiter.py` (`SlidingWindowCounter` x4), `app/routes/mcp.py::SESSIONS`, `app/routes/documents.py::_UPLOAD_LOCKS`, `app/agent/model_router.py`.
 - **Problem:** With more than one worker or instance every per-IP limit multiplies by the worker count, MCP `POST /messages` can land on a worker that does not hold the SSE session (404), and the upload lock stops protecting anything. The README says "run a single process" but nothing enforces it, and `uvicorn --workers N` or a platform autoscaler silently breaks the limits. See **DECISION D3** in §9.
-- **Fix (minimum, always do this):** In `main.py::lifespan`, read `os.environ.get("WEB_CONCURRENCY")`; if it is set and `> 1`, raise `RuntimeError("AIRankAgent keeps abuse counters and MCP sessions in memory; run exactly one worker (see README).")` in production. Add the same sentence to `README.md` -> Deployment.
+- **Fix (minimum, always do this):** In `main.py::lifespan`, read `os.environ.get("WEB_CONCURRENCY")`; if it is set and `> 1`, raise `RuntimeError("NexusAgent keeps abuse counters and MCP sessions in memory; run exactly one worker (see README).")` in production. Add the same sentence to `README.md` -> Deployment.
 - **Fix (if D3 = "make it stateless"):** Replace `SlidingWindowCounter` with one table and one SQL statement (also deletes the `MAX_TRACKED_KEYS` pruning code):
 
     ```sql
@@ -309,7 +309,7 @@ Parameterised SQL everywhere, per-user tenancy checks, local Google ID-token ver
 - **Problem:** `pnpm audit --prod` reports 4 critical and 5 high. Highlights: `next@16.3.4` (RCE in `next/og`, in the Image Optimization API with SVG, in `use cache`; DoS in Server Actions; SSRF in image optimization; patched in `>=16.4.1`), `dompurify` pinned at `3.2.6` plus a second copy under `mermaid` (many bypasses, patched in `>=3.4.17`), `katex <0.18.2`, `sharp`, `source-map-js`. The app does not use `next/og` or `use cache`, but the image endpoint is on by default, so patch anyway. Backend: `pyjwt 2.13.0` (15 advisories, the auth library; fixed `>=2.15.0`), `pillow 12.3.0` (39 advisories, fixed in 13.0.0), `aiohttp`, `certifi`, `dnspython`, `nltk`, `setuptools`, `opentelemetry-api`.
   **Caveat:** `pip-audit` ran against the local `.venv`, which also contains `fastmcp`, `authlib` and `langgraph-sdk` that are **not** in `uv.lock`. The venv has drifted from the lockfile. Re-run the audit after `uv sync --frozen`.
 - **Fix:**
-    1. Frontend: `pnpm --filter @airankagent/frontend up next@latest` (must be `>=16.4.1`), set `dompurify` to `^3.4.17`, and add a `pnpm.overrides` / `overrides` entry in `pnpm-workspace.yaml` forcing `dompurify@<3.4.17` to `3.4.17` so the copy under `mermaid` is fixed too. Run `pnpm up mermaid katex`. Run `pnpm audit --prod` until no critical/high remain.
+    1. Frontend: `pnpm --filter @nexusagent/frontend up next@latest` (must be `>=16.4.1`), set `dompurify` to `^3.4.17`, and add a `pnpm.overrides` / `overrides` entry in `pnpm-workspace.yaml` forcing `dompurify@<3.4.17` to `3.4.17` so the copy under `mermaid` is fixed too. Run `pnpm up mermaid katex`. Run `pnpm audit --prod` until no critical/high remain.
     2. Backend: `cd apps/backend && uv lock --upgrade-package pyjwt --upgrade-package pillow --upgrade-package aiohttp --upgrade-package certifi --upgrade-package dnspython --upgrade-package nltk --upgrade-package setuptools --upgrade-package opentelemetry-api`, then `uv sync --frozen`, then re-run `uv run --with pip-audit pip-audit --skip-editable`. Set `pyjwt[crypto]>=2.15.0` in `pyproject.toml`.
     3. Run the full test suites. If a major bump breaks something, fix the break; do not pin back.
     4. Add the audit job from R2-OPS-04 so this does not regress.
@@ -325,7 +325,7 @@ Parameterised SQL everywhere, per-user tenancy checks, local Google ID-token ver
 ### R2-SEC-10 · Low · HSTS `preload` and `includeSubDomains` hard-coded
 
 - **Where:** `apps/frontend/next.config.ts`, `securityHeaders`.
-- **Problem:** `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` is sent on every deployment, including previews. `preload` is a commitment for the whole registrable domain and is meant to be opt-in; `includeSubDomains` on `airankagent.avinaba.com` is harmless today but is a trap for the other `avinaba.com` services the privacy page mentions.
+- **Problem:** `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` is sent on every deployment, including previews. `preload` is a commitment for the whole registrable domain and is meant to be opt-in; `includeSubDomains` on `nexusagent.avinaba.com` is harmless today but is a trap for the other `avinaba.com` services the privacy page mentions.
 - **Fix:** Send `max-age=31536000` only. Add `includeSubDomains; preload` behind an explicit env flag (`HSTS_PRELOAD=true`) that is off by default. Do not send HSTS at all when `NODE_ENV !== 'production'`.
 - **Verify:** Unit test of the header builder (extract a tiny function) for the three cases.
 
@@ -583,7 +583,7 @@ Do these as one commit per bullet group, running the gates each time.
 - Unused primitives in `components/ui`: `CardFooter`, `DialogFooter`, `DialogClose`, `PopoverAnchor`; unused variants: Button `destructive`, `link`, size `lg`; Badge `default`, `secondary`, `success`, `warning`, `destructive`. Verify each with `grep` first, then delete. (Low value; skip any that a planned change will use.)
 - Unused CSS tokens in `styles/globals.css` and the `@theme` block: `--dark-pill*`, `--info*`.
 - `apps/frontend/.gitignore` contains only `.vitest/`, which the root `.gitignore` already ignores. Delete the file.
-- `packages/contracts/package.json` declares `main`/`exports` to `dist/` and a `build` script, but the frontend resolves the package through the `tsconfig` `paths` alias to `src/` and only imports types. CI's `pnpm --filter @airankagent/contracts build` step is therefore unnecessary. Remove that CI step (R2-OPS-04) and keep `typecheck`.
+- `packages/contracts/package.json` declares `main`/`exports` to `dist/` and a `build` script, but the frontend resolves the package through the `tsconfig` `paths` alias to `src/` and only imports types. CI's `pnpm --filter @nexusagent/contracts build` step is therefore unnecessary. Remove that CI step (R2-OPS-04) and keep `typecheck`.
 - **Verify:** typecheck, lint (the unused-export rule), tests.
 
 ### R2-CLN-03 · Medium · Hand-written wire mappers (DRY)
@@ -601,9 +601,9 @@ Do these as one commit per bullet group, running the gates each time.
 
 ### R2-CLN-04 · Low · Message cache logic duplicated in four places
 
-- **Where:** `app/page.tsx::streamInto` (writes `airankagent_msgs_*` with fake `createdAt: new Date()` and without warnings), `useChatHistory.ts` (`prefetchMessages`, `handleSelectConversationItem`, `handleDeleteConversation`), `auth-store.ts` (`CHAT_CACHE_PREFIXES`).
+- **Where:** `app/page.tsx::streamInto` (writes `nexusagent_msgs_*` with fake `createdAt: new Date()` and without warnings), `useChatHistory.ts` (`prefetchMessages`, `handleSelectConversationItem`, `handleDeleteConversation`), `auth-store.ts` (`CHAT_CACHE_PREFIXES`).
 - **Fix:** Create `lib/chat-cache.ts` exporting `readMessages(id)`, `writeMessages(id, records)`, `removeMessages(id)`, `readConversations(userId)`, `writeConversations(userId, list)`, `clearChatCache()`, each wrapping `localStorage` in `try/catch`. Use them from the hook and the store. `page.tsx` must stop writing to localStorage: after a stream completes, call `prefetchMessages` with a forced refresh (or invalidate the memory cache entry) so the next open fetches the server copy with real timestamps.
-- **Verify:** Unit test for `chat-cache`; `grep -rn "airankagent_msgs_" apps/frontend --include=*.ts --include=*.tsx` only matches `lib/chat-cache.ts`.
+- **Verify:** Unit test for `chat-cache`; `grep -rn "nexusagent_msgs_" apps/frontend --include=*.ts --include=*.tsx` only matches `lib/chat-cache.ts`.
 
 ### R2-CLN-05 · Low · Graph topology duplicated in `routes/agent.py`
 
@@ -699,7 +699,7 @@ Do these as one commit per bullet group, running the gates each time.
         services:
             postgres:
                 image: pgvector/pgvector:pg18
-                env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: airank_test }
+                env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: nexus_test }
                 ports: ['5432:5432']
                 options: >-
                     --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
@@ -707,7 +707,7 @@ Do these as one commit per bullet group, running the gates each time.
             ...
             - run: uv run pytest -q
               env:
-                  TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/airank_test
+                  TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nexus_test
     ```
 
     Add a final step `uv run pytest -q -rs | tee out.txt; ! grep -q SKIPPED out.txt` (or `--strict-markers` plus a count assertion) so a silent skip fails the job. Update the README testing section.
@@ -717,16 +717,16 @@ Do these as one commit per bullet group, running the gates each time.
 ### R2-OPS-04 · Low · CI hygiene
 
 - **Where:** `.github/workflows/ci.yml`.
-- **Problem:** Actions pinned by moving tags (`@v4`, `@v5`), no `permissions:` block (default token permissions), no `concurrency` (stale runs pile up), no dependency audit, no uv cache, and the frontend job builds `@airankagent/contracts` although nothing consumes `dist` (R2-CLN-02).
+- **Problem:** Actions pinned by moving tags (`@v4`, `@v5`), no `permissions:` block (default token permissions), no `concurrency` (stale runs pile up), no dependency audit, no uv cache, and the frontend job builds `@nexusagent/contracts` although nothing consumes `dist` (R2-CLN-02).
 - **Fix:** Add top-level `permissions: { contents: read }` and `concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }`. Pin each `uses:` to a full commit SHA with the tag in a comment. Add `enable-cache: true` to `setup-uv`. Remove the contracts build step. Add a job `audit`: `pnpm audit --prod --audit-level=high` and `uv run --with pip-audit pip-audit --skip-editable` (working-directory `apps/backend`, after `uv sync --frozen`). Enable Dependabot via `.github/dependabot.yml` for `npm`, `pip`/`uv` and `github-actions`, weekly.
 - **Verify:** Workflow validates (`gh workflow view`/a pushed run); audit job passes after R2-SEC-08.
 
 ### R2-OPS-05 · Low · Application logging is not configured
 
 - **Where:** `apps/backend/app/main.py` (no `logging.basicConfig`/`dictConfig`).
-- **Problem:** Uvicorn configures only its own loggers. The app's `airankagent.*` loggers inherit the root level `WARNING`, so `logger.info(...)` calls (migrations applied, pruned rows, "Applied migrations") never appear, and warnings use the bare last-resort format with no timestamp.
+- **Problem:** Uvicorn configures only its own loggers. The app's `nexusagent.*` loggers inherit the root level `WARNING`, so `logger.info(...)` calls (migrations applied, pruned rows, "Applied migrations") never appear, and warnings use the bare last-resort format with no timestamp.
 - **Fix:** Add `LOG_LEVEL: str = "INFO"` to `Settings`. In `main.py` call `logging.basicConfig(level=settings.LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s %(message)s")` once at import. Never log request bodies or tokens.
-- **Verify:** Test with `caplog` that an `INFO` record from `airankagent.db.migrations` is captured when the level is `INFO`.
+- **Verify:** Test with `caplog` that an `INFO` record from `nexusagent.db.migrations` is captured when the level is `INFO`.
 
 ### R2-DOC-01 · Low · Documentation drift
 

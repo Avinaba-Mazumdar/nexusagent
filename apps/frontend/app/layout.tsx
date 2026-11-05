@@ -29,7 +29,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-    title: 'AIRankAgent: an open-source LLM benchmark assistant',
+    title: 'NexusAgent: an open-source LLM benchmark assistant',
     description: 'An open-source LLM benchmark assistant powered by LangGraph, Neon PostgreSQL 18, and the Model Context Protocol.',
     icons: {
         icon: [

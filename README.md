@@ -1,14 +1,14 @@
-# AIRankAgent
+# NexusAgent
 
-> **AIRankAgent: an open-source LLM benchmark assistant**
+> **NexusAgent: an open-source LLM benchmark assistant**
 
-AIRankAgent is an open-source LLM benchmark assistant that helps developers and technical leaders evaluate frontier AI models. It answers queries against pre-indexed benchmark datasets (Artificial Analysis, BenchLM, CursorBench, and OpenRouter metrics), handles quick chats with live Google Search grounding, and provides transparent token and tool telemetry.
+NexusAgent is an open-source LLM benchmark assistant that helps developers and technical leaders evaluate frontier AI models. It answers queries against pre-indexed benchmark datasets (Artificial Analysis, BenchLM, CursorBench, and OpenRouter metrics), handles quick chats with live Google Search grounding, and provides transparent token and tool telemetry.
 
 ---
 
 ## ⚡ Technologies & Implementation
 
-AIRankAgent brings together modern agentic and information retrieval libraries in a clean, production-grade architecture:
+NexusAgent brings together modern agentic and information retrieval libraries in a clean, production-grade architecture:
 
 - **LangGraph** (`apps/backend/app/agent/graph.py`): Orchestrates a stateful DAG pipeline (`router` → `chat` with Google Search | `retriever` → `grounding` → `answer`).
 - **LangChain** (`apps/backend/app/agent/graph.py`): Uses `langchain-google-genai` for chat streaming and Pydantic structured output (`RouteDecision`).
@@ -45,17 +45,17 @@ Local development and production share a single Neon database (`apps/backend/.en
 
 ## 🌐 Connecting External MCP Clients
 
-AIRankAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (`https://airankagent.onrender.com/mcp` in production, or `http://localhost:8000/mcp` for local use):
+NexusAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (`https://nexusagent.onrender.com/mcp` in production, or `http://localhost:8000/mcp` for local use):
 
-- **Claude (claude.ai / Desktop)**: `Settings` → `Connectors` → `Add custom connector` → paste `https://airankagent.onrender.com/mcp`.
-- **ChatGPT**: `Settings` → `Apps & Connectors` → `Advanced` → `Developer mode` → `Create connector` → paste `https://airankagent.onrender.com/mcp` (Authentication: None).
+- **Claude (claude.ai / Desktop)**: `Settings` → `Connectors` → `Add custom connector` → paste `https://nexusagent.onrender.com/mcp`.
+- **ChatGPT**: `Settings` → `Apps & Connectors` → `Advanced` → `Developer mode` → `Create connector` → paste `https://nexusagent.onrender.com/mcp` (Authentication: None).
 - **Cursor / Claude Code**: Add the HTTP transport entry to `mcpServers` (or use `http://localhost:8000/mcp` locally):
     ```json
     {
         "mcpServers": {
-            "airankagent": {
+            "nexusagent": {
                 "type": "http",
-                "url": "https://airankagent.onrender.com/mcp"
+                "url": "https://nexusagent.onrender.com/mcp"
             }
         }
     }
@@ -66,7 +66,7 @@ AIRankAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (`h
 ## 🧱 Monorepo Architecture
 
 ```
-airankagent/
+nexusagent/
 ├── apps/
 │   ├── frontend/         # Next.js 16 + React 19 + TypeScript + shadcn/ui + Tailwind v4 + Zustand
 │   └── backend/          # FastAPI + Python 3.14 + LangGraph + LlamaIndex + FastMCP + Neon Postgres 18
@@ -98,8 +98,8 @@ airankagent/
 ### 1. Clone & Install Dependencies
 
 ```bash
-git clone https://github.com/Avinaba-Mazumdar/airankagent.git
-cd airankagent
+git clone https://github.com/Avinaba-Mazumdar/nexusagent.git
+cd nexusagent
 
 # Install frontend dependencies
 pnpm install
@@ -124,7 +124,7 @@ Backend configuration (`apps/backend/.env.local`):
 - `GOOGLE_CLIENT_ID`: required for Google OAuth.
 - `NEON_DATABASE_URL`: database connection string. Paste your production Neon URL here (shared with local dev).
 - `GEMINI_API_KEY`: required. Generates answers and vector embeddings (`gemini-embedding-001`).
-- `PUBLIC_SITE_HOST`: public hostname (default: `airankagent.avinaba.com`).
+- `PUBLIC_SITE_HOST`: public hostname (default: `nexusagent.avinaba.com`).
 
 Frontend configuration (`apps/frontend/.env.local`):
 
@@ -154,16 +154,16 @@ Interactive API docs are available at `http://localhost:8000/docs` in developmen
     ```
     _To run database-backed tests against local PostgreSQL:_
     ```bash
-    docker run -d --name airank-pg -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=airank_test pgvector/pgvector:pg18
-    TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/airank_test uv run pytest -q
+    docker run -d --name nexus-pg -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=nexus_test pgvector/pgvector:pg18
+    TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nexus_test uv run pytest -q
     ```
 - **Frontend checks**:
     ```bash
-    pnpm --filter @airankagent/frontend typecheck
+    pnpm --filter @nexusagent/frontend typecheck
     pnpm lint
     pnpm format:check
-    pnpm --filter @airankagent/frontend test
-    pnpm --filter @airankagent/frontend build
+    pnpm --filter @nexusagent/frontend test
+    pnpm --filter @nexusagent/frontend build
     ```
 - **Contracts generation**:
     ```bash

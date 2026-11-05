@@ -1,7 +1,7 @@
 ---
 version: alpha
-name: AIRankAgent-Design-System
-description: A clean, anti-slop light-mode systems intelligence and architecture observability console inspired by modern enterprise cloud dashboards (Datadog, Linear, Stripe). Anchored on an airy slate-tinted canvas (#F5F6FA), crisp elevated white cards (#FFFFFF), refined hairline borders (#DDE0EB), signature AIRank Indigo (#2C357D) as primary and Slate Blue (#8E97B6) as the secondary hue the neutrals derive from, in three themes (Light, Dark, Black AMOLED), with high-contrast charcoal action pills (#1E232A). Engineered for Next.js 16 + React 19 + shadcn/ui + Tailwind CSS v4, with real-time streaming observability, WCAG 2.2 AA accessibility (4.5:1 text contrast, skip link), and line-level citation inspection.
+name: NexusAgent-Design-System
+description: A clean, anti-slop light-mode systems intelligence and architecture observability console inspired by modern enterprise cloud dashboards (Datadog, Linear, Stripe). Anchored on an airy slate-tinted canvas (#F5F6FA), crisp elevated white cards (#FFFFFF), refined hairline borders (#DDE0EB), signature Nexus Indigo (#2C357D) as primary and Slate Blue (#8E97B6) as the secondary hue the neutrals derive from, in three themes (Light, Dark, Black AMOLED), with high-contrast charcoal action pills (#1E232A). Engineered for Next.js 16 + React 19 + shadcn/ui + Tailwind CSS v4, with real-time streaming observability, WCAG 2.2 AA accessibility (4.5:1 text contrast, skip link), and line-level citation inspection.
 
 colors:
     primary: '#2c357d'
@@ -92,7 +92,7 @@ typography:
         letterSpacing: -0.2px
 ---
 
-# AIRankAgent — UI/UX Design System
+# NexusAgent — UI/UX Design System
 
 ## 1. Design philosophy
 
@@ -105,7 +105,7 @@ A calm, light-first console for engineers reading long technical answers. Soft s
 - **Components**: shadcn-style primitives in `apps/frontend/components/ui/` (Radix UI + `class-variance-authority`), styled with Tailwind CSS v4.
 - **Tokens**: defined once in [`apps/frontend/styles/globals.css`](../../apps/frontend/styles/globals.css): CSS variables under `:root` (light), `.dark` and `.dark.black` (AMOLED overrides of surfaces only), exposed to Tailwind through `@theme` (`bg-primary`, `text-muted-foreground`, `border-border`, `bg-success-bg`, ...). Do not copy hex values into components; add or change a token instead.
 - **Type scale**: answer body `text-sm` (14 px); code and tables use the `text-code` token (13 px); interface chrome is `text-xs` (12 px) and never smaller. Fonts: Outfit (headings), Instrument Sans (body), JetBrains Mono (code), loaded with `next/font`.
-- **Theme**: `light | dark | black`, logic in `apps/frontend/lib/theme.ts`. Classes on `<html>`: none, `dark`, or `dark black` (black stacks on dark so every `dark:` utility still applies). Set before paint by a nonce-protected inline script in `app/layout.tsx`, persisted in `localStorage` (`airankagent_theme`), and also updates `<meta name="theme-color">`. Switched from the header button (cycles Light, Dark, Black) or the account menu's segmented radio group.
+- **Theme**: `light | dark | black`, logic in `apps/frontend/lib/theme.ts`. Classes on `<html>`: none, `dark`, or `dark black` (black stacks on dark so every `dark:` utility still applies). Set before paint by a nonce-protected inline script in `app/layout.tsx`, persisted in `localStorage` (`nexusagent_theme`), and also updates `<meta name="theme-color">`. Switched from the header button (cycles Light, Dark, Black) or the account menu's segmented radio group.
 
 ---
 

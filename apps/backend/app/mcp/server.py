@@ -14,7 +14,7 @@ from app.db.neon import neon_db
 from app.rag.hybrid_search import default_hybrid_search_engine
 
 mcp = MCPServer(
-    "airankagent",
+    "nexusagent",
     instructions="Search LLM benchmark documents (Artificial Analysis, BenchLM, CursorBench, OpenRouter).",
 )
 

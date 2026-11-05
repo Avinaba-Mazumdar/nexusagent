@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AIRankAgent scheduled cleanup: expired guest sessions, old chat usage, and old audit rows.
+NexusAgent scheduled cleanup: expired guest sessions, old chat usage, and old audit rows.
 Purges guest users older than specified TTL (default 24 hours).
 Foreign keys automatically cascade deletion to:
   - documents (guest-uploaded)

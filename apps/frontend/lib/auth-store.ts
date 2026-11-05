@@ -1,13 +1,13 @@
 import { create } from 'zustand';
-import type { UserSession, GuestPassResponse, TokenResponse } from '@airankagent/contracts';
+import type { UserSession, GuestPassResponse, TokenResponse } from '@nexusagent/contracts';
 import { apiClient, setAuthTokenGetter, setOnUnauthorizedCallback } from './api-client';
 import { clearChatCache } from './chat-cache';
 import { getMachineId } from './machine-id';
 
-const STORAGE_KEY_TOKEN = 'airankagent_token';
-const STORAGE_KEY_USER = 'airankagent_user';
-const STORAGE_KEY_QUOTA = 'airankagent_quota';
-const STORAGE_KEY_DEVICE_ID = 'airankagent_device_id';
+const STORAGE_KEY_TOKEN = 'nexusagent_token';
+const STORAGE_KEY_USER = 'nexusagent_user';
+const STORAGE_KEY_QUOTA = 'nexusagent_quota';
+const STORAGE_KEY_DEVICE_ID = 'nexusagent_device_id';
 /** Renew the token when less than this is left (tokens last 24 h), and re-check this often while the tab is open. */
 const SESSION_EXPIRED_NOTICE = 'Your session expired. Please sign in again.';
 const REFRESH_WHEN_LEFT_SECONDS = 12 * 60 * 60;

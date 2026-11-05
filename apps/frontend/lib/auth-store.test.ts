@@ -34,21 +34,21 @@ describe('auth store session refresh (R2-LOG-11)', () => {
     it('refreshes a token with two hours left exactly once on init', async () => {
         const old = jwtExpiringIn(2 * 60 * 60);
         const fresh = jwtExpiringIn(24 * 60 * 60);
-        localStorage.setItem('airankagent_token', old);
-        localStorage.setItem('airankagent_user', JSON.stringify(user));
+        localStorage.setItem('nexusagent_token', old);
+        localStorage.setItem('nexusagent_user', JSON.stringify(user));
         const calls = mockApi(fresh);
 
         await useAuthStore.getState().initAuth();
 
         expect(calls.filter((url) => url.includes('/api/auth/refresh'))).toHaveLength(1);
         expect(useAuthStore.getState().token).toBe(fresh);
-        expect(localStorage.getItem('airankagent_token')).toBe(fresh);
+        expect(localStorage.getItem('nexusagent_token')).toBe(fresh);
     });
 
     it('leaves a token with plenty of time left alone', async () => {
         const current = jwtExpiringIn(20 * 60 * 60);
-        localStorage.setItem('airankagent_token', current);
-        localStorage.setItem('airankagent_user', JSON.stringify(user));
+        localStorage.setItem('nexusagent_token', current);
+        localStorage.setItem('nexusagent_user', JSON.stringify(user));
         const calls = mockApi(jwtExpiringIn(24 * 60 * 60));
 
         await useAuthStore.getState().initAuth();
@@ -58,16 +58,16 @@ describe('auth store session refresh (R2-LOG-11)', () => {
     });
 
     it('clearing the session wipes cached chats (logout on a shared device)', () => {
-        localStorage.setItem('airankagent_token', 't');
-        localStorage.setItem('airankagent_msgs_abc', '[]');
-        localStorage.setItem('airankagent_chat_history_u1', '[]');
+        localStorage.setItem('nexusagent_token', 't');
+        localStorage.setItem('nexusagent_msgs_abc', '[]');
+        localStorage.setItem('nexusagent_chat_history_u1', '[]');
         useAuthStore.setState({ token: 't', user });
         mockApi('x');
 
         useAuthStore.getState().logout();
 
-        expect(localStorage.getItem('airankagent_msgs_abc')).toBeNull();
-        expect(localStorage.getItem('airankagent_chat_history_u1')).toBeNull();
+        expect(localStorage.getItem('nexusagent_msgs_abc')).toBeNull();
+        expect(localStorage.getItem('nexusagent_chat_history_u1')).toBeNull();
         expect(useAuthStore.getState().token).toBeNull();
     });
 });

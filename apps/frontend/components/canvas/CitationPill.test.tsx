@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vite-plus/test';
 import { CitationPill } from './CitationPill';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { Citation } from '@airankagent/contracts';
+import type { Citation } from '@nexusagent/contracts';
 
 const mockCitation: Citation = {
     id: 'cite-1',

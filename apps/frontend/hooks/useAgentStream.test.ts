@@ -53,7 +53,7 @@ describe('useAgentStream Hook', () => {
 
         let run: Awaited<ReturnType<typeof result.current.startStream>> = null;
         await act(async () => {
-            run = await result.current.startStream({ query: 'What is the airankagent architecture?' });
+            run = await result.current.startStream({ query: 'What is the nexusagent architecture?' });
         });
 
         expect(run).toMatchObject({ response: 'Hello World!' });

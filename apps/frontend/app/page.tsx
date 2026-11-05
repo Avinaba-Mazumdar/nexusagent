@@ -15,7 +15,7 @@ import { WorkspaceSidebar, type WorkspaceDoc, type UploadState } from '@/compone
 import { ChatCanvas } from '@/components/chat-canvas';
 import { Composer } from '@/components/composer';
 import { useChatHistory, type ChatItem } from '@/hooks/useChatHistory';
-import type { ChatConversation, Citation, DocumentListResponse, DocumentMetadata, DocumentUploadResponse, UsageEvent } from '@airankagent/contracts';
+import type { ChatConversation, Citation, DocumentListResponse, DocumentMetadata, DocumentUploadResponse, UsageEvent } from '@nexusagent/contracts';
 import { SourceDialog } from '@/components/canvas';
 import { applyTheme, readThemeFromDocument, THEME_STORAGE_KEY, type ThemeName } from '@/lib/theme';
 

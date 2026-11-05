@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
-import type { ChatConversation, ChatConversationDetailResponse } from '@airankagent/contracts';
+import type { ChatConversation, ChatConversationDetailResponse } from '@nexusagent/contracts';
 import { apiClient } from '@/lib/api-client';
 import { useChatHistory } from './useChatHistory';
 

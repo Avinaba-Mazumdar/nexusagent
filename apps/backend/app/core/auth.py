@@ -13,7 +13,7 @@ from app.core.rate_limiter import default_chat_quota, guest_signup_limiter
 from app.db.models import AuthTokens, GuestPassResponse, User, UserSession
 from app.db.neon import NeonDatabase, get_db
 
-logger = logging.getLogger("airankagent.core.auth")
+logger = logging.getLogger("nexusagent.core.auth")
 
 security_bearer = HTTPBearer(auto_error=False)
 

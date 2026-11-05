@@ -1,15 +1,15 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AlertOctagon, ArrowLeft, CheckCircle2, Cpu, FileCheck, KeyRound, Scale, ShieldAlert, Terminal } from 'lucide-react';
-import { AIRankLogo } from '@/components/icons';
+import { NexusLogo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SITE_HOST } from '@/lib/site';
 
 export const metadata: Metadata = {
-    title: 'Terms and Conditions | AIRankAgent',
-    description: `Terms of Service and Acceptable Use Policy for AIRankAgent hosted on ${SITE_HOST}.`
+    title: 'Terms and Conditions | NexusAgent',
+    description: `Terms of Service and Acceptable Use Policy for NexusAgent hosted on ${SITE_HOST}.`
 };
 
 export default function TermsAndConditionsPage() {
@@ -20,9 +20,9 @@ export default function TermsAndConditionsPage() {
             {/* Header / Navigation Bar */}
             <header className="h-14 bg-card border-b border-border px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md bg-card/90">
                 <div className="flex items-center gap-3">
-                    <Link href="/" className="flex items-center gap-2 group cursor-pointer" aria-label="Return to AIRankAgent Studio">
-                        <AIRankLogo className="h-8 w-8 rounded-xl shadow-xs shrink-0 transition-transform group-hover:scale-105" />
-                        <span className="font-heading font-bold text-sm tracking-tight text-foreground">AIRankAgent</span>
+                    <Link href="/" className="flex items-center gap-2 group cursor-pointer" aria-label="Return to NexusAgent Studio">
+                        <NexusLogo className="h-8 w-8 rounded-xl shadow-xs shrink-0 transition-transform group-hover:scale-105" />
+                        <span className="font-heading font-bold text-sm tracking-tight text-foreground">NexusAgent</span>
                     </Link>
                     <span className="text-muted-foreground text-xs hidden sm:inline-block">/</span>
                     <Badge variant="outline" className="hidden sm:inline-flex text-xs font-mono border-border text-muted-foreground">
@@ -53,7 +53,7 @@ export default function TermsAndConditionsPage() {
                     </div>
                     <h1 className="text-3xl sm:text-4xl font-heading font-extrabold tracking-tight text-foreground">Terms and Conditions</h1>
                     <p className="text-sm sm:text-base text-muted-foreground leading-relaxed max-w-3xl">
-                        These Terms and Conditions constitute a legally binding agreement between you and AIRankAgent governing your access to and use of the
+                        These Terms and Conditions constitute a legally binding agreement between you and NexusAgent governing your access to and use of the
                         platform, API gateway, and autonomous agent orchestration services hosted at{' '}
                         <strong className="text-foreground font-semibold">{SITE_HOST}</strong>.
                     </p>
@@ -112,7 +112,7 @@ export default function TermsAndConditionsPage() {
                             be bound by these Terms and our Privacy Policy. If you do not agree, you must discontinue use immediately.
                         </p>
                         <p>
-                            AIRankAgent provides an open-source technical showcase demonstrating LangGraph multi-agent synthesis, Neon PostgreSQL pgvector
+                            NexusAgent provides an open-source technical showcase demonstrating LangGraph multi-agent synthesis, Neon PostgreSQL pgvector
                             retrieval, model cascading, and MCP protocol integration. The service is provided primarily for architectural research, software
                             evaluation, and technical portfolio demonstration.
                         </p>
@@ -166,7 +166,7 @@ export default function TermsAndConditionsPage() {
                             3. Autonomous Execution Disclaimer
                         </h2>
                         <p>
-                            AIRankAgent is an open-source assistant for LLM benchmark questions. It utilizes agent routing algorithms and reads public benchmark
+                            NexusAgent is an open-source assistant for LLM benchmark questions. It utilizes agent routing algorithms and reads public benchmark
                             documents via read-only tools or Google Search for live facts. It never modifies data or executes code. You acknowledge and agree
                             that:
                         </p>
@@ -202,10 +202,10 @@ export default function TermsAndConditionsPage() {
                             <Scale className="h-4 w-4 text-primary" />
                             5. Intellectual Property &amp; Open Source Licensing
                         </h2>
-                        <p>The AIRankAgent software codebase is open-source and governed by the repository license (MIT License).</p>
+                        <p>The NexusAgent software codebase is open-source and governed by the repository license (MIT License).</p>
                         <p>
                             You retain full ownership of all original text prompts and proprietary documents uploaded to your session. By submitting queries,
-                            you grant AIRankAgent a temporary, non-exclusive license to process your input in-memory strictly to generate real-time analysis
+                            you grant NexusAgent a temporary, non-exclusive license to process your input in-memory strictly to generate real-time analysis
                             responses.
                         </p>
                     </section>
@@ -217,7 +217,7 @@ export default function TermsAndConditionsPage() {
                             6. &ldquo;AS-IS&rdquo; Disclaimer &amp; Limitation of Liability
                         </h2>
                         <p className="uppercase text-xs font-mono font-semibold text-foreground">
-                            THE SERVICES AT AIRANKAGENT.AVINABA.COM ARE PROVIDED ON AN &ldquo;AS IS&rdquo; AND &ldquo;AS AVAILABLE&rdquo; BASIS WITHOUT
+                            THE SERVICES AT NEXUSAGENT.AVINABA.COM ARE PROVIDED ON AN &ldquo;AS IS&rdquo; AND &ldquo;AS AVAILABLE&rdquo; BASIS WITHOUT
                             WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY
                             OF AGENTIC SYNTHESIS, OR CONTINUOUS UPTIME.
                         </p>
@@ -260,7 +260,7 @@ export default function TermsAndConditionsPage() {
 
                 {/* Footer Notice */}
                 <div className="pt-8 border-t border-border text-center text-xs text-muted-foreground space-y-2">
-                    <p>AIRankAgent is an open-source project. View source and architectural specifications on GitHub.</p>
+                    <p>NexusAgent is an open-source project. View source and architectural specifications on GitHub.</p>
                     <div className="flex items-center justify-center gap-4 text-xs font-medium">
                         <Link href="/privacy" className="hover:text-primary transition-colors">
                             Privacy Policy

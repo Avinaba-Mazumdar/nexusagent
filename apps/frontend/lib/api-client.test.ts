@@ -11,7 +11,7 @@ describe('apiClient', () => {
 
     describe('apiClient', () => {
         it('performs successful GET request and parses JSON', async () => {
-            const mockData = { id: 1, name: 'AIRankAgent' };
+            const mockData = { id: 1, name: 'NexusAgent' };
             vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
                 new Response(JSON.stringify(mockData), {
                     status: 200,

@@ -314,7 +314,7 @@ async def test_prune_audit_logs_uses_retention_switch_and_validates_input():
     db.pool = MagicMock(acquire=acquire)
 
     assert await db.prune_audit_logs(30) == 7
-    assert "airankagent.audit_retention" in conn.execute.call_args_list[0].args[0]
+    assert "nexusagent.audit_retention" in conn.execute.call_args_list[0].args[0]
     with pytest.raises(ValueError):
         await db.prune_audit_logs(0)
 
@@ -325,5 +325,5 @@ def test_audit_migration_blocks_updates_and_unsanctioned_deletes():
 
     sql = (REPO_ROOT / "db" / "schema.sql").read_text(encoding="utf-8")
     assert "BEFORE UPDATE OR DELETE ON tool_audit_logs" in sql
-    assert "airankagent.audit_retention" in sql
+    assert "nexusagent.audit_retention" in sql
     assert "append-only" in sql

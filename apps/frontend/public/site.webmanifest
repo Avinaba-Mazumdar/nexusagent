@@ -1,6 +1,6 @@
 {
-    "name": "AIRankAgent: an open-source LLM benchmark assistant",
-    "short_name": "AIRankAgent",
+    "name": "NexusAgent: an open-source LLM benchmark assistant",
+    "short_name": "NexusAgent",
     "description": "An open-source LLM benchmark assistant powered by LangGraph, Neon PostgreSQL 18, and the Model Context Protocol.",
     "start_url": "/",
     "display": "standalone",

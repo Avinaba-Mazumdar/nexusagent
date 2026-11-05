@@ -19,7 +19,7 @@ from app.agent.state import AgentState, Intent
 from app.core.rate_limiter import default_chat_quota
 from app.services.conversations import persist_turn
 
-logger = logging.getLogger("airankagent.agent.run")
+logger = logging.getLogger("nexusagent.agent.run")
 
 # The only node that calls a tool; its `tool_call` frame is sent before the call starts.
 TOOL_NODE = "retriever"

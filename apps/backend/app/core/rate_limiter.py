@@ -15,7 +15,7 @@ from app.config import settings
 from app.db.models import User
 from app.db.neon import NeonDatabase, neon_db
 
-logger = logging.getLogger("airankagent.core.rate_limiter")
+logger = logging.getLogger("nexusagent.core.rate_limiter")
 
 MAX_TRACKED_KEYS = 50_000
 

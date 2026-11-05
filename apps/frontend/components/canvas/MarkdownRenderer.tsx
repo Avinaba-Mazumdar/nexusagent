@@ -6,7 +6,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import { Check, Copy, Info, Terminal } from 'lucide-react';
-import type { Citation } from '@airankagent/contracts';
+import type { Citation } from '@nexusagent/contracts';
 import { CitationPill } from './CitationPill';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';

@@ -1409,7 +1409,7 @@ wheels = [
 ]
 
 [[package]]
-name = "airankagent-backend"
+name = "nexusagent-backend"
 version = "0.1.0a0"
 source = { virtual = "." }
 dependencies = [

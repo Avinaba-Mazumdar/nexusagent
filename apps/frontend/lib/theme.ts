@@ -3,7 +3,7 @@
 
 export type ThemeName = 'light' | 'dark' | 'black';
 
-export const THEME_STORAGE_KEY = 'airankagent_theme';
+export const THEME_STORAGE_KEY = 'nexusagent_theme';
 
 export const THEMES: readonly { id: ThemeName; label: string }[] = [
     { id: 'light', label: 'Light' },

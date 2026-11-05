@@ -22,7 +22,7 @@ export async function getMachineId(): Promise<string> {
                 ctx.textBaseline = 'top';
                 ctx.font = '14px Arial';
                 ctx.fillStyle = '#0f172a';
-                ctx.fillText('AIRankAgent ✓ 0123', 10, 15);
+                ctx.fillText('NexusAgent ✓ 0123', 10, 15);
                 canvasData = canvas.toDataURL();
             }
         } catch {
