@@ -7,7 +7,7 @@ export interface AIRankLogoProps extends React.SVGProps<SVGSVGElement> {
 export function AIRankLogo({ size, className = '', ...props }: AIRankLogoProps) {
     return (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width={size} height={size} fill="none" className={className} {...props}>
-            <rect width="512" height="512" rx="116" fill="var(--primary, #004ea1)" />
+            <rect width="512" height="512" rx="116" fill="var(--primary-fill, #2C357D)" />
             <g fill="var(--primary-foreground, #ffffff)">
                 <rect x="180" y="84" width="24" height="60" rx="12" />
                 <rect x="244" y="84" width="24" height="60" rx="12" />

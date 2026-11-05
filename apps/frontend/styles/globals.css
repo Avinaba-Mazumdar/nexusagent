@@ -2,27 +2,43 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Brand: primary #2C357D (indigo), secondary #8E97B6 (slate-blue).
+ * Neutrals are tints/shades of the secondary hue so every surface shares one cast.
+ * Themes: light = :root, dark = .dark, black (AMOLED) = .dark.black (overrides surfaces only).
+ *
+ * Primary is split by role so the brand never shifts between themes:
+ *   --primary-fill  solid brand surfaces carrying --primary-foreground (buttons, badges, user bubble).
+ *                   Always #2C357D.
+ *   --primary       text, icons, borders, rings, tints, small indicators. #2C357D on light; on dark
+ *                   the same hue/saturation (233deg, 48%) lifted only to the lightness AA needs.
+ */
 :root {
-    --background: #f4f5f8;
-    --foreground: #0f172a;
+    color-scheme: light;
+
+    --background: #f5f6fa;
+    --foreground: #141833;
     --card: #ffffff;
-    --card-foreground: #0f172a;
+    --card-foreground: #141833;
     --popover: #ffffff;
-    --popover-foreground: #0f172a;
-    --primary: #004ea1;
-    --primary-hover: #003673;
+    --popover-foreground: #141833;
+    --primary: #2c357d;
+    --primary-hover: #222a66;
+    --primary-fill: #2c357d;
+    --primary-fill-hover: #222a66;
     --primary-foreground: #ffffff;
-    --secondary: #f1f5f9;
-    --secondary-foreground: #0f172a;
-    --muted: #f1f5f9;
-    --muted-foreground: #475569;
-    --accent: #e8f3fc;
-    --accent-foreground: #004182;
+    --secondary: #eef0f6;
+    --secondary-foreground: #141833;
+    --muted: #eef0f6;
+    --muted-foreground: #545c7a;
+    --accent: #e8eaf6;
+    --accent-foreground: #2c357d;
     --destructive: #dc2626;
     --destructive-foreground: #ffffff;
-    --border: #e2e8f0;
-    --input: #cbd5e1;
-    --ring: #004ea1;
+    --border: #dde0eb;
+    --input: #c3c8da;
+    --ring: #2c357d;
+    --brand-secondary: #8e97b6;
 
     --success: #166534;
     --success-foreground: #ffffff;
@@ -34,47 +50,54 @@
     --warning-bg: #fffbeb;
     --warning-border: #fcd34d;
 
-    --banner-bg: #e8f3fc;
-    --banner-border: #bfdbfe;
-    --banner-badge-bg: #dbeafe;
-    --banner-badge-text: #004182;
+    --banner-bg: #eceef8;
+    --banner-border: #c9cee6;
+    --banner-badge-bg: #dfe2f2;
+    --banner-badge-text: #2c357d;
 
-    --featured-border: #93c5fd;
+    --featured-border: #8e97b6;
     --featured-bg: #ffffff;
-    --citation-bg: #e8f3fc;
-    --citation-text: #004182;
-    --citation-border: #93c5fd;
+    --citation-bg: #e8eaf6;
+    --citation-text: #2c357d;
+    --citation-border: #b4bad3;
 
     --syntax-keyword: #7c3aed;
     --syntax-string: #047857;
     --syntax-number: #b45309;
     --syntax-comment: #64748b;
-    --syntax-title: #004ea1;
+    --syntax-title: #2c357d;
     --syntax-type: #0e7490;
     --syntax-attr: #be123c;
 }
 
 .dark {
-    --background: #090d16;
-    --foreground: #f8fafc;
-    --card: #0d1322;
-    --card-foreground: #f8fafc;
-    --popover: #0d1322;
-    --popover-foreground: #f8fafc;
-    --primary: #3b82f6;
-    --primary-hover: #2563eb;
-    --primary-foreground: #0b1220;
-    --secondary: #161f31;
-    --secondary-foreground: #f8fafc;
-    --muted: #161f31;
-    --muted-foreground: #94a3b8;
-    --accent: #1e293b;
-    --accent-foreground: #60a5fa;
+    color-scheme: dark;
+
+    --background: #0c0e1a;
+    --foreground: #eef0f7;
+    --card: #131628;
+    --card-foreground: #eef0f7;
+    --popover: #161a2e;
+    --popover-foreground: #eef0f7;
+    /* Same brand hue as #2C357D at the lowest lightness that clears 4.5:1 on every dark surface. */
+    --primary: #7f88d2;
+    --primary-hover: #959dda;
+    /* Brand fill is unchanged; hover lightens because darkening is invisible on dark surfaces. */
+    --primary-fill: #2c357d;
+    --primary-fill-hover: #354097;
+    --primary-foreground: #ffffff;
+    --secondary: #1c2036;
+    --secondary-foreground: #eef0f7;
+    --muted: #1c2036;
+    --muted-foreground: #9aa2bf;
+    --accent: #1f2442;
+    --accent-foreground: #b4b9e4;
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
-    --border: #1e293b;
-    --input: #334155;
-    --ring: #3b82f6;
+    --border: #252a44;
+    --input: #343a5a;
+    --ring: #7f88d2;
+    --brand-secondary: #8e97b6;
 
     --success: #22c55e;
     --success-foreground: #ffffff;
@@ -86,24 +109,38 @@
     --warning-bg: rgba(245, 158, 11, 0.15);
     --warning-border: rgba(245, 158, 11, 0.3);
 
-    --banner-bg: rgba(30, 58, 138, 0.2);
-    --banner-border: rgba(59, 130, 246, 0.35);
-    --banner-badge-bg: rgba(59, 130, 246, 0.25);
-    --banner-badge-text: #93c5fd;
+    --banner-bg: rgba(44, 53, 125, 0.28);
+    --banner-border: rgba(127, 136, 210, 0.3);
+    --banner-badge-bg: rgba(44, 53, 125, 0.55);
+    --banner-badge-text: #b4b9e4;
 
-    --featured-border: rgba(59, 130, 246, 0.7);
-    --featured-bg: rgba(13, 19, 34, 0.6);
-    --citation-bg: #1e293b;
-    --citation-text: #60a5fa;
-    --citation-border: #3b82f6;
+    --featured-border: rgba(142, 151, 182, 0.7);
+    --featured-bg: rgba(19, 22, 40, 0.6);
+    --citation-bg: #1f2442;
+    --citation-text: #b4b9e4;
+    --citation-border: #3e4a9e;
 
     --syntax-keyword: #c4b5fd;
     --syntax-string: #6ee7b7;
     --syntax-number: #fcd34d;
-    --syntax-comment: #94a3b8;
-    --syntax-title: #60a5fa;
+    --syntax-comment: #9aa2bf;
+    --syntax-title: #959dda;
     --syntax-type: #67e8f9;
     --syntax-attr: #fda4af;
+}
+
+/* AMOLED: true-black canvas, near-black elevation; colours inherit from .dark. */
+.dark.black {
+    --background: #000000;
+    --card: #0a0a0f;
+    --popover: #0e0f17;
+    --secondary: #12131d;
+    --muted: #12131d;
+    --accent: #151830;
+    --border: #1c1e2c;
+    --input: #2a2d40;
+    --featured-bg: #000000;
+    --citation-bg: #151830;
 }
 
 @theme {
@@ -115,6 +152,8 @@
     --color-popover-foreground: var(--popover-foreground);
     --color-primary: var(--primary);
     --color-primary-hover: var(--primary-hover);
+    --color-primary-fill: var(--primary-fill);
+    --color-primary-fill-hover: var(--primary-fill-hover);
     --color-primary-foreground: var(--primary-foreground);
     --color-secondary: var(--secondary);
     --color-secondary-foreground: var(--secondary-foreground);
@@ -127,6 +166,7 @@
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
+    --color-brand-secondary: var(--brand-secondary);
 
     --color-success: var(--success);
     --color-success-foreground: var(--success-foreground);
@@ -202,7 +242,7 @@ body {
     position: absolute;
     top: -40px;
     left: 0;
-    background: var(--primary);
+    background: var(--primary-fill);
     color: var(--primary-foreground);
     padding: 8px 16px;
     z-index: 100;

@@ -17,6 +17,7 @@ import { Composer } from '@/components/composer';
 import { useChatHistory, type ChatItem } from '@/hooks/useChatHistory';
 import type { ChatConversation, Citation, DocumentListResponse, DocumentMetadata, DocumentUploadResponse, UsageEvent } from '@airankagent/contracts';
 import { SourceDialog } from '@/components/canvas';
+import { applyTheme, readThemeFromDocument, THEME_STORAGE_KEY, type ThemeName } from '@/lib/theme';
 
 const MAX_LOG_ENTRIES = 200;
 
@@ -27,7 +28,8 @@ function toWorkspaceDoc(doc: DocumentMetadata): WorkspaceDoc {
 export default function Home() {
     const [prompt, setPrompt] = React.useState('');
     const [dialogOpen, setDialogOpen] = React.useState(false);
-    const [isDarkTheme, setIsDarkTheme] = React.useState(false);
+    const [theme, setTheme] = React.useState<ThemeName>('light');
+    const isDarkTheme = theme !== 'light';
     const [gisLoaded, setGisLoaded] = React.useState(false);
     const [hireMeModalOpen, setHireMeModalOpen] = React.useState(false);
     const [docs, setDocs] = React.useState<WorkspaceDoc[]>([]);
@@ -140,7 +142,7 @@ export default function Home() {
 
     React.useEffect(() => {
         void initAuth();
-        setIsDarkTheme(document.documentElement.classList.contains('dark'));
+        setTheme(readThemeFromDocument());
         if ((window as unknown as { google?: unknown }).google) {
             setGisLoaded(true);
         }
@@ -149,23 +151,20 @@ export default function Home() {
     // The inline script in layout.tsx applied the saved theme before hydration; only write after a user toggle.
     const themeToggledRef = React.useRef(false);
 
-    const handleToggleTheme = React.useCallback(
-        (checked?: boolean) => {
-            themeToggledRef.current = true;
-            setIsDarkTheme(typeof checked === 'boolean' ? checked : !isDarkTheme);
-        },
-        [isDarkTheme]
-    );
+    const handleThemeChange = React.useCallback((next: ThemeName) => {
+        themeToggledRef.current = true;
+        setTheme(next);
+    }, []);
 
     React.useEffect(() => {
         if (!themeToggledRef.current) return;
-        document.documentElement.classList.toggle('dark', isDarkTheme);
+        applyTheme(theme);
         try {
-            localStorage.setItem('airankagent_theme', isDarkTheme ? 'dark' : 'light');
+            localStorage.setItem(THEME_STORAGE_KEY, theme);
         } catch {
             // Storage unavailable (private mode): the theme still applies for this tab.
         }
-    }, [isDarkTheme]);
+    }, [theme]);
 
     const fetchDocs = React.useCallback(async () => {
         try {
@@ -449,8 +448,8 @@ export default function Home() {
                 user={user}
                 quotaRemaining={quotaRemaining}
                 bucketCapacity={bucketCapacity}
-                isDarkTheme={isDarkTheme}
-                onToggleTheme={handleToggleTheme}
+                theme={theme}
+                onThemeChange={handleThemeChange}
                 isObservabilityOpen={isObservabilityOpen}
                 onToggleObservability={() => setIsObservabilityOpen((prev) => !prev)}
                 isStreaming={agentStream.isStreaming}

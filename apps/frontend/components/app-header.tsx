@@ -2,26 +2,70 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Activity, LogOut, Moon, Sun, LogIn } from 'lucide-react';
+import { Activity, LogOut, Moon, MoonStar, Sun, LogIn, type LucideIcon } from 'lucide-react';
 import { AIRankLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Switch } from '@/components/ui/switch';
+import { nextTheme, themeLabel, THEMES, type ThemeName } from '@/lib/theme';
 import type { UserSession } from '@airankagent/contracts';
 
 export interface AppHeaderProps {
     user: UserSession | null;
     quotaRemaining: number;
     bucketCapacity: number;
-    isDarkTheme: boolean;
-    onToggleTheme: () => void;
+    theme: ThemeName;
+    onThemeChange: (theme: ThemeName) => void;
     isObservabilityOpen: boolean;
     onToggleObservability: () => void;
     isStreaming: boolean;
     onOpenSignIn: () => void;
     onLogout: () => void;
+}
+
+const THEME_ICONS: Record<ThemeName, LucideIcon> = { light: Sun, dark: Moon, black: MoonStar };
+
+function ThemeSegmentedControl({ theme, onThemeChange }: { theme: ThemeName; onThemeChange: (theme: ThemeName) => void }) {
+    const refs = React.useRef<(HTMLButtonElement | null)[]>([]);
+
+    const onKeyDown = (event: React.KeyboardEvent, index: number) => {
+        const delta = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+        if (!delta) return;
+        event.preventDefault();
+        const target = (index + delta + THEMES.length) % THEMES.length;
+        onThemeChange(THEMES[target].id);
+        refs.current[target]?.focus();
+    };
+
+    return (
+        <div role="radiogroup" aria-label="Colour theme" className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-secondary border border-border">
+            {THEMES.map(({ id, label }, index) => {
+                const Icon = THEME_ICONS[id];
+                const selected = theme === id;
+                return (
+                    <button
+                        key={id}
+                        ref={(el) => {
+                            refs.current[index] = el;
+                        }}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        tabIndex={selected ? 0 : -1}
+                        onClick={() => onThemeChange(id)}
+                        onKeyDown={(event) => onKeyDown(event, index)}
+                        className={`flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                            selected ? 'bg-card text-primary shadow-xs border border-border' : 'text-muted-foreground hover:text-foreground border border-transparent'
+                        }`}
+                    >
+                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>{label}</span>
+                    </button>
+                );
+            })}
+        </div>
+    );
 }
 
 function initials(name?: string | null): string {
@@ -38,8 +82,8 @@ export function AppHeader({
     user,
     quotaRemaining,
     bucketCapacity,
-    isDarkTheme,
-    onToggleTheme,
+    theme,
+    onThemeChange,
     isObservabilityOpen,
     onToggleObservability,
     isStreaming,
@@ -47,6 +91,8 @@ export function AppHeader({
     onLogout
 }: AppHeaderProps) {
     const [popoverOpen, setPopoverOpen] = React.useState(false);
+    const CurrentThemeIcon = THEME_ICONS[theme];
+    const upcomingTheme = nextTheme(theme);
     // bucketCapacity is 0 until the server answers, which would make the width NaN%.
     const quotaPercent = bucketCapacity > 0 ? Math.min(100, Math.max(0, (quotaRemaining / bucketCapacity) * 100)) : 0;
 
@@ -66,17 +112,17 @@ export function AppHeader({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-                {/* Theme Toggle Button */}
+                {/* Theme cycle button: Light -> Dark -> Black */}
                 <Button
                     type="button"
                     variant="outline"
                     size="icon-sm"
-                    onClick={onToggleTheme}
+                    onClick={() => onThemeChange(upcomingTheme)}
                     className="rounded-xl border-border h-9 w-9 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-                    aria-label="Toggle theme mode"
-                    title={isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'}
+                    aria-label={`Theme: ${themeLabel(theme)}. Switch to ${themeLabel(upcomingTheme)} theme`}
+                    title={`Switch to ${themeLabel(upcomingTheme)} theme`}
                 >
-                    {isDarkTheme ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    <CurrentThemeIcon className="h-4 w-4" aria-hidden="true" />
                 </Button>
 
                 {/* Observability Panel Toggle Button */}
@@ -160,17 +206,10 @@ export function AppHeader({
                                 <p className="text-xs text-muted-foreground">Rolling 24-hour quota</p>
                             </div>
 
-                            {/* Theme Switch */}
-                            <div className="py-3 border-b border-border flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    {isDarkTheme ? (
-                                        <Moon className="h-4 w-4 text-primary" aria-hidden="true" />
-                                    ) : (
-                                        <Sun className="h-4 w-4" aria-hidden="true" />
-                                    )}
-                                    <span className="text-xs font-medium text-foreground">Dark Mode</span>
-                                </div>
-                                <Switch checked={isDarkTheme} onCheckedChange={onToggleTheme} aria-label="Toggle dark mode theme" />
+                            {/* Theme picker */}
+                            <div className="py-3 border-b border-border space-y-2">
+                                <span className="block text-xs font-medium text-muted-foreground">Theme</span>
+                                <ThemeSegmentedControl theme={theme} onThemeChange={onThemeChange} />
                             </div>
 
                             {/* Legal & Policy Links */}

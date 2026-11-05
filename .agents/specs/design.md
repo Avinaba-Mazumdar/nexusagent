@@ -1,25 +1,28 @@
 ---
 version: alpha
 name: AIRankAgent-Design-System
-description: A clean, anti-slop light-mode systems intelligence and architecture observability console inspired by modern enterprise cloud dashboards (Datadog, Linear, Stripe). Anchored on an airy neutral canvas (#F4F5F8), crisp elevated white cards (#FFFFFF), refined hairline borders (#CBD5E1), and signature AIRank Blue (#004EA1) accents with high-contrast charcoal action pills (#1E232A). Engineered for Next.js 16 + React 19 + shadcn/ui + Tailwind CSS v4, with real-time streaming observability, WCAG 2.2 AA accessibility (4.5:1 text contrast, skip link), and line-level citation inspection.
+description: A clean, anti-slop light-mode systems intelligence and architecture observability console inspired by modern enterprise cloud dashboards (Datadog, Linear, Stripe). Anchored on an airy slate-tinted canvas (#F5F6FA), crisp elevated white cards (#FFFFFF), refined hairline borders (#DDE0EB), signature AIRank Indigo (#2C357D) as primary and Slate Blue (#8E97B6) as the secondary hue the neutrals derive from, in three themes (Light, Dark, Black AMOLED), with high-contrast charcoal action pills (#1E232A). Engineered for Next.js 16 + React 19 + shadcn/ui + Tailwind CSS v4, with real-time streaming observability, WCAG 2.2 AA accessibility (4.5:1 text contrast, skip link), and line-level citation inspection.
 
 colors:
-    primary: '#004ea1'
-    primary-hover: '#003673'
-    primary-dark: '#004182'
-    primary-subtle: '#e8f3fc'
-    primary-border: '#93c5fd'
+    primary: '#2c357d'
+    primary-hover: '#222a66'
+    primary-dark: '#222a66'
+    primary-subtle: '#e8eaf6'
+    primary-border: '#b4bad3'
+    primary-fill: '#2c357d'
+    primary-on-dark: '#7f88d2'
+    brand-secondary: '#8e97b6'
     dark-pill: '#1e232a'
     dark-pill-hover: '#0a0d12'
-    ink: '#0f172a'
+    ink: '#141833'
     ink-secondary: '#334155'
     body: '#1e293b'
-    muted: '#475569'
-    muted-bg: '#f1f5f9'
-    border: '#cbd5e1'
-    border-subtle: '#e2e8f0'
+    muted: '#545c7a'
+    muted-bg: '#eef0f6'
+    border: '#c3c8da'
+    border-subtle: '#dde0eb'
     input-border: '#64748b'
-    canvas: '#f4f5f8'
+    canvas: '#f5f6fa'
     canvas-subtle: '#eaedf2'
     surface-card: '#ffffff'
     surface-card-elevated: '#ffffff'
@@ -32,10 +35,10 @@ colors:
     status-danger: '#991b1b'
     status-danger-bg: '#fef2f2'
     status-danger-border: '#fca5a5'
-    citation-pill: '#e8f3fc'
-    citation-pill-border: '#93c5fd'
-    citation-pill-text: '#004182'
-    citation-pill-hover: '#d8ecf9'
+    citation-pill: '#e8eaf6'
+    citation-pill-border: '#b4bad3'
+    citation-pill-text: '#2c357d'
+    citation-pill-hover: '#dfe2f2'
 
 shadows:
     xs: '0 1px 2px rgba(0, 0, 0, 0.03)'
@@ -93,16 +96,16 @@ typography:
 
 ## 1. Design philosophy
 
-A calm, light-first console for engineers reading long technical answers. Soft grey canvas (`#F4F5F8`), white elevated cards, one signature blue (`#004EA1`) for actions and links, and restrained motion. A dark theme exists and follows the same tokens. No neon glows or decorative animation.
+A calm, light-first console for engineers reading long technical answers. Soft slate-tinted canvas (`#F5F6FA`), white elevated cards, one signature indigo (`#2C357D`) for actions and links, and restrained motion. Slate Blue (`#8E97B6`) is the secondary brand hue: neutrals (surfaces, borders, muted text) are tints and shades of it, and `brand-secondary` carries it for decorative accents (featured and citation borders), never body text on light. Three themes share the same tokens: Light, Dark (navy-charcoal) and Black (true `#000` for AMOLED). Primary is split by role so the brand colour never changes between themes: `primary-fill` (buttons, badges, user bubble, logo) is `#2C357D` in every theme, with white text at 11:1. `primary` (text, icons, borders, rings, tints) is `#2C357D` on light; on dark and black it is the same hue and saturation (233°, 48%) lifted only to `#7F88D2`, the lowest lightness that clears 4.5:1 on every dark surface. Never put text in raw `#2C357D` on a dark surface. No neon glows or decorative animation.
 
 ---
 
 ## 2. Implementation
 
 - **Components**: shadcn-style primitives in `apps/frontend/components/ui/` (Radix UI + `class-variance-authority`), styled with Tailwind CSS v4.
-- **Tokens**: defined once in [`apps/frontend/styles/globals.css`](../../apps/frontend/styles/globals.css): CSS variables under `:root` and `.dark`, exposed to Tailwind through `@theme` (`bg-primary`, `text-muted-foreground`, `border-border`, `bg-success-bg`, ...). Do not copy hex values into components; add or change a token instead.
+- **Tokens**: defined once in [`apps/frontend/styles/globals.css`](../../apps/frontend/styles/globals.css): CSS variables under `:root` (light), `.dark` and `.dark.black` (AMOLED overrides of surfaces only), exposed to Tailwind through `@theme` (`bg-primary`, `text-muted-foreground`, `border-border`, `bg-success-bg`, ...). Do not copy hex values into components; add or change a token instead.
 - **Type scale**: answer body `text-sm` (14 px); code and tables use the `text-code` token (13 px); interface chrome is `text-xs` (12 px) and never smaller. Fonts: Outfit (headings), Instrument Sans (body), JetBrains Mono (code), loaded with `next/font`.
-- **Theme**: `dark` class on `<html>`, set before paint by a nonce-protected inline script in `app/layout.tsx` and persisted in `localStorage`.
+- **Theme**: `light | dark | black`, logic in `apps/frontend/lib/theme.ts`. Classes on `<html>`: none, `dark`, or `dark black` (black stacks on dark so every `dark:` utility still applies). Set before paint by a nonce-protected inline script in `app/layout.tsx`, persisted in `localStorage` (`airankagent_theme`), and also updates `<meta name="theme-color">`. Switched from the header button (cycles Light, Dark, Black) or the account menu's segmented radio group.
 
 ---
 
@@ -142,7 +145,7 @@ Collapsible sections: **Documents** (seeded benchmarks plus the user's uploads; 
 
 Target: **WCAG 2.2 AA**. Implemented:
 
-- Text contrast of at least 4.5:1 for every token pair (checked for light and dark themes). Dark-theme primary buttons use a dark foreground on bright blue (about 5:1).
+- Text contrast of at least 4.5:1 for every token pair (checked for light, dark and black themes; the lowest pair is primary on accent in dark at about 4.6:1). Primary buttons use white on `#2C357D` in every theme (11:1); primary text on dark is `#7F88D2` (4.6:1 minimum, on accent).
 - Visible focus ring on all interactive elements (2 px, offset 2 px). Interactive controls meet a 36 px minimum target (primary buttons 44 px).
 - Skip link ("Skip to chat") jumps to `#main-canvas`.
 - Landmarks (`banner`, `main`, `complementary`, `nav`), labelled dialogs with focus trapping (Radix), and a polite live region announcing run status.

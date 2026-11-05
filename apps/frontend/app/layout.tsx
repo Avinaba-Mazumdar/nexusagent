@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import { Instrument_Sans, Outfit, JetBrains_Mono } from 'next/font/google';
 import '../styles/globals.css';
+import { THEME_BOOT_SCRIPT } from '@/lib/theme';
 
 const instrumentSans = Instrument_Sans({
     subsets: ['latin'],
@@ -22,7 +23,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const viewport: Viewport = {
-    themeColor: '#004ea1',
+    themeColor: '#2C357D',
     width: 'device-width',
     initialScale: 1
 };
@@ -42,7 +43,7 @@ export const metadata: Metadata = {
             {
                 rel: 'mask-icon',
                 url: '/icon.svg',
-                color: '#004ea1'
+                color: '#2C357D'
             }
         ]
     },
@@ -59,7 +60,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     nonce={nonce}
                     suppressHydrationWarning
                     dangerouslySetInnerHTML={{
-                        __html: `(function(){try{var t=localStorage.getItem('airankagent_theme');if(t==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(e){}})();`
+                        __html: THEME_BOOT_SCRIPT
                     }}
                 />
             </head>

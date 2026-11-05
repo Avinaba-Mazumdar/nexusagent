@@ -153,7 +153,7 @@ export function ObservabilityPanel({
                                 <div
                                     className={`flex flex-col items-center px-1.5 py-0.5 rounded text-center min-w-12 shrink-0 transition-all ${
                                         isCurrent
-                                            ? 'bg-primary text-primary-foreground font-bold shadow-xs'
+                                            ? 'bg-primary-fill text-primary-foreground font-bold shadow-xs'
                                             : isPast
                                               ? 'bg-primary/20 text-foreground font-medium'
                                               : 'bg-muted/40 text-muted-foreground'

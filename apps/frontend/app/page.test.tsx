@@ -171,7 +171,7 @@ describe('Home Page - Layout and Header Controls', () => {
         global.fetch = originalFetch;
     });
 
-    it('toggles dark theme and persists choice in localStorage', async () => {
+    it('switches between light, dark and black themes and persists the choice', async () => {
         const mockGuestResponse = {
             user: {
                 id: '22222222-2222-2222-2222-222222222222',
@@ -208,18 +208,24 @@ describe('Home Page - Layout and Header Controls', () => {
         const profileBtn = await screen.findByRole('button', { name: /user profile menu/i });
         await user.click(profileBtn);
 
-        // Find theme switch
-        const themeSwitch = screen.getByRole('switch', { name: /toggle dark mode theme/i });
-        expect(themeSwitch).toBeInTheDocument();
+        const root = document.documentElement;
 
-        // Toggle on -> dark class added & stored
-        await user.click(themeSwitch);
-        expect(document.documentElement.classList.contains('dark')).toBe(true);
+        // Dark -> dark class added & stored
+        await user.click(screen.getByRole('radio', { name: 'Dark' }));
+        expect(root.classList.contains('dark')).toBe(true);
+        expect(root.classList.contains('black')).toBe(false);
         expect(localStorage.getItem('airankagent_theme')).toBe('dark');
 
-        // Toggle off -> dark class removed & light stored
-        await user.click(themeSwitch);
-        expect(document.documentElement.classList.contains('dark')).toBe(false);
+        // Black (AMOLED) stacks on dark so dark: utilities still apply
+        await user.click(screen.getByRole('radio', { name: 'Black' }));
+        expect(root.classList.contains('dark')).toBe(true);
+        expect(root.classList.contains('black')).toBe(true);
+        expect(localStorage.getItem('airankagent_theme')).toBe('black');
+
+        // Light -> both classes removed & light stored
+        await user.click(screen.getByRole('radio', { name: 'Light' }));
+        expect(root.classList.contains('dark')).toBe(false);
+        expect(root.classList.contains('black')).toBe(false);
         expect(localStorage.getItem('airankagent_theme')).toBe('light');
 
         global.fetch = originalFetch;
@@ -232,7 +238,7 @@ describe('Home Page - Layout and Header Controls', () => {
             throw new Error('denied');
         });
         try {
-            await user.click(screen.getByRole('button', { name: /toggle theme mode/i }));
+            await user.click(screen.getByRole('button', { name: /switch to dark theme/i }));
             expect(document.documentElement.classList.contains('dark')).toBe(true);
         } finally {
             setItem.mockRestore();

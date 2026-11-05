@@ -4,8 +4,8 @@
     "description": "An open-source LLM benchmark assistant powered by LangGraph, Neon PostgreSQL 18, and the Model Context Protocol.",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#f4f5f8",
-    "theme_color": "#004ea1",
+    "background_color": "#F5F6FA",
+    "theme_color": "#2C357D",
     "icons": [
         {
             "src": "/favicon-16x16.png",

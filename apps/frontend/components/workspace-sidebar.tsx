@@ -21,7 +21,6 @@ import { Button } from '@/components/ui/button';
 import { McpInspector } from '@/components/mcp';
 import { SidebarChatHistory } from '@/components/sidebar';
 import { MAX_UPLOAD_MB } from '@/lib/limits';
-import { SITE_HOST } from '@/lib/site';
 import type { ChatConversation } from '@airankagent/contracts';
 
 export interface WorkspaceDoc {
@@ -348,7 +347,6 @@ export function WorkspaceSidebar({
                         Terms
                     </Link>
                 </div>
-                <span className="font-mono text-xs text-muted-foreground">{SITE_HOST}</span>
             </div>
         </aside>
     );

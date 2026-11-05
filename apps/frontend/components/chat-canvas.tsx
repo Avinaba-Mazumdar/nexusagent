@@ -172,7 +172,7 @@ export function ChatCanvas({
                                     <div
                                         className={`p-3.5 rounded-2xl min-w-0 ${
                                             msg.role === 'user'
-                                                ? 'max-w-2xl bg-primary text-primary-foreground font-medium rounded-tr-xs whitespace-pre-wrap break-words'
+                                                ? 'max-w-2xl bg-primary-fill text-primary-foreground font-medium rounded-tr-xs whitespace-pre-wrap break-words'
                                                 : 'max-w-3xl xl:max-w-4xl bg-card border border-border text-foreground shadow-2xs rounded-tl-xs w-full'
                                         }`}
                                     >
