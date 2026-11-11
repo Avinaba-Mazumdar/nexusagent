@@ -2,7 +2,7 @@
     "name": "nexusagent-monorepo",
     "version": "0.1.0-alpha",
     "private": true,
-    "description": "NexusAgent Autonomous Systems Analyst Monorepo",
+    "description": "NexusAgent: an open-source LLM benchmark assistant (monorepo)",
     "scripts": {
         "dev": "vp run -r dev",
         "dev:fe": "pnpm --filter @nexusagent/frontend dev",
@@ -10,7 +10,7 @@
         "build": "vp run -r build",
         "test": "vp run -r test",
         "test:fe": "pnpm --filter @nexusagent/frontend test",
-        "test:be": "uv run --project apps/backend python -m pytest apps/backend/tests",
+        "test:be": "uv run --project apps/backend python -m pytest -c apps/backend/pyproject.toml apps/backend/tests",
         "lint": "vp lint",
         "contracts:generate": "uv run --project apps/backend python scripts/export_openapi.py && pnpm --filter @nexusagent/contracts generate && vp fmt packages/contracts/openapi.json packages/contracts/src/generated.ts",
         "format": "vp fmt",

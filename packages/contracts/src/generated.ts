@@ -319,7 +319,7 @@ export interface paths {
         put?: never;
         /**
          * Hybrid Search Documents
-         * @description Execute hybrid dense (pgvector HNSW) and sparse (BM25 tsvector GIN) search
+         * @description Execute hybrid dense (pgvector HNSW) and sparse (tsvector GIN) search
          *     with Reciprocal Rank Fusion (RRF) re-ranking. Each search counts as one chat in the rolling 24-hour quota.
          */
         post: operations['hybrid_search_documents_api_rag_search_post'];
@@ -606,7 +606,7 @@ export interface components {
             rrfK: number;
             /**
              * Sparseweight
-             * @description Weight for BM25 tsvector lexical rankings (0.0 to 1.0)
+             * @description Weight for tsvector lexical rankings (0.0 to 1.0)
              * @default 0.5
              */
             sparseWeight: number;
@@ -632,8 +632,6 @@ export interface components {
             denseScore?: number | null;
             /** Documentid */
             documentId: string;
-            /** Endline */
-            endLine?: number | null;
             /** Filename */
             filename: string;
             /** Headerpath */
@@ -644,14 +642,14 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
+            /** Page */
+            page?: number | null;
             /** Similarityscore */
             similarityScore: number;
             /** Sparserank */
             sparseRank?: number | null;
             /** Sparsescore */
             sparseScore?: number | null;
-            /** Startline */
-            startLine?: number | null;
         };
         /**
          * InjectionWarningWire

@@ -7,7 +7,7 @@ You are a **Staff-Plus Systems Architect**, a founding engineer, and a **Cyberse
 - **Security First**: Always check against the **OWASP Top 10 for Agentic AI (ASI-01 through ASI-10)**. Never allow unbounded tool execution, unsandboxed code execution, or prompt leakage.
 - **Architectural Rigor**: Always verify distributed systems claims against source documents. Never tolerate hallucinated consensus invariants or latency figures.
 - **User Experience**: Sub-600ms Time-to-First-Token via SSE streaming, interactive citation pills, and hardware-accelerated Mermaid dynamic SVGs.
-- **Performance & Scalability**: Hybrid dense/sparse RAG (pgvector + BM25 tsvector) fused via Reciprocal Rank Fusion (RRF).
+- **Performance & Scalability**: Hybrid dense/sparse RAG (pgvector + tsvector ts_rank_cd) fused via Reciprocal Rank Fusion (RRF).
 - **Maintainability**: Clear separation of concerns between `apps/frontend` (Next.js 16), `apps/backend` (FastAPI), and `packages/contracts`.
 
 **Do not mark work done that does not exist on disk.** Tasks in `.agents/specs/features.md` stay unchecked until files exist, builds succeed, and tests pass.
@@ -60,7 +60,7 @@ When writing code or proposing changes for NexusAgent, you MUST strictly follow 
     - `apps/backend`: FastAPI (`>=0.115`) + Python 3.14 + LangGraph (`>=1.2.12`) + LangChain Google GenAI (`GEMINI_MODELS`: every free-tier text model, routed by `app/agent/model_router.py` when one hits its quota) + a hand-written JSON-RPC MCP server + Neon PostgreSQL 18 (`asyncpg`) + `pgvector`. Versions are authoritative in `pyproject.toml` / `package.json`.
     - `packages/contracts`: Shared TypeScript schemas and JSON-RPC 2.0 wire definitions.
 2. **Neon PostgreSQL 18 Data Tier & Python Backend Auth Guarantee**:
-    - Single Unified Data Tier: Neon Serverless PostgreSQL 18 with `pgvector` (HNSW indexing), full-text `tsvector` BM25 search, connection pooling, and FastAPI-managed authentication (Guest JWTs + Password/OAuth sessions) is used across local development and production. Locally, no separate database is maintained.
+    - Single Unified Data Tier: Neon Serverless PostgreSQL 18 with `pgvector` (HNSW indexing), full-text `tsvector` (`ts_rank_cd`) search, connection pooling, and FastAPI-managed authentication (Guest JWTs + Password/OAuth sessions) is used across local development and production. Locally, no separate database is maintained.
 3. **Agentic Orchestration & LangGraph DAG**:
     - The agent execution loop runs on a LangGraph `StateGraph` with explicit nodes: `planner` -> `retriever` -> `grounding` -> `synthesizer`. The graph is a straight line with no loops.
     - The `grounding` node reports `grounded | weak | none` from the retrieved chunks. It is not an LLM reflection step and must not be described as one.
@@ -102,7 +102,7 @@ To maintain production-grade quality, the AI Agent and developers MUST adhere to
 
 - **RFC**: Request for Comments; deep technical specification document (e.g., distributed consensus, storage engines).
 - **LangGraph**: State-machine framework used here for a linear planner → retriever → grounding → synthesizer pipeline.
-- **Hybrid RAG**: Retrieval fusing dense vector cosine similarity (`pgvector`) with sparse lexical BM25 (`tsvector`).
+- **Hybrid RAG**: Retrieval fusing dense vector cosine similarity (`pgvector`) with sparse lexical search (`tsvector`, ranked with `ts_rank_cd`).
 - **Reciprocal Rank Fusion (RRF)**: Rank-based mathematical fusion combining vector search and lexical search results.
 - **MCP (Model Context Protocol)**: Anthropic/OpenAI open standard enabling agents to call tools and access resources via JSON-RPC 2.0.
 - **HITL (Human-in-the-Loop)**: Interactive authorization gate requiring human confirmation before executing high-impact tools.

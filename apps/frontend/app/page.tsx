@@ -1,5 +1,8 @@
 'use client';
 
+type GoogleIdApi = { initialize: (config: object) => void; renderButton: (el: HTMLElement, options: object) => void };
+type GoogleWindow = { google?: { accounts?: { id?: GoogleIdApi } } };
+
 import * as React from 'react';
 import Script from 'next/script';
 import { Activity, Database, MessageSquare } from 'lucide-react';
@@ -239,7 +242,7 @@ export default function Home() {
 
     const initGsi = React.useCallback(() => {
         if (gsiInitializedRef.current || !googleClientId) return;
-        const google = (window as unknown as { google?: { accounts?: { id?: { initialize: Function; renderButton: Function } } } })?.google;
+        const google = (window as unknown as GoogleWindow).google;
         if (!google?.accounts?.id) return;
 
         try {
@@ -260,7 +263,7 @@ export default function Home() {
     const renderGoogleButton = React.useCallback(
         (container: HTMLDivElement | null) => {
             if (!container || !googleClientId || !gisLoaded) return;
-            const google = (window as unknown as { google?: { accounts?: { id?: { initialize: Function; renderButton: Function } } } })?.google;
+            const google = (window as unknown as GoogleWindow).google;
             if (!google?.accounts?.id) return;
 
             initGsi();
@@ -467,7 +470,6 @@ export default function Home() {
                     onToggleCategory={toggleCategory}
                     docs={docs}
                     docsError={docsError}
-                    token={token}
                     uploadState={uploadState}
                     fileInputRef={fileInputRef}
                     onUploadClick={handleUploadClick}
@@ -499,7 +501,6 @@ export default function Home() {
                     citations={agentStream.citations}
                     currentNode={agentStream.currentNode}
                     streamingMsgId={streamingMsgId}
-                    isDarkTheme={isDarkTheme}
                     liveStatus={liveStatus}
                     sessionNotice={sessionNotice}
                     onSignIn={() => setDialogOpen(true)}

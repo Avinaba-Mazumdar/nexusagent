@@ -16,7 +16,7 @@ from app.core.rate_limiter import default_chat_quota
 from app.db.models import User
 from app.db.neon import neon_db
 
-router = APIRouter(prefix="/agent", tags=["Agent Autonomous Orchestration & SSE Streaming"])
+router = APIRouter(prefix="/agent", tags=["Agent & SSE Streaming"])
 
 
 class AgentStreamRequestWire(BaseModel):

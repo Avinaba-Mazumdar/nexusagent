@@ -135,7 +135,6 @@ export interface WorkspaceSidebarProps {
     onToggleCategory: (category: 'documents' | 'chats' | 'mcp') => void;
     docs: WorkspaceDoc[];
     docsError: string | null;
-    token: string | null;
     uploadState: UploadState;
     fileInputRef: React.RefObject<HTMLInputElement | null>;
     onUploadClick: () => void;
@@ -163,7 +162,6 @@ export function WorkspaceSidebar({
     onToggleCategory,
     docs,
     docsError,
-    token: _token,
     uploadState,
     fileInputRef,
     onUploadClick,
@@ -326,12 +324,12 @@ export function WorkspaceSidebar({
                     onToggle={() => onToggleCategory('mcp')}
                     badge={
                         <Badge variant="soft" className="text-xs font-mono py-0 px-1.5">
-                            2024-11-05
+                            Public
                         </Badge>
                     }
                 >
                     <div id="category-mcp-content" className="p-1 pt-0 border-t border-border/50">
-                        <McpInspector onOpenSignIn={onOpenSignIn} />
+                        <McpInspector />
                     </div>
                 </CollapsibleSection>
             </div>

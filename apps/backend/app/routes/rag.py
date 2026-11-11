@@ -51,7 +51,7 @@ class HybridSearchRequestWire(BaseModel):
         DEFAULT_SPARSE_WEIGHT,
         ge=0.0,
         le=1.0,
-        description="Weight for BM25 tsvector lexical rankings (0.0 to 1.0)",
+        description="Weight for tsvector lexical rankings (0.0 to 1.0)",
     )
     rrfK: int = Field(
         DEFAULT_RRF_K,
@@ -72,8 +72,7 @@ class HybridSearchResultWire(WireModel):
     sparse_rank: int | None = None
     dense_score: float | None = None
     sparse_score: float | None = None
-    start_line: int | None = None
-    end_line: int | None = None
+    page: int | None = None
     header_path: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -92,7 +91,7 @@ async def hybrid_search_documents(
     db: NeonDatabase = Depends(get_db),
 ):
     """
-    Execute hybrid dense (pgvector HNSW) and sparse (BM25 tsvector GIN) search
+    Execute hybrid dense (pgvector HNSW) and sparse (tsvector GIN) search
     with Reciprocal Rank Fusion (RRF) re-ranking. Each search counts as one chat in the rolling 24-hour quota.
     """
     client_ip = get_client_ip(request)

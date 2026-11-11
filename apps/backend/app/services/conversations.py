@@ -4,7 +4,7 @@ import logging
 from uuid import UUID
 
 from app.agent.state import AgentState
-from app.db.models import CitationWire, PlanStepWire
+from app.db.models import CitationWire, PlanStepWire, WebSourceWire
 from app.db.neon import neon_db
 
 logger = logging.getLogger("nexusagent.services.conversations")
@@ -34,6 +34,9 @@ async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentS
                 "citations": [
                     CitationWire.model_validate(c).model_dump(by_alias=True)
                     for c in state.citations
+                ],
+                "webSources": [
+                    WebSourceWire(title=s.title, url=s.url).model_dump() for s in state.web_sources
                 ],
             },
         )

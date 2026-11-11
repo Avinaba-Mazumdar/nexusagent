@@ -23,7 +23,7 @@ export interface TelemetryMetrics {
 
 export interface ToolCallItem {
     tool: string;
-    args: any;
+    args: Record<string, unknown>;
     durationMs?: number | null;
     resultsCount?: number | null;
 }
@@ -160,7 +160,7 @@ export function ObservabilityPanel({
                                     }`}
                                     aria-current={isCurrent ? 'step' : undefined}
                                 >
-                                    <span className="text-[10px] uppercase tracking-tight opacity-90">{isCurrent ? 'Active' : `S${index + 1}`}</span>
+                                    <span className="text-xs uppercase tracking-tight opacity-90">{isCurrent ? 'Active' : `S${index + 1}`}</span>
                                     <span className="text-xs leading-tight truncate">{label}</span>
                                 </div>
                                 {index < displayNodes.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground/60 shrink-0" aria-hidden="true" />}
@@ -228,15 +228,15 @@ export function ObservabilityPanel({
                 </div>
                 <dl className="grid grid-cols-3 gap-1.5 text-center">
                     <div className="rounded-md bg-card border border-border/70 px-1.5 py-1">
-                        <dt className="text-[10px] text-muted-foreground uppercase tracking-wider">Input</dt>
+                        <dt className="text-xs text-muted-foreground uppercase tracking-wider">Input</dt>
                         <dd className="text-xs font-mono font-semibold text-foreground tabular-nums">{runInputTokens}</dd>
                     </div>
                     <div className="rounded-md bg-card border border-border/70 px-1.5 py-1">
-                        <dt className="text-[10px] text-muted-foreground uppercase tracking-wider">Output</dt>
+                        <dt className="text-xs text-muted-foreground uppercase tracking-wider">Output</dt>
                         <dd className="text-xs font-mono font-semibold text-foreground tabular-nums">{runOutputTokens}</dd>
                     </div>
                     <div className="rounded-md bg-card border border-border/70 px-1.5 py-1">
-                        <dt className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</dt>
+                        <dt className="text-xs text-muted-foreground uppercase tracking-wider">Total</dt>
                         <dd className="text-xs font-mono font-semibold text-foreground tabular-nums">{runTotalTokens}</dd>
                     </div>
                 </dl>
@@ -246,7 +246,7 @@ export function ObservabilityPanel({
                         <span className="font-mono font-semibold text-foreground">{sessionTokens?.total ?? runTotalTokens}</span>
                     </div>
                     {modelNames && (
-                        <div className="flex items-center justify-between text-[11px] truncate">
+                        <div className="flex items-center justify-between text-xs truncate">
                             <span>Model:</span>
                             <span className="font-mono text-foreground truncate max-w-35" title={modelNames}>
                                 {modelNames}
@@ -263,33 +263,30 @@ export function ObservabilityPanel({
                         <Wrench className="h-3.5 w-3.5 text-primary" />
                         <span>Tool Calls</span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground font-mono">({toolCalls.length})</span>
+                    <span className="text-xs text-muted-foreground font-mono">({toolCalls.length})</span>
                 </div>
                 {toolCalls.length === 0 ? (
                     <div className="text-xs text-muted-foreground text-center py-2">No tools called yet</div>
                 ) : (
                     <div className="space-y-1.5">
                         {toolCalls.map((tc, idx) => {
-                            const summary = tc.args?.queries
-                                ? Array.isArray(tc.args.queries)
-                                    ? tc.args.queries.join(', ')
-                                    : String(tc.args.queries)
-                                : tc.args?.query
-                                  ? String(tc.args.query)
-                                  : JSON.stringify(tc.args ?? {});
+                            const queries = tc.args.queries;
+                            const summary = Array.isArray(queries)
+                                ? queries.join(', ')
+                                : typeof tc.args.query === 'string'
+                                  ? tc.args.query
+                                  : JSON.stringify(tc.args);
                             return (
                                 <div key={idx} className="p-1.5 rounded-md bg-card border border-border/70 text-xs">
                                     <div className="flex items-center justify-between font-semibold">
-                                        <span className="text-primary font-mono text-[11px]">{tc.tool}</span>
-                                        <span className="text-muted-foreground text-[10px] font-mono">
-                                            {tc.durationMs != null ? `${tc.durationMs}ms` : '—'}
-                                        </span>
+                                        <span className="text-primary font-mono text-xs">{tc.tool}</span>
+                                        <span className="text-muted-foreground text-xs font-mono">{tc.durationMs != null ? `${tc.durationMs}ms` : '—'}</span>
                                     </div>
-                                    <p className="text-muted-foreground truncate text-[11px] mt-0.5" title={summary}>
+                                    <p className="text-muted-foreground truncate text-xs mt-0.5" title={summary}>
                                         {summary}
                                     </p>
                                     {tc.resultsCount != null && (
-                                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                                        <div className="text-xs text-muted-foreground mt-0.5">
                                             Results: <span className="font-mono font-medium text-foreground">{tc.resultsCount}</span>
                                         </div>
                                     )}
@@ -305,7 +302,7 @@ export function ObservabilityPanel({
                 <dl className="grid grid-cols-2 gap-1.5 text-center">
                     {metricTiles.map((tile) => (
                         <div key={tile.label} className="rounded-md bg-card border border-border/70 px-1.5 py-1">
-                            <dt className="text-[10px] text-muted-foreground uppercase tracking-wider">{tile.label}</dt>
+                            <dt className="text-xs text-muted-foreground uppercase tracking-wider">{tile.label}</dt>
                             <dd className="text-xs font-mono font-semibold text-foreground tabular-nums">{tile.value}</dd>
                         </div>
                     ))}

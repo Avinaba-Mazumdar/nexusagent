@@ -7,11 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MCP_URL, buildClientConfig } from '@/lib/mcp-client-config';
 
-interface McpInspectorProps {
-    onOpenSignIn?: () => void;
-}
-
-export function McpInspector({ onOpenSignIn: _onOpenSignIn }: McpInspectorProps = {}) {
+export function McpInspector() {
     const [copiedUrl, setCopiedUrl] = React.useState(false);
     const [copiedConfig, setCopiedConfig] = React.useState(false);
 
@@ -45,7 +41,7 @@ export function McpInspector({ onOpenSignIn: _onOpenSignIn }: McpInspectorProps 
                         <Terminal className="h-3.5 w-3.5 text-primary" />
                         <span>Connect MCP Client</span>
                     </CardTitle>
-                    <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-500">
+                    <Badge variant="outline" className="text-xs font-mono border-success-border text-success bg-success-bg">
                         Public &middot; Read-only
                     </Badge>
                 </div>
@@ -59,16 +55,16 @@ export function McpInspector({ onOpenSignIn: _onOpenSignIn }: McpInspectorProps 
 
                 {/* MCP URL section */}
                 <div className="space-y-1.5">
-                    <label className="text-[11px] font-medium text-foreground/80 flex items-center justify-between">
+                    <label className="text-xs font-medium text-foreground/80 flex items-center justify-between">
                         <span>Streamable HTTP Endpoint</span>
                     </label>
                     <div className="flex items-center gap-1.5">
-                        <code className="flex-1 rounded border border-border bg-muted/50 px-2 py-1 font-mono text-[11px] text-foreground truncate select-all">
+                        <code className="flex-1 rounded border border-border bg-muted/50 px-2 py-1 font-mono text-xs text-foreground truncate select-all">
                             {MCP_URL}
                         </code>
                         <Button variant="outline" size="sm" className="h-7 px-2 text-xs shrink-0" onClick={copyUrl} aria-label="Copy MCP URL">
-                            {copiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                            <span className="ml-1 text-[11px]">{copiedUrl ? 'Copied' : 'Copy'}</span>
+                            {copiedUrl ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                            <span className="ml-1 text-xs">{copiedUrl ? 'Copied' : 'Copy'}</span>
                         </Button>
                     </div>
                 </div>
@@ -79,7 +75,7 @@ export function McpInspector({ onOpenSignIn: _onOpenSignIn }: McpInspectorProps 
                         <div className="font-semibold text-foreground flex items-center gap-1">
                             <span>Claude (claude.ai / Desktop)</span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground font-mono bg-muted/40 p-1.5 rounded border border-border/40">
+                        <p className="text-xs text-muted-foreground font-mono bg-muted/40 p-1.5 rounded border border-border/40">
                             Settings &rarr; Connectors &rarr; Add custom connector &rarr; paste the URL
                         </p>
                     </div>
@@ -88,7 +84,7 @@ export function McpInspector({ onOpenSignIn: _onOpenSignIn }: McpInspectorProps 
                         <div className="font-semibold text-foreground flex items-center gap-1">
                             <span>ChatGPT</span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground font-mono bg-muted/40 p-1.5 rounded border border-border/40">
+                        <p className="text-xs text-muted-foreground font-mono bg-muted/40 p-1.5 rounded border border-border/40">
                             Settings &rarr; Apps &amp; Connectors &rarr; Advanced &rarr; Developer mode &rarr; Create connector &rarr; paste the URL, no auth
                         </p>
                     </div>
@@ -99,15 +95,15 @@ export function McpInspector({ onOpenSignIn: _onOpenSignIn }: McpInspectorProps 
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                                className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
                                 onClick={copyConfig}
                                 aria-label="Copy JSON config"
                             >
-                                {copiedConfig ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                                {copiedConfig ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
                                 <span className="ml-1">{copiedConfig ? 'Copied' : 'Copy JSON'}</span>
                             </Button>
                         </div>
-                        <pre className="rounded border border-border bg-muted/50 p-2 font-mono text-[11px] text-foreground overflow-x-auto max-h-36">
+                        <pre className="rounded border border-border bg-muted/50 p-2 font-mono text-xs text-foreground overflow-x-auto max-h-36">
                             {clientConfigJson}
                         </pre>
                     </div>

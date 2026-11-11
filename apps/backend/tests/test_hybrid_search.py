@@ -183,7 +183,7 @@ async def test_hybrid_search_end_to_end_endpoint():
         chunk_index=0,
         content="Raft consensus leader heartbeat quorum and election timeout.",
         embedding=emb_chunk1,
-        metadata={"startLine": 1, "endLine": 20, "headerPath": ["Raft Consensus", "Heartbeats"]},
+        metadata={"page": 1, "headerPath": ["Raft Consensus", "Heartbeats"]},
     )
     chunk2 = DocumentChunk(
         id=uuid4(),
@@ -191,7 +191,7 @@ async def test_hybrid_search_end_to_end_endpoint():
         chunk_index=1,
         content="PostgreSQL B-Tree and GIN indexes for architectural queries.",
         embedding=emb_chunk2,
-        metadata={"startLine": 21, "endLine": 40, "headerPath": ["Database", "Indexes"]},
+        metadata={"page": 2, "headerPath": ["Database", "Indexes"]},
     )
     await neon_db.create_document_with_chunks(doc, [chunk1, chunk2])
 
@@ -220,8 +220,7 @@ async def test_hybrid_search_end_to_end_endpoint():
         assert top_result["documentId"] == str(doc_id)
         assert "Raft" in top_result["content"]
         assert top_result["similarityScore"] > 0
-        assert top_result["startLine"] == 1
-        assert top_result["endLine"] == 20
+        assert top_result["page"] == 1
         assert top_result["headerPath"] == ["Raft Consensus", "Heartbeats"]
         assert top_result["filename"] == "rfc-104-raft-consensus.md"
 

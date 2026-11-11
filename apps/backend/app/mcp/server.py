@@ -108,6 +108,8 @@ def create_streamable_http_app():
         streamable_http_path="/mcp",
         stateless_http=True,
         json_response=True,
+        # Rebinding protection is off because every tool here is public and read-only (no auth, no cookies).
+        # Turn it on, with allowed_hosts and allowed_origins, before adding any tool that returns private data.
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
 

@@ -604,7 +604,7 @@
                     },
                     "sparseWeight": {
                         "default": 0.5,
-                        "description": "Weight for BM25 tsvector lexical rankings (0.0 to 1.0)",
+                        "description": "Weight for tsvector lexical rankings (0.0 to 1.0)",
                         "maximum": 1.0,
                         "minimum": 0.0,
                         "title": "Sparseweight",
@@ -673,17 +673,6 @@
                         "title": "Documentid",
                         "type": "string"
                     },
-                    "endLine": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Endline"
-                    },
                     "filename": {
                         "title": "Filename",
                         "type": "string"
@@ -703,6 +692,17 @@
                         "additionalProperties": true,
                         "title": "Metadata",
                         "type": "object"
+                    },
+                    "page": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Page"
                     },
                     "similarityScore": {
                         "title": "Similarityscore",
@@ -729,17 +729,6 @@
                             }
                         ],
                         "title": "Sparsescore"
-                    },
-                    "startLine": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Startline"
                     }
                 },
                 "required": ["id", "documentId", "chunkIndex", "content", "filename", "similarityScore"],
@@ -1281,7 +1270,7 @@
                     }
                 ],
                 "summary": "Get Tool Audit Logs",
-                "tags": ["Agent Autonomous Orchestration & SSE Streaming"]
+                "tags": ["Agent & SSE Streaming"]
             }
         },
         "/api/agent/stream": {
@@ -1324,7 +1313,7 @@
                     }
                 ],
                 "summary": "Stream Agent Execution",
-                "tags": ["Agent Autonomous Orchestration & SSE Streaming"]
+                "tags": ["Agent & SSE Streaming"]
             }
         },
         "/api/auth/google": {
@@ -1824,7 +1813,7 @@
         },
         "/api/rag/search": {
             "post": {
-                "description": "Execute hybrid dense (pgvector HNSW) and sparse (BM25 tsvector GIN) search\nwith Reciprocal Rank Fusion (RRF) re-ranking. Each search counts as one chat in the rolling 24-hour quota.",
+                "description": "Execute hybrid dense (pgvector HNSW) and sparse (tsvector GIN) search\nwith Reciprocal Rank Fusion (RRF) re-ranking. Each search counts as one chat in the rolling 24-hour quota.",
                 "operationId": "hybrid_search_documents_api_rag_search_post",
                 "requestBody": {
                     "content": {

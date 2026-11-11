@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vite-plus/test';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { MCP_DEFAULT_QUERY, STARTER_PROMPTS } from './starter-prompts';
+import { STARTER_PROMPTS } from './starter-prompts';
 
 const KB_DIR = path.resolve(import.meta.dirname, '../../../knowledge_base/benchmarks');
 const kbText = readdirSync(KB_DIR)
@@ -13,8 +13,7 @@ const kbText = readdirSync(KB_DIR)
 const BENCHMARK_TERMS: Record<string, string[]> = {
     [STARTER_PROMPTS[0]]: ['artificial analysis', 'intelligence index'],
     [STARTER_PROMPTS[1]]: ['gpt', 'claude', 'cursorbench'],
-    [STARTER_PROMPTS[2]]: ['openrouter'],
-    [MCP_DEFAULT_QUERY]: ['cursorbench']
+    [STARTER_PROMPTS[2]]: ['openrouter']
 };
 
 describe('starter prompts', () => {

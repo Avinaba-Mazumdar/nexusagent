@@ -15,7 +15,6 @@ export interface MarkdownRendererProps {
     content: string;
     isStreaming?: boolean;
     citations?: Citation[];
-    isDark?: boolean;
     onCitationClick?: (citation: Citation) => void;
     className?: string;
 }
@@ -89,16 +88,8 @@ function trimTrailingNewline(node: React.ReactNode): React.ReactNode {
     return node;
 }
 
-export function MarkdownRenderer({ content, isStreaming = false, citations = [], isDark = false, onCitationClick, className = '' }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, isStreaming = false, citations = [], onCitationClick, className = '' }: MarkdownRendererProps) {
     const citationByLabel = React.useMemo(() => new Map(citations.map((c) => [c.label, c])), [citations]);
-
-    // An odd number of fences while streaming means the last code block is still being written.
-    const unclosedFenceTail = React.useMemo(() => {
-        if (!isStreaming) return null;
-        const fences = content.match(/^```/gm)?.length ?? 0;
-        if (fences % 2 === 0) return null;
-        return content.slice(content.lastIndexOf('```') + 3);
-    }, [content, isStreaming]);
 
     // Replace "[S1]" markers in text with citation pills; unknown labels stay as plain text.
     const withCitations = React.useCallback(
@@ -240,7 +231,7 @@ export function MarkdownRenderer({ content, isStreaming = false, citations = [],
                 return <CodeBlock language={language} code={trimmed} highlighted={trimTrailingNewline(children)} />;
             }
         };
-    }, [withCitations, isDark, unclosedFenceTail]);
+    }, [withCitations]);
 
     return (
         <TooltipProvider delayDuration={150}>

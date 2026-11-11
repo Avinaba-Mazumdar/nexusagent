@@ -67,7 +67,7 @@ scripts/             seed_kb.py, prune_guests.py (guests + audit retention)
     - On `refuse`: Returns fixed `REFUSAL`.
     - On `smalltalk`: Routed to **chat** node. Binds `google_search` tool for live facts (e.g. weather). Extracts search queries and web sources from grounding metadata.
     - On `benchmark`: Routed to **retriever** → **grounding** → **answer**.
-        - `retriever`: Executes hybrid RAG search (vector + BM25 with RRF, limit 5), sanitizes chunks, labels them `[S1]..[Sn]`, and logs to `tool_audit_logs`.
+        - `retriever`: Executes hybrid RAG search (vector + tsvector with RRF, limit 5), sanitizes chunks, labels them `[S1]..[Sn]`, and logs to `tool_audit_logs`.
         - `grounding`: Deterministic lexical check reporting `grounded | weak | none`.
         - `answer`: Streams synthesis prompt with delimited reference context. Inline citations cite `[S1]..[Sn]`.
 5. SSE events: `start`, `node_start`, `plan`, `usage` (token counts per step), `tool_call` (`hybrid_rag_search` or `google_search`), `tool_result` (with duration and citations), `grounding`, `token` (streamed text), and `done` (with summary metadata and `webSources`).
@@ -82,7 +82,7 @@ scripts/             seed_kb.py, prune_guests.py (guests + audit retention)
 
 ### 4.3 Hybrid search (`POST /api/rag/search`)
 
-Dense vector search (`pgvector` cosine similarity) and sparse keyword search (`tsvector` BM25) run concurrently against `document_chunks`. Scores are combined via Reciprocal Rank Fusion (RRF, $k=60$). If vector search fails, degrades gracefully to lexical-only search.
+Dense vector search (`pgvector` cosine similarity) and sparse keyword search (`tsvector`, ranked with `ts_rank_cd`) run concurrently against `document_chunks`. Scores are combined via Reciprocal Rank Fusion (RRF, $k=60$). If vector search fails, degrades gracefully to lexical-only search.
 
 ### 4.4 Public MCP server (`/mcp`)
 
@@ -93,6 +93,7 @@ FastMCP Streamable HTTP server mounted at `/mcp` (e.g. `https://nexusagent.onren
 - Two tools following ChatGPT / Claude standard connector specifications:
     - `search(query: str) -> dict`: Searches the benchmark knowledge base and returns up to 8 matching passages with `id`, `title`, and `url`.
     - `fetch(id: str) -> dict`: Retrieves the full text and metadata of a specific passage by `document_id:chunk_id`.
+- DNS rebinding protection is disabled because every tool on the public MCP server is read-only and unauthenticated (no private data or cookies); if tools returning private data are added, rebinding protection must be enabled with explicit `allowed_hosts` and `allowed_origins`.
 
 ---
 

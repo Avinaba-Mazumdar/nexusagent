@@ -1,6 +1,5 @@
 """
-Tests for security guardrails: secret scrubbing, prompt-injection delimiters, canary tokens,
-the token-bucket rate limiter and the tool audit log.
+Tests for security guardrails: secret scrubbing, prompt-injection delimiters, the token-bucket rate limiter and the tool audit log.
 """
 
 from uuid import UUID, uuid4
@@ -20,7 +19,7 @@ from app.main import app
 from tests.conftest import FakeUsageDb
 
 # ---------------------------------------------------------------------------
-# 1. Prompt Injection Delimiters & Canary Tokens Tests
+# 1. Prompt Injection Delimiters Tests
 # ---------------------------------------------------------------------------
 
 
@@ -98,14 +97,13 @@ def test_sanitize_and_wrap_untrusted_context():
     wrapped = wrap_untrusted_context(
         content=malicious_content,
         filename="benchmark_report.md",
-        start_line=10,
-        end_line=25,
+        page=3,
         doc_id="doc-123",
     )
 
     # Must contain outer boundaries with metadata attributes
     assert (
-        '<untrusted_document_context filename="benchmark_report.md" id="doc-123" lines="10-25">'
+        '<untrusted_document_context filename="benchmark_report.md" id="doc-123" page="3">'
         in wrapped
     )
     assert wrapped.endswith("</untrusted_document_context>")

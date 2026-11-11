@@ -1,6 +1,5 @@
 """
-Security Guardrails: Prompt Injection Delimiters & Canary Tokens.
-Protects autonomous agent context from indirect prompt injection and data exfiltration.
+Security guardrails: untrusted-content delimiters, injection pattern detection, secret scrubbing.
 """
 
 import html
@@ -112,8 +111,6 @@ def wrap_untrusted_context(
     content: str,
     filename: str = "document.md",
     page: int | None = None,
-    start_line: int | None = None,
-    end_line: int | None = None,
     doc_id: str | None = None,
     label: str | None = None,
 ) -> str:
@@ -122,13 +119,12 @@ def wrap_untrusted_context(
     Instructs models to treat content within boundaries strictly as passive data, never instructions.
     """
     safe_content = sanitize_untrusted_text(content)
-    line_attr = f' lines="{start_line}-{end_line}"' if start_line and end_line else ""
     page_attr = f' page="{page}"' if page else ""
     doc_attr = f' id="{doc_id}"' if doc_id else ""
     label_attr = f' label="{html.escape(label)}"' if label else ""
 
     return (
-        f'<untrusted_document_context{label_attr} filename="{html.escape(filename)}"{doc_attr}{page_attr}{line_attr}>\n'
+        f'<untrusted_document_context{label_attr} filename="{html.escape(filename)}"{doc_attr}{page_attr}>\n'
         f"{safe_content.strip()}\n"
         f"</untrusted_document_context>"
     )

@@ -5,6 +5,3 @@ export const STARTER_PROMPTS = [
     'Cheapest fast model on OpenRouter?',
     "What's the weather in Bengaluru right now?"
 ] as const;
-
-/** Default query for the MCP inspector's search tool. */
-export const MCP_DEFAULT_QUERY = 'CursorBench';

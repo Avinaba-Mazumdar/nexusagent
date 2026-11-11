@@ -11,7 +11,7 @@ export interface UseAgentStreamOptions {
     onMetricUpdate?: (updater: (prev: TelemetryMetrics) => TelemetryMetrics) => void;
     onQuota?: (remaining: number) => void;
     onUsage?: (event: UsageEvent) => void;
-    onToolCall?: (call: { tool: string; args: any }) => void;
+    onToolCall?: (call: { tool: string; args: Record<string, unknown> }) => void;
     onToolResult?: (result: { tool: string; chunksRetrieved: number; durationMs?: number | null }) => void;
 }
 

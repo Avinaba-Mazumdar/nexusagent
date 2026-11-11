@@ -2,9 +2,6 @@
 """
 NexusAgent scheduled cleanup: expired guest sessions, old chat usage, and old audit rows.
 Purges guest users older than specified TTL (default 24 hours).
-Foreign keys automatically cascade deletion to:
-  - documents (guest-uploaded)
-  - document_chunks
 
 Usage:
   python scripts/prune_guests.py

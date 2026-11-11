@@ -271,7 +271,7 @@ class NeonDatabase:
     async def prune_expired_guests(self, ttl_hours: int = 24) -> int:
         """Prune ephemeral guest sessions inactive for longer than ttl_hours (Section 11 Architecture).
 
-        Cascades via foreign keys to guest documents and chunks (chat_usage rows have user_id SET NULL).
+        chat_usage rows keep their device/machine/IP keys (user_id is set to NULL).
         Returns the number of pruned guest user accounts.
         """
         if ttl_hours < 1:

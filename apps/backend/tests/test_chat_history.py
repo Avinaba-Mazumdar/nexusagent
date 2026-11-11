@@ -111,3 +111,50 @@ async def test_follow_up_turn_keeps_first_title():
     assert conv is not None
     assert conv["title"] == "How does Raft elect a leader?"
     assert len(messages) == 4
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_persist_turn_saves_web_sources():
+    """C2: Web search sources must be saved in reflection_summary and retrievable via history."""
+    from app.agent.state import AgentState, WebSource
+    from app.services.conversations import persist_turn
+
+    transport = ASGITransport(app=app)
+    user_id = uuid4()
+    google_user = User(
+        id=user_id,
+        email=f"websource-{uuid4().hex[:8]}@nexusagent.test",
+        name="Web Source Tester",
+        is_guest=False,
+    )
+    if neon_db.pool:
+        await neon_db.create_user(google_user)
+
+    token, _ = create_access_token({"sub": str(user_id), "role": "user", "is_guest": False})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    session_id = str(uuid4())
+    query = "What is the weather in Tokyo?"
+    state = AgentState(
+        query=query,
+        session_id=session_id,
+        response="Sunny 22C",
+        web_sources=[WebSource(title="Tokyo Weather", url="https://weather.example/tokyo")],
+    )
+
+    conv_id = await persist_turn(user_id, session_id, query, state)
+    assert conv_id == session_id
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get(f"/api/chat/history/{conv_id}", headers=headers)
+        assert res.status_code == 200
+        data = res.json()
+        messages = data["messages"]
+        assert len(messages) >= 2
+        reflection = messages[1]["reflectionSummary"]
+        assert reflection is not None
+        assert "webSources" in reflection
+        assert len(reflection["webSources"]) == 1
+        assert reflection["webSources"][0]["url"] == "https://weather.example/tokyo"
+        assert reflection["webSources"][0]["title"] == "Tokyo Weather"

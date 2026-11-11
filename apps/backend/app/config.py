@@ -67,7 +67,6 @@ class Settings(BaseSettings):
     MAX_UPLOAD_REQUEST_BYTES: int = 5 * 1024 * 1024 + 16 * 1024
     MAX_JSON_REQUEST_BYTES: int = 64 * 1024
     GUEST_SIGNUPS_PER_IP_PER_HOUR: int = 5
-    GUEST_IP_QUOTA_PER_HOUR: int = 15
     GOOGLE_AUTH_PER_IP_PER_HOUR: int = 20
     REFRESH_PER_IP_PER_HOUR: int = 60
     # Number of trusted reverse proxies in front of the API (Render alone = 1; Cloudflare in front

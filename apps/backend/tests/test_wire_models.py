@@ -89,7 +89,7 @@ def test_upload_response_nests_camel_case_document_and_chunks():
         document_id=DOC_ID,
         chunk_index=0,
         content="Quorum is a majority.",
-        metadata={"startLine": 1},
+        metadata={"page": 3},
         created_at=NOW,
     )
 
@@ -107,7 +107,7 @@ def test_upload_response_nests_camel_case_document_and_chunks():
             "documentId": str(DOC_ID),
             "chunkIndex": 0,
             "content": "Quorum is a majority.",
-            "metadata": {"startLine": 1},
+            "metadata": {"page": 3},
             "createdAt": NOW.isoformat(),
         }
     ]

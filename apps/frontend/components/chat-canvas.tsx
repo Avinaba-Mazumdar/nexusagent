@@ -20,7 +20,6 @@ export interface ChatCanvasProps {
     citations: Citation[];
     currentNode: string | null;
     streamingMsgId: string | null;
-    isDarkTheme: boolean;
     liveStatus: string;
     /** Why the user was signed out, when the server ended their session. */
     sessionNotice: string | null;
@@ -36,17 +35,20 @@ export interface ChatCanvasProps {
 }
 
 const NODE_STATUS: Record<string, string> = {
-    planner: 'Planning…',
+    router: 'Understanding the question…',
+    chat: 'Writing answer…',
     retriever: 'Searching sources…',
     grounding: 'Checking sources…',
-    synthesizer: 'Writing answer…'
+    answer: 'Writing answer…'
 };
 
 function formatResetTime(iso: string | null): string {
-    if (!iso) return 'within the hour';
+    if (!iso) return 'within 24 hours';
     const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return 'within the hour';
-    return `at ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    if (Number.isNaN(date.getTime())) return 'within 24 hours';
+    const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const sameDay = date.toDateString() === new Date().toDateString();
+    return sameDay ? `at ${time}` : `tomorrow at ${time}`;
 }
 
 export function ChatCanvas({
@@ -60,7 +62,6 @@ export function ChatCanvas({
     citations,
     currentNode,
     streamingMsgId,
-    isDarkTheme,
     liveStatus,
     sessionNotice,
     onSignIn,
@@ -134,15 +135,15 @@ export function ChatCanvas({
                         <CardHeader className="p-4 pb-2">
                             <CardTitle className="text-base font-heading font-bold text-foreground flex items-center gap-2">
                                 <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-                                Autonomous Systems Intelligence
+                                LLM benchmark assistant
                             </CardTitle>
                             <CardDescription className="text-sm text-muted-foreground">
-                                Answers grounded in AI model benchmarks (BenchLM, OpenRouter, CursorBench, Artificial Analysis) and your uploaded documents.
+                                Answers grounded in AI model benchmarks (BenchLM, OpenRouter, CursorBench, Artificial Analysis).
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-4 pt-2 space-y-3">
                             <div className="p-3.5 rounded-xl bg-secondary/40 border border-border text-sm text-muted-foreground leading-relaxed">
-                                Ask about benchmark comparisons, pricing, or distributed-systems trade-offs.
+                                Ask about benchmark scores, pricing, speed, or context windows.
                             </div>
                             <div className="flex flex-wrap gap-2 pt-1">
                                 {STARTER_PROMPTS.map((promptText) => (
@@ -184,13 +185,12 @@ export function ChatCanvas({
                                                     content={streamedResponse}
                                                     isStreaming={true}
                                                     citations={citations}
-                                                    isDark={isDarkTheme}
                                                     onCitationClick={onCitationClick}
                                                 />
                                             ) : (
                                                 <div className="flex items-center gap-1.5 text-muted-foreground">
                                                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                                                    <span>{NODE_STATUS[currentNode ?? 'planner'] ?? 'Working…'}</span>
+                                                    <span>{NODE_STATUS[currentNode ?? 'router'] ?? 'Working…'}</span>
                                                 </div>
                                             )
                                         ) : msg.error ? (
@@ -216,12 +216,7 @@ export function ChatCanvas({
                                         ) : (
                                             <>
                                                 {msg.content ? (
-                                                    <MarkdownRenderer
-                                                        content={msg.content}
-                                                        citations={msg.citations}
-                                                        isDark={isDarkTheme}
-                                                        onCitationClick={onCitationClick}
-                                                    />
+                                                    <MarkdownRenderer content={msg.content} citations={msg.citations} onCitationClick={onCitationClick} />
                                                 ) : (
                                                     !msg.stopped && <span className="text-muted-foreground italic">No response.</span>
                                                 )}

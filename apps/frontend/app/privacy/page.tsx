@@ -81,8 +81,7 @@ export default function PrivacyPolicyPage() {
                             </div>
                             <h3 className="font-heading font-bold text-xs text-foreground">Short Retention</h3>
                             <p className="text-xs text-muted-foreground leading-snug">
-                                Inactive guest accounts and their documents are deleted after 24 hours. Tool audit records are deleted after{' '}
-                                {AUDIT_RETENTION_DAYS} days.
+                                Inactive guest accounts are deleted after 24 hours. Tool audit records are deleted after {AUDIT_RETENTION_DAYS} days.
                             </p>
                         </CardContent>
                     </Card>
