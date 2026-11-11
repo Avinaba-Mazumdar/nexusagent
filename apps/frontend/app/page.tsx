@@ -124,9 +124,8 @@ export default function Home() {
         },
         onToolResult: (result) => {
             setToolCalls((prev) => {
-                const idx = [...prev].reverse().findIndex((c) => c.tool === result.tool);
-                if (idx === -1) return prev;
-                const realIdx = prev.length - 1 - idx;
+                const realIdx = prev.findIndex((c) => c.tool === result.tool && c.durationMs === undefined);
+                if (realIdx === -1) return prev;
                 const updated = [...prev];
                 updated[realIdx] = {
                     ...updated[realIdx],
@@ -375,6 +374,7 @@ export default function Home() {
                               citations: result.citations,
                               warnings: result.injectionWarnings,
                               webSources: result.webSources,
+                              uncited: result.uncited,
                               error: undefined,
                               stopped: false
                           }

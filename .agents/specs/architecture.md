@@ -6,7 +6,7 @@ This document describes what the code does today. The database schema lives only
 
 ## 1. What it is
 
-An open-source LLM benchmark assistant that evaluates frontier AI models against benchmark data (Artificial Analysis, BenchLM, CursorBench, and OpenRouter metrics). Questions are classified by a router: smalltalk and live queries (e.g. weather) use Gemini with Google Search grounding; benchmark questions use a hybrid (vector + keyword) search over the pre-indexed corpus. The knowledge base is also exposed to external AI assistants (Claude, ChatGPT, Cursor, Claude Code) through a public, read-only Model Context Protocol (MCP) server.
+An open-source LLM benchmark assistant that evaluates frontier AI models against benchmark data (Artificial Analysis, BenchLM, CursorBench, and OpenRouter metrics). Questions are classified by a router: smalltalk and live queries (e.g. weather) use Gemini with Google Search grounding; benchmark questions use a bounded agent loop (`preload` initial RAG retrieval → `agent` model ⟷ `tools` node executing `hybrid_rag_search` and `web_search`) with citation validation. The knowledge base is also exposed to external AI assistants (Claude, ChatGPT, Cursor, Claude Code) through a public, read-only Model Context Protocol (MCP) server.
 
 ```
 Browser (Next.js 16)                         FastAPI backend                      External
@@ -42,7 +42,7 @@ apps/backend/app/
   config.py          settings (env), production safety checks
   core/              auth (JWT, Google), rate_limiter (rolling 24h quota), audit_log, security_guardrails
   db/                neon.py (all SQL), models.py (Pydantic & wire contracts)
-  agent/             state.py, graph.py (LangGraph DAG), sse.py, run.py
+  agent/             state.py, graph.py (LangGraph DAG), llm.py, tools.py, sse.py, run.py
   rag/               ingest.py (LlamaIndex PDF/Markdown parser), embeddings.py, hybrid_search.py
   mcp/               server.py (FastMCP Streamable HTTP server at /mcp)
   routes/            health, auth, documents (admin only), rag, agent, chat
@@ -66,11 +66,12 @@ scripts/             seed_kb.py, prune_guests.py (guests + audit retention)
     - **router**: Calls `gemini-2.5-flash-lite` with structured output (`RouteDecision`) to classify into `smalltalk`, `benchmark`, or `refuse`.
     - On `refuse`: Returns fixed `REFUSAL`.
     - On `smalltalk`: Routed to **chat** node. Binds `google_search` tool for live facts (e.g. weather). Extracts search queries and web sources from grounding metadata.
-    - On `benchmark`: Routed to **retriever** → **grounding** → **answer**.
-        - `retriever`: Executes hybrid RAG search (vector + tsvector with RRF, limit 5), sanitizes chunks, labels them `[S1]..[Sn]`, and logs to `tool_audit_logs`.
-        - `grounding`: Deterministic lexical check reporting `grounded | weak | none`.
-        - `answer`: Streams synthesis prompt with delimited reference context. Inline citations cite `[S1]..[Sn]`.
-5. SSE events: `start`, `node_start`, `plan`, `usage` (token counts per step), `tool_call` (`hybrid_rag_search` or `google_search`), `tool_result` (with duration and citations), `grounding`, `token` (streamed text), and `done` (with summary metadata and `webSources`).
+    - On `benchmark`: Routed to **preload** → **agent** ⟷ **tools**.
+        - `preload`: Executes initial hybrid RAG search (vector + tsvector with RRF, limit 5), sanitizes chunks, labels them `[S1]..[Sn]`, computes deterministic grounding (`grounded | weak | none`), and logs to `tool_audit_logs`.
+        - `agent`: Streams synthesis with delimited untrusted reference context. If the model determines more evidence is needed, it issues tool calls (`hybrid_rag_search` or `web_search`) up to a maximum of 2 tool rounds and 2 calls per round.
+        - `tools`: Validates arguments via Pydantic, executes read-only tools (`hybrid_rag_search` or `web_search`), wraps outputs in `<untrusted_tool_output>` tags, logs execution to `tool_audit_logs`, and returns execution results back to `agent`.
+        - Once synthesis completes, verifies inline citations against known source labels: populates `invalidCitations` and marks `uncited: true` if no valid labels were cited.
+5. SSE events: `start`, `node_start`, `plan`, `usage` (token counts per step), `tool_call` (`hybrid_rag_search`, `web_search`, or `google_search`), `tool_result` (with duration and citations), `grounding`, `token` (streamed text), and `done` (with summary metadata, `invalidCitations`, `uncited`, and `webSources`).
 6. Turn persistence: Google-authenticated users have their turns saved to `messages` for persistent chat history.
 
 ### 4.2 Document ingestion (`POST /api/documents/upload`)
@@ -93,7 +94,7 @@ FastMCP Streamable HTTP server mounted at `/mcp` (e.g. `https://nexusagent.onren
 - Two tools following ChatGPT / Claude standard connector specifications:
     - `search(query: str) -> dict`: Searches the benchmark knowledge base and returns up to 8 matching passages with `id`, `title`, and `url`.
     - `fetch(id: str) -> dict`: Retrieves the full text and metadata of a specific passage by `document_id:chunk_id`.
-- DNS rebinding protection is disabled because every tool on the public MCP server is read-only and unauthenticated (no private data or cookies); if tools returning private data are added, rebinding protection must be enabled with explicit `allowed_hosts` and `allowed_origins`.
+- DNS rebinding protection is disabled because every tool on the public MCP server is read-only and unauthenticated (no private data or cookies); if tools returning private data are added, rebinding protection must be enabled with explicit `allowed_hosts` and `allowed_origins` friction.
 
 ---
 
@@ -110,8 +111,8 @@ FastMCP Streamable HTTP server mounted at `/mcp` (e.g. `https://nexusagent.onren
 
 ## 6. Security
 
-- **OWASP ASI-01 (Prompt injection)**: Retrieved document chunks are sanitized, delimiter tags escaped, and wrapped in strict `<untrusted_document_context>` XML tags.
+- **OWASP ASI-01 (Prompt injection)**: Retrieved document chunks and tool outputs are sanitized, delimiter tags escaped, and wrapped in strict `<untrusted_document_context>` and `<untrusted_tool_output>` XML tags.
 - **OWASP ASI-02 (Sensitive info disclosure)**: Private keys, AWS keys, JWTs, and database credentials are automatically scrubbed from ingested text via regex patterns.
 - **OWASP ASI-04 (Data poisoning)**: Knowledge base documents are uploaded and managed exclusively by administrators (`is_admin = TRUE`).
-- **OWASP ASI-06 (Excessive agency)**: Tools are strictly read-only (`search`, `fetch`, `google_search`).
+- **OWASP ASI-06 (Excessive agency)**: Tools are strictly read-only (`hybrid_rag_search`, `web_search`, `fetch`, `google_search`).
 - **OWASP ASI-10 (Audit)**: `tool_audit_logs` is protected by database triggers that reject `UPDATE` and `DELETE` queries except by the maintenance retention job.

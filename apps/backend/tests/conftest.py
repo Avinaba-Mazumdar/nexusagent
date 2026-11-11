@@ -39,6 +39,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from langchain_core.messages import AIMessageChunk
 
 from app.config import REPO_ROOT
 from app.db.neon import neon_db
@@ -152,46 +153,46 @@ class FakeUsageDb:
         self.rows = [r for r in self.rows if r["id"] != usage_id]
 
 
-class FakeChunk:
+class FakeChunk(AIMessageChunk):
     def __init__(
         self,
         content: str = "",
         usage_metadata: dict[str, Any] | None = None,
         response_metadata: dict[str, Any] | None = None,
+        tool_calls: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
     ):
-        self.content = content
-        self.usage_metadata = usage_metadata or {}
-        self.response_metadata = response_metadata or {}
-
-    def __add__(self, other):
-        combined_content = (self.content or "") + (getattr(other, "content", "") or "")
-        other_usage = getattr(other, "usage_metadata", {}) or {}
-        other_resp = getattr(other, "response_metadata", {}) or {}
-        combined_usage = {
-            "input_tokens": self.usage_metadata.get("input_tokens", 0)
-            + other_usage.get("input_tokens", 0),
-            "output_tokens": self.usage_metadata.get("output_tokens", 0)
-            + other_usage.get("output_tokens", 0),
-            "total_tokens": self.usage_metadata.get("total_tokens", 0)
-            + other_usage.get("total_tokens", 0),
-        }
-        combined_resp = {**self.response_metadata, **other_resp}
-        return FakeChunk(combined_content, combined_usage, combined_resp)
+        usage = None
+        if usage_metadata:
+            usage = {
+                "input_tokens": usage_metadata.get("input_tokens", 0),
+                "output_tokens": usage_metadata.get("output_tokens", 0),
+                "total_tokens": usage_metadata.get("total_tokens", 0),
+            }
+        super().__init__(
+            content=content,
+            usage_metadata=usage,
+            response_metadata=response_metadata or {},
+            tool_calls=tool_calls or [],
+            **kwargs,
+        )
 
 
 class FakeChain:
-    """Stand-in for the Gemini chain: ``astream`` yields the given text pieces as chunks,
+    """Stand-in for the Gemini chain: ``astream`` yields the given text pieces or scripted turns as chunks,
     and supports ``with_structured_output`` and ``bind_tools``."""
 
     def __init__(
         self,
         pieces=None,
         *,
+        script: list[dict[str, Any]] | None = None,
         structured_route: str = "benchmark",
         usage_metadata: dict[str, Any] | None = None,
         response_metadata: dict[str, Any] | None = None,
     ):
         self.pieces = list(pieces or [])
+        self.script = script if script is not None else None
         self.structured_route = structured_route
         self.usage_metadata = (
             {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
@@ -201,9 +202,19 @@ class FakeChain:
         self.response_metadata = response_metadata or {}
         self.calls = []
         self.model = "fake-gemini"
+        self._tools_bound = []
 
     def bind_tools(self, tools):
-        return self
+        new_chain = FakeChain(
+            self.pieces,
+            script=self.script,
+            structured_route=self.structured_route,
+            usage_metadata=self.usage_metadata,
+            response_metadata=self.response_metadata,
+        )
+        new_chain.calls = self.calls
+        new_chain._tools_bound = list(tools)
+        return new_chain
 
     def with_structured_output(self, schema, include_raw=False):
         chain = self
@@ -235,6 +246,43 @@ class FakeChain:
 
     async def astream(self, messages):
         self.calls.append(messages)
+        if self.script is not None:
+            if not self.script:
+                yield FakeChunk(
+                    content="",
+                    usage_metadata=self.usage_metadata,
+                    response_metadata=self.response_metadata,
+                )
+                return
+            turn = self.script.pop(0)
+            if "tool_calls" in turn:
+                tool_calls = turn["tool_calls"]
+                yield FakeChunk(
+                    content="",
+                    usage_metadata=self.usage_metadata,
+                    response_metadata=self.response_metadata,
+                    tool_calls=tool_calls,
+                )
+                return
+            elif "text" in turn:
+                text_pieces = turn["text"]
+                if not text_pieces:
+                    yield FakeChunk(
+                        content="",
+                        usage_metadata=self.usage_metadata,
+                        response_metadata=self.response_metadata,
+                    )
+                    return
+                for i, piece in enumerate(text_pieces):
+                    chunk_usage = self.usage_metadata if i == len(text_pieces) - 1 else None
+                    chunk_resp = self.response_metadata if i == len(text_pieces) - 1 else None
+                    yield FakeChunk(
+                        content=piece,
+                        usage_metadata=chunk_usage,
+                        response_metadata=chunk_resp,
+                    )
+                return
+
         if not self.pieces:
             yield FakeChunk(
                 content="",
@@ -260,18 +308,22 @@ def fake_llm(monkeypatch):
     def use(
         pieces=None,
         *,
+        script=None,
         structured_route="benchmark",
         usage_metadata=None,
         response_metadata=None,
     ):
         chain = FakeChain(
             pieces,
+            script=script,
             structured_route=structured_route,
             usage_metadata=usage_metadata,
             response_metadata=response_metadata,
         )
         monkeypatch.setattr("app.agent.graph.settings.GEMINI_API_KEY", "test-key")
+        monkeypatch.setattr("app.agent.llm.settings.GEMINI_API_KEY", "test-key")
         monkeypatch.setattr("app.agent.graph._get_llm", lambda api_key, model: chain)
+        monkeypatch.setattr("app.agent.llm._get_llm", lambda api_key, model: chain)
         return chain
 
     return use
@@ -290,7 +342,7 @@ def fake_rate_db(monkeypatch):
 @pytest.fixture(autouse=True)
 def reset_rate_limiters():
     """Reset chat quotas and sliding-window counters between tests."""
-    from app.agent.graph import _get_llm, default_model_router
+    from app.agent.llm import _get_llm, default_model_router
     from app.core.rate_limiter import default_chat_quota
     from app.main import mcp_global_limiter, mcp_rate_limiter
 

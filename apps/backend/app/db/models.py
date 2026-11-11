@@ -290,7 +290,7 @@ class SseToolCallEvent(BaseModel):
     """Sent just before a tool runs. The matching `tool_result` follows when it finishes."""
 
     sessionId: str
-    tool: Literal["hybrid_rag_search", "google_search"]
+    tool: Literal["hybrid_rag_search", "google_search", "web_search"]
     arguments: dict[str, Any]
 
 
@@ -299,6 +299,8 @@ class SseToolResultEvent(BaseModel):
     chunksRetrieved: int
     citations: list[CitationWire] = []
     injectionWarnings: list[InjectionWarningWire] = []
+    webSources: list[WebSourceWire] = []
+    error: str | None = None
     durationMs: int | None = None
 
 
@@ -334,6 +336,8 @@ class AgentDoneEventWire(BaseModel):
     grounding: Literal["grounded", "weak", "none"]
     model: str | None = None
     quotaRemaining: int | None = None
+    invalidCitations: list[str] = []
+    uncited: bool = False
     isComplete: bool
     completedAt: str | None = None
 

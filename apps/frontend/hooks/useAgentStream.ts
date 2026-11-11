@@ -204,6 +204,9 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     if (data.tool === 'google_search') {
                                         const queries = data.arguments?.queries ? data.arguments.queries.join(', ') : '';
                                         emitLog('RAG', `Google Search: "${queries}"`);
+                                    } else if (data.tool === 'web_search') {
+                                        const query = data.arguments?.query ?? '';
+                                        emitLog('RAG', `Web search: "${query}"`);
                                     } else {
                                         const scope = data.arguments?.documentScoped ? 'the selected document' : 'all sources';
                                         emitLog('RAG', `Calling ${data.tool} over ${scope} (top ${data.arguments?.limit ?? '?'})`);
@@ -217,7 +220,9 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                         chunksRetrieved: data.chunksRetrieved ?? 0,
                                         durationMs: data.durationMs
                                     });
-                                    if (data.tool === 'hybrid_rag_search' && Array.isArray(data.citations)) {
+                                    if (data.error) {
+                                        emitLog('RAG', `Tool ${data.tool} failed: ${data.error}`);
+                                    } else if (data.tool === 'hybrid_rag_search' && Array.isArray(data.citations)) {
                                         setCitations(data.citations);
                                         emitLog(
                                             'RAG',
@@ -228,6 +233,15 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                         }
                                     } else if (data.tool === 'google_search') {
                                         emitLog('RAG', `Google Search found ${data.chunksRetrieved ?? 0} sources (${data.durationMs ?? '?'}ms)`);
+                                    } else if (data.tool === 'web_search') {
+                                        if (Array.isArray(data.webSources)) {
+                                            setWebSources((prev) => {
+                                                const existingUrls = new Set(prev.map((s) => s.url));
+                                                const newSources = data.webSources.filter((s: { url: string }) => !existingUrls.has(s.url));
+                                                return [...prev, ...newSources];
+                                            });
+                                            emitLog('RAG', `Web search found ${data.webSources.length} sources (${data.durationMs ?? '?'}ms)`);
+                                        }
                                     }
                                     break;
 

@@ -69,3 +69,13 @@
 - [x] Updated README with technology index, rolling quotas, admin access, and MCP connection
 - [x] Disclosed machine ID hashing and IP quota tracking in Privacy Policy
 - [x] System Architecture and Active Board updated
+
+### Phase 9: Bounded Tool-Calling Agent [Done]
+
+- [x] Refactored LangGraph agent DAG to bounded tool-calling loop: `router -> refuse | chat | preload -> agent <-> tools`
+- [x] Initial benchmark passages preloaded in `preload_node`, self-healing in direct `agent_node` calls
+- [x] Extracted LLM routing & streaming to `apps/backend/app/agent/llm.py` and tools to `apps/backend/app/agent/tools.py`
+- [x] Bounded loop safeguards: maximum 2 tool rounds, maximum 2 tool calls per round
+- [x] Untrusted tool output wrapping in `<untrusted_tool_output>` XML boundaries with tag stripping
+- [x] Citation validation: reports missing labels in `invalid_citations` and sets `uncited: true` when model cites no sources
+- [x] Frontend observability panel and stream hook updated with `preload`, `agent`, and `tools` nodes, web search badges, and uncited warnings

@@ -35,11 +35,9 @@ export interface ChatCanvasProps {
 }
 
 const NODE_STATUS: Record<string, string> = {
-    router: 'Understanding the question…',
-    chat: 'Writing answer…',
-    retriever: 'Searching sources…',
-    grounding: 'Checking sources…',
-    answer: 'Writing answer…'
+    preload: 'Searching sources…',
+    agent: 'Writing answer…',
+    tools: 'Using tools…'
 };
 
 function formatResetTime(iso: string | null): string {
@@ -190,7 +188,7 @@ export function ChatCanvas({
                                             ) : (
                                                 <div className="flex items-center gap-1.5 text-muted-foreground">
                                                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                                                    <span>{NODE_STATUS[currentNode ?? 'router'] ?? 'Working…'}</span>
+                                                    <span>{NODE_STATUS[currentNode ?? 'preload'] ?? 'Working…'}</span>
                                                 </div>
                                             )
                                         ) : msg.error ? (
@@ -246,6 +244,12 @@ export function ChatCanvas({
                                                             {msg.warnings.map((w) => w.filename).join(', ')} contains instruction-like text. It was treated as
                                                             data, not as instructions.
                                                         </span>
+                                                    </p>
+                                                )}
+                                                {msg.uncited && (
+                                                    <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground" data-testid="uncited-warning">
+                                                        <Info className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
+                                                        <span>This answer does not cite any of the retrieved sources. Check it before relying on it.</span>
                                                     </p>
                                                 )}
                                                 {msg.stopped && (

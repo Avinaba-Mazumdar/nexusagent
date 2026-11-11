@@ -49,6 +49,14 @@
                         "title": "Injectionwarnings",
                         "type": "array"
                     },
+                    "invalidCitations": {
+                        "default": [],
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Invalidcitations",
+                        "type": "array"
+                    },
                     "isComplete": {
                         "title": "Iscomplete",
                         "type": "boolean"
@@ -98,6 +106,11 @@
                     "sessionId": {
                         "title": "Sessionid",
                         "type": "string"
+                    },
+                    "uncited": {
+                        "default": false,
+                        "title": "Uncited",
+                        "type": "boolean"
                     },
                     "webSources": {
                         "default": [],
@@ -951,7 +964,7 @@
                         "type": "string"
                     },
                     "tool": {
-                        "enum": ["hybrid_rag_search", "google_search"],
+                        "enum": ["hybrid_rag_search", "google_search", "web_search"],
                         "title": "Tool",
                         "type": "string"
                     }
@@ -986,6 +999,18 @@
                         "default": null,
                         "title": "Durationms"
                     },
+                    "error": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": null,
+                        "title": "Error"
+                    },
                     "injectionWarnings": {
                         "default": [],
                         "items": {
@@ -997,6 +1022,14 @@
                     "tool": {
                         "title": "Tool",
                         "type": "string"
+                    },
+                    "webSources": {
+                        "default": [],
+                        "items": {
+                            "$ref": "#/components/schemas/WebSourceWire"
+                        },
+                        "title": "Websources",
+                        "type": "array"
                     }
                 },
                 "required": ["tool", "chunksRetrieved"],

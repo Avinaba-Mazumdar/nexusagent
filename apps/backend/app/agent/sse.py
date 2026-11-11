@@ -5,12 +5,12 @@ module. The payload models are in ``app.db.models`` and ``SSE_WIRE_MODELS`` expo
 contracts package.
 """
 
-from collections.abc import Callable
+from typing import Any
 
 from pydantic import BaseModel
 
-from app.agent.graph import RETRIEVAL_LIMIT, RETRIEVAL_TOOL
-from app.agent.state import AgentState
+from app.agent.state import AgentState, ToolEvent
+from app.agent.tools import RAG_TOOL_NAME, WEB_TOOL_NAME
 from app.db.models import (
     AgentDoneEventWire,
     CitationWire,
@@ -53,18 +53,14 @@ def node_start_frame(session_id: str, node: str) -> str:
     return format_sse("node_start", SseNodeStartEvent(sessionId=session_id, node=node))
 
 
-def tool_call_frame(session_id: str, state: AgentState) -> str:
-    """Announce the retrieval call before it runs; its `tool_result` follows when it finishes."""
+def tool_call_frame(session_id: str, tool: str, arguments: dict[str, Any]) -> str:
+    """Announce a tool call before it runs; its `tool_result` follows when it finishes."""
     return format_sse(
         "tool_call",
         SseToolCallEvent(
             sessionId=session_id,
-            tool=RETRIEVAL_TOOL,
-            arguments={
-                "query": state.query,
-                "limit": RETRIEVAL_LIMIT,
-                "documentScoped": state.document_id is not None,
-            },
+            tool=tool,  # type: ignore
+            arguments=arguments,
         ),
     )
 
@@ -121,6 +117,8 @@ def done_frame(
             grounding=state.grounding,
             model=state.model,
             quotaRemaining=quota_remaining,
+            invalidCitations=state.invalid_citations,
+            uncited=state.uncited,
             isComplete=True,
             completedAt=state.completed_at.isoformat() if state.completed_at else None,
         ),
@@ -156,6 +154,7 @@ def _chat_frames(session_id: str, state: AgentState) -> list[str]:
                     chunksRetrieved=len(state.web_sources),
                     citations=[],
                     injectionWarnings=[],
+                    webSources=[WebSourceWire(title=s.title, url=s.url) for s in state.web_sources],
                     durationMs=state.search_duration_ms,
                 ),
             )
@@ -163,25 +162,25 @@ def _chat_frames(session_id: str, state: AgentState) -> list[str]:
     return frames
 
 
-def _retriever_frames(session_id: str, state: AgentState) -> list[str]:
-    return [
+def _preload_frames(session_id: str, state: AgentState) -> list[str]:
+    frames = []
+    first_event = state.tool_events[0] if state.tool_events else None
+    duration_ms = first_event.duration_ms if first_event else state.retrieval_duration_ms
+    frames.append(
         format_sse(
             "tool_result",
             SseToolResultEvent(
-                tool=RETRIEVAL_TOOL,
+                tool=RAG_TOOL_NAME,
                 chunksRetrieved=len(state.retrieved_chunks),
                 citations=[CitationWire.model_validate(c) for c in state.citations],
                 injectionWarnings=[
                     InjectionWarningWire.model_validate(w) for w in state.injection_warnings
                 ],
-                durationMs=state.retrieval_duration_ms,
+                durationMs=duration_ms,
             ),
         )
-    ]
-
-
-def _grounding_frames(session_id: str, state: AgentState) -> list[str]:
-    return [
+    )
+    frames.append(
         format_sse(
             "grounding",
             SseGroundingEvent(
@@ -190,23 +189,69 @@ def _grounding_frames(session_id: str, state: AgentState) -> list[str]:
                 feedback=state.grounding_feedback,
             ),
         )
-    ]
+    )
+    return frames
 
 
-_NODE_FRAMES: dict[str, Callable[[str, AgentState], list[str]]] = {
-    "router": _router_frames,
-    "chat": _chat_frames,
-    "retriever": _retriever_frames,
-    "grounding": _grounding_frames,
-}
+def _tools_frames(session_id: str, state: AgentState, events: list[ToolEvent]) -> list[str]:
+    frames = []
+    for ev in events:
+        citations = (
+            [CitationWire.model_validate(c) for c in state.citations]
+            if ev.tool == RAG_TOOL_NAME
+            else []
+        )
+        web_sources = (
+            [WebSourceWire(title=s.title, url=s.url) for s in state.web_sources]
+            if ev.tool == WEB_TOOL_NAME
+            else []
+        )
+        frames.append(
+            format_sse(
+                "tool_result",
+                SseToolResultEvent(
+                    tool=ev.tool,
+                    chunksRetrieved=ev.results,
+                    citations=citations,
+                    injectionWarnings=[],
+                    webSources=web_sources,
+                    error=ev.error,
+                    durationMs=ev.duration_ms,
+                ),
+            )
+        )
+    frames.append(
+        format_sse(
+            "grounding",
+            SseGroundingEvent(
+                sessionId=session_id,
+                grounding=state.grounding,
+                feedback=state.grounding_feedback,
+            ),
+        )
+    )
+    return frames
 
 
-def node_frames(node: str, session_id: str, state: AgentState, usage_sent: int = 0) -> list[str]:
+def node_frames(
+    node: str,
+    session_id: str,
+    state: AgentState,
+    usage_sent: int = 0,
+    events_sent: int = 0,
+) -> list[str]:
     """The frames a node reports when it finishes, including usage frames for LLM nodes."""
     frames = []
-    builder = _NODE_FRAMES.get(node)
-    if builder:
-        frames.extend(builder(session_id, state))
-    if node in {"router", "chat", "answer"}:
+    if node == "router":
+        frames.extend(_router_frames(session_id, state))
+    elif node == "chat":
+        frames.extend(_chat_frames(session_id, state))
+    elif node == "preload":
+        frames.extend(_preload_frames(session_id, state))
+    elif node == "tools":
+        new_events = state.tool_events[events_sent:]
+        frames.extend(_tools_frames(session_id, state, new_events))
+
+    if node in {"router", "chat", "agent", "tools"}:
         frames.extend(usage_frames(session_id, state, already_sent=usage_sent))
     return frames

@@ -363,6 +363,11 @@ export interface components {
              * @default []
              */
             injectionWarnings: components['schemas']['InjectionWarningWire'][];
+            /**
+             * Invalidcitations
+             * @default []
+             */
+            invalidCitations: string[];
             /** Iscomplete */
             isComplete: boolean;
             /**
@@ -383,6 +388,11 @@ export interface components {
             quotaRemaining: number | null;
             /** Sessionid */
             sessionId: string;
+            /**
+             * Uncited
+             * @default false
+             */
+            uncited: boolean;
             /**
              * Websources
              * @default []
@@ -767,7 +777,7 @@ export interface components {
              * Tool
              * @enum {string}
              */
-            tool: 'hybrid_rag_search' | 'google_search';
+            tool: 'hybrid_rag_search' | 'google_search' | 'web_search';
         };
         /** SseToolResultEvent */
         SseToolResultEvent: {
@@ -784,12 +794,22 @@ export interface components {
              */
             durationMs: number | null;
             /**
+             * Error
+             * @default null
+             */
+            error: string | null;
+            /**
              * Injectionwarnings
              * @default []
              */
             injectionWarnings: components['schemas']['InjectionWarningWire'][];
             /** Tool */
             tool: string;
+            /**
+             * Websources
+             * @default []
+             */
+            webSources: components['schemas']['WebSourceWire'][];
         };
         /** SseUsageEvent */
         SseUsageEvent: {

@@ -1,50 +1,58 @@
+from uuid import uuid4
+
 import pytest
 
-from app.agent.graph import (
-    REFUSAL,
-    AgentGraph,
-    prefilter,
-    route_after_router,
-    router_node,
-)
+from app.agent.graph import REFUSAL, AgentGraph, route_after_router
 from app.agent.state import AgentState
+from app.rag.hybrid_search import HybridSearchResult
 
 
-def test_prefilter_boundaries():
-    """Verify prefilter correctly catches queries > 60 words or queries with code fences."""
-    # Under limit without code
-    assert prefilter("What is the fastest model on OpenRouter?") is False
-    assert prefilter("weather in Kolkata") is False
-
-    # Over 60 words
-    assert prefilter("word " * 61) is True
-
-    # Code fences
-    assert prefilter("```python\nprint('hello')\n```") is True
-    assert prefilter("help with ```ts const x = 1; ```") is True
-
-
-@pytest.mark.asyncio
-async def test_router_fast_path_refusal_when_intent_preset():
-    """Verify preset 'refuse' intent halts at router node with deterministic REFUSAL."""
-    state = AgentState(query="code me a python script to print hello world", intent="refuse")
-    updated = await router_node(state)
-
-    assert updated.is_complete is True
-    assert updated.response == REFUSAL
-    assert len(updated.plan) == 1
-    assert updated.plan[0].tool == "scope_guardrail"
-
-
-@pytest.mark.asyncio
-async def test_agent_graph_fast_path_refusal():
-    """Verify end-to-end graph execution returns refusal without calling external tools when refused."""
-    graph = AgentGraph()
-    state = AgentState(
-        query="code me a python script to print hello world",
-        intent="refuse",
+def _chunk(dense_score: float | None = 0.9) -> HybridSearchResult:
+    return HybridSearchResult(
+        id=str(uuid4()),
+        document_id=str(uuid4()),
+        chunk_index=0,
+        content="Artificial Analysis ranks intelligence and latency.",
+        filename="artificial_analysis.md",
+        similarity_score=0.1,
+        dense_score=dense_score,
+        page=1,
     )
 
+
+@pytest.mark.asyncio
+async def test_guardrail_refuses_off_topic_queries(fake_llm):
+    """The agent must immediately refuse unrelated non-benchmark queries with REFUSAL."""
+    fake_llm(["I can help with coding."])
+    graph = AgentGraph()
+
+    off_topic_queries = [
+        "How do I cook a good lasagna?",
+        "Write a quicksort implementation in Rust",
+        "Who won the 2024 presidential election?",
+        "Debug this Python memory leak",
+        "Explain quantum computing fundamentals",
+    ]
+
+    for query in off_topic_queries:
+        state = AgentState(query=query, user_id=uuid4(), intent="refuse")
+        final_state = await graph.invoke(state)
+
+        assert final_state.is_complete is True
+        assert final_state.response == REFUSAL
+        assert final_state.node_history == ["router"]
+        assert len(final_state.plan) == 1
+        assert final_state.plan[0].tool == "scope_guardrail"
+
+
+@pytest.mark.asyncio
+async def test_guardrail_refuses_code_snippets():
+    """Queries containing markdown code blocks are refused without invoking the model."""
+    graph = AgentGraph()
+    state = AgentState(
+        query="Can you fix this:\n```python\nprint('hello')\n```",
+        user_id=uuid4(),
+    )
     final_state = await graph.invoke(state)
 
     assert final_state.is_complete is True
@@ -54,7 +62,7 @@ async def test_agent_graph_fast_path_refusal():
 
 
 def test_route_after_router_logic():
-    """Verify route_after_router redirects to done, chat, or retriever."""
+    """Verify route_after_router redirects to done, chat, or preload."""
     # Refusal or completed
     assert route_after_router(AgentState(query="q", intent="refuse", is_complete=True)) == "done"
     assert route_after_router(AgentState(query="q", intent="refuse")) == "done"
@@ -64,4 +72,4 @@ def test_route_after_router_logic():
     assert route_after_router(AgentState(query="q", intent="smalltalk")) == "chat"
 
     # Benchmark
-    assert route_after_router(AgentState(query="q", intent="benchmark")) == "retriever"
+    assert route_after_router(AgentState(query="q", intent="benchmark")) == "preload"

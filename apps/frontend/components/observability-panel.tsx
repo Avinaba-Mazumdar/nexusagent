@@ -46,14 +46,12 @@ export interface ObservabilityPanelProps {
 const NODE_LABELS: Record<string, string> = {
     router: 'Router',
     chat: 'Chat',
-    retriever: 'Retriever',
-    grounding: 'Grounding',
-    answer: 'Answer',
-    planner: 'Router',
-    synthesizer: 'Answer'
+    preload: 'Retrieve',
+    agent: 'Agent',
+    tools: 'Tools'
 };
 
-const DEFAULT_NODES = ['router', 'retriever', 'grounding', 'answer'];
+const DEFAULT_NODES = ['router', 'preload', 'agent'];
 
 function formatMs(ms: number | null): string {
     if (ms === null) return '—';

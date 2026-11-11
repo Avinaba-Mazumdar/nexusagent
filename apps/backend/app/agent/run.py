@@ -16,19 +16,17 @@ from app.agent.sse import (
     tool_call_frame,
 )
 from app.agent.state import AgentState, Intent
+from app.agent.tools import RAG_TOOL_NAME, RETRIEVAL_LIMIT, TOOL_ARGS
 from app.core.rate_limiter import default_chat_quota, refusal_refund_limiter
 from app.services.conversations import persist_turn
 
 logger = logging.getLogger("nexusagent.agent.run")
 
-# The only node that calls a tool; its `tool_call` frame is sent before the call starts.
-TOOL_NODE = "retriever"
-
 
 class AgentRun:
     """
     One request's pipeline run. The graph's output is queued as frames, and ``frames()`` yields
-    them in this order: start, then per node node_start (+ tool_call before the retriever) and its
+    them in this order: start, then per node node_start (+ tool_call before preload or tools) and its
     plan/tool_result/grounding frame, then token*, then done or error.
 
     Quota: a run that fails before any token reaches the client refunds its charge. A run that
@@ -71,6 +69,7 @@ class AgentRun:
         self._frames: asyncio.Queue[str | None] = asyncio.Queue()
         self._tokens_sent = False
         self._usage_sent = 0
+        self._events_sent = 0
 
     async def frames(self) -> AsyncIterator[str]:
         """Run the pipeline in a task and yield its frames as they are produced."""
@@ -102,9 +101,16 @@ class AgentRun:
                 self.state, on_token=self._on_token
             ):
                 final_state = step_state
-                for frame in node_frames(node_name, self.session_id, step_state, self._usage_sent):
+                for frame in node_frames(
+                    node_name,
+                    self.session_id,
+                    step_state,
+                    self._usage_sent,
+                    self._events_sent,
+                ):
                     self._send(frame)
                 self._usage_sent = len(step_state.usage)
+                self._events_sent = len(step_state.tool_events)
                 self._announce_next(node_name, step_state)
 
             if final_state.error:
@@ -135,8 +141,23 @@ class AgentRun:
         if upcoming is None:
             return
         self._send(node_start_frame(self.session_id, upcoming))
-        if upcoming == TOOL_NODE:
-            self._send(tool_call_frame(self.session_id, state))
+        if upcoming == "preload":
+            self._send(
+                tool_call_frame(
+                    self.session_id,
+                    RAG_TOOL_NAME,
+                    {
+                        "query": state.query,
+                        "limit": RETRIEVAL_LIMIT,
+                        "documentScoped": state.document_id is not None,
+                    },
+                )
+            )
+        elif upcoming == "tools":
+            for call in state.pending_tool_calls:
+                name = call.get("name", "")
+                if name in TOOL_ARGS:
+                    self._send(tool_call_frame(self.session_id, name, call.get("args") or {}))
 
     async def _refund_router_refusal(self, final_state: AgentState) -> None:
         """A refusal decided by the router is free, up to a per-user hourly cap."""

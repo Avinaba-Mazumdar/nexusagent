@@ -123,8 +123,8 @@ async def test_router_smalltalk_runs_chat_and_emits_web_sources(stream_client, f
     assert "start" in names and "done" in names
     started = [d["node"] for n, d in events if n == "node_start"]
     assert started == ["router", "chat"]
-    assert "retriever" not in started
-    assert "grounding" not in started
+    assert "preload" not in started
+    assert "agent" not in started
 
     # Tool events for google_search
     tool_calls = [d for n, d in events if n == "tool_call"]
@@ -143,8 +143,8 @@ async def test_router_smalltalk_runs_chat_and_emits_web_sources(stream_client, f
 
 
 @pytest.mark.asyncio
-async def test_router_benchmark_runs_retriever_grounding_answer(stream_client, fake_llm):
-    """Router benchmark route executes retriever -> grounding -> answer with citations and usage."""
+async def test_router_benchmark_runs_preload_agent(stream_client, fake_llm):
+    """Router benchmark route executes preload -> agent with citations and usage."""
     fake_llm(
         ["Claude Opus leads CursorBench [S1]."],
         structured_route="benchmark",
@@ -160,13 +160,13 @@ async def test_router_benchmark_runs_retriever_grounding_answer(stream_client, f
     names = [name for name, _ in events]
     assert "start" in names and "done" in names
     started = [d["node"] for n, d in events if n == "node_start"]
-    assert started == ["router", "retriever", "grounding", "answer"]
+    assert started == ["router", "preload", "agent"]
 
     # Usage frames were emitted
     usage_events = [d for n, d in events if n == "usage"]
     steps = [u["step"] for u in usage_events]
     assert "router" in steps
-    assert "answer" in steps
+    assert "agent" in steps
 
     # Citations in tool_result and done
     tool_result = next(d for n, d in events if n == "tool_result")
@@ -243,7 +243,7 @@ async def test_abort_after_retrieval_keeps_the_quota_charge(stream_client):
     class _StallingGraph:
         async def stream_steps(self, state, on_token=None):
             yield "router", state
-            yield "retriever", state
+            yield "preload", state
             await asyncio.sleep(30)
 
     stream = generate_agent_stream(

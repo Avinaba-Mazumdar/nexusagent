@@ -20,6 +20,7 @@ export interface ChatItem {
     citations?: Citation[];
     warnings?: InjectionWarning[];
     webSources?: WebSource[];
+    uncited?: boolean;
     query?: string;
     error?: string;
     stopped?: boolean;
@@ -155,7 +156,8 @@ export function useChatHistory(user: { id: string; isGuest?: boolean } | null) {
                     role: m.role as 'user' | 'assistant',
                     content: m.content,
                     citations: citationsOf(m),
-                    webSources: webSourcesOf(m)
+                    webSources: webSourcesOf(m),
+                    uncited: (m.reflectionSummary as { uncited?: boolean } | null | undefined)?.uncited
                 }))
             );
         } else if (isLoading) {

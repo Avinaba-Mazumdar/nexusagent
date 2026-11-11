@@ -10,12 +10,12 @@ NexusAgent is an open-source LLM benchmark assistant that helps developers and t
 
 NexusAgent brings together modern agentic and information retrieval libraries in a clean, production-grade architecture:
 
-- **LangGraph** (`apps/backend/app/agent/graph.py`): Orchestrates a stateful DAG pipeline (`router` → `chat` with Google Search | `retriever` → `grounding` → `answer`).
+- **LangGraph** (`apps/backend/app/agent/graph.py`): Orchestrates a bounded DAG pipeline (`router` → `refuse` | `chat` | `preload` → `agent` ⟷ `tools` with `hybrid_rag_search` and `web_search`).
 - **LangChain** (`apps/backend/app/agent/graph.py`): Uses `langchain-google-genai` for chat streaming and Pydantic structured output (`RouteDecision`).
 - **LlamaIndex** (`apps/backend/app/rag/ingest.py`): Ingests benchmark documents with hierarchical Markdown parsing (`MarkdownElementNodeParser`) and sentence-aware chunking (`SentenceSplitter`) for PDF and Markdown files.
 - **Model Context Protocol (MCP)** (`apps/backend/app/mcp/server.py`): Official FastMCP implementation exposing a public, read-only Streamable HTTP server at `/mcp` with standard `search` and `fetch` tools for external assistants (Claude, ChatGPT, Cursor, Claude Code).
 - **Gemini API & Model Routing** (`apps/backend/app/agent/graph.py`): Intelligent model failover across free-tier Gemini models with rate-limit tracking and automatic degradation.
-- **Google Search Grounding** (`apps/backend/app/agent/graph.py`): Dynamic search tool binding for live small talk (e.g., weather and quick facts) returning deduplicated web source citations.
+- **Web Search & Grounding** (`apps/backend/app/agent/tools.py`): Dynamic search tool binding for live small talk and on-demand `web_search` tool execution during benchmark reasoning, returning deduplicated web source citations.
 - **Hybrid RAG Search** (`apps/backend/app/rag/hybrid_search.py`): Dense vector search (`pgvector` with cosine distance) combined with sparse keyword search (`tsvector`, ranked with `ts_rank_cd`), fused via Reciprocal Rank Fusion (RRF).
 - **Neon PostgreSQL 18**: Serverless PostgreSQL powering vectorized embeddings, user profiles, conversation history, and rolling 24-hour chat usage ledgers.
 

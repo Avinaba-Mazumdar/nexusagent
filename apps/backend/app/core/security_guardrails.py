@@ -93,18 +93,24 @@ def scrub_sensitive_information(text: str, preserve_lines: bool = False) -> str:
 def sanitize_untrusted_text(text: str) -> str:
     """
     Sanitize text retrieved from external or user-uploaded documents to prevent delimiter breakout attacks.
-    Escapes any closing or opening XML-style tags that mimic untrusted_document_context.
+    Escapes any closing or opening XML-style tags that mimic untrusted_document_context or untrusted_tool_output.
     """
     if not text:
         return ""
     # Neutralize any attempts to prematurely close or spoof document delimiters
     sanitized = re.sub(
-        r"</?untrusted_document_context[^>]*>",
+        r"</?untrusted_(?:document_context|tool_output)[^>]*>",
         lambda m: html.escape(m.group(0)),
         text,
         flags=re.IGNORECASE,
     )
     return sanitized
+
+
+def wrap_untrusted_tool_output(content: str, tool: str) -> str:
+    """Wrap text that came from a tool (for example web search) so the model treats it as data."""
+    safe = scrub_sensitive_information(sanitize_untrusted_text(content))
+    return f'<untrusted_tool_output tool="{html.escape(tool)}">\n{safe.strip()}\n</untrusted_tool_output>'
 
 
 def wrap_untrusted_context(
