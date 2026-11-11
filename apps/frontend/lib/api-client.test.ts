@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vite-plus/test';
-import { apiClient, setAuthTokenGetter, setOnUnauthorizedCallback } from './api-client';
+import { apiClient, setOnUnauthorizedCallback } from './api-client';
 
 describe('apiClient', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
-        // Reset auth token getter and unauthorized callback
-        setAuthTokenGetter(() => null);
         setOnUnauthorizedCallback(() => {});
     });
 
@@ -24,21 +22,19 @@ describe('apiClient', () => {
             expect(globalThis.fetch).toHaveBeenCalledWith(
                 expect.stringContaining('/api/test'),
                 expect.objectContaining({
-                    headers: expect.any(Headers)
+                    headers: expect.any(Headers),
+                    credentials: 'include'
                 })
             );
         });
 
-        it('injects Authorization header when token is present', async () => {
-            setAuthTokenGetter(() => 'valid-bearer-token');
-
+        it('includes credentials on fetch request', async () => {
             vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 
             await apiClient('/api/secure-endpoint');
 
             const fetchCalls = vi.mocked(globalThis.fetch).mock.calls;
-            const headers = fetchCalls[0][1]?.headers as Headers;
-            expect(headers.get('Authorization')).toBe('Bearer valid-bearer-token');
+            expect(fetchCalls[0][1]?.credentials).toBe('include');
         });
 
         it('triggers unauthorized callback on 401 response and throws', async () => {

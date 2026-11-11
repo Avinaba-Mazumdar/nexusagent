@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     def is_dev(self) -> bool:
         return self.ENVIRONMENT in ("development", "test")
 
+    @property
+    def SESSION_COOKIE_NAME(self) -> str:
+        return "nexus_session" if self.is_dev else "__Host-nexus_session"
+
     @model_validator(mode="after")
     def validate_production_secrets(self) -> Settings:
         if self.is_dev:

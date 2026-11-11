@@ -12,8 +12,8 @@ NexusAgent brings together modern agentic and information retrieval libraries in
 
 - **LangGraph** (`apps/backend/app/agent/graph.py`): Orchestrates a bounded DAG pipeline (`router` → `refuse` | `chat` | `preload` → `agent` ⟷ `tools` with `hybrid_rag_search` and `web_search`).
 - **LangChain** (`apps/backend/app/agent/graph.py`): Uses `langchain-google-genai` for chat streaming and Pydantic structured output (`RouteDecision`).
-- **LlamaIndex** (`apps/backend/app/rag/ingest.py`): Ingests benchmark documents with hierarchical Markdown parsing (`MarkdownElementNodeParser`) and sentence-aware chunking (`SentenceSplitter`) for PDF and Markdown files.
-- **Model Context Protocol (MCP)** (`apps/backend/app/mcp/server.py`): Official FastMCP implementation exposing a public, read-only Streamable HTTP server at `/mcp` with standard `search` and `fetch` tools for external assistants (Claude, ChatGPT, Cursor, Claude Code).
+- **LlamaIndex** (`apps/backend/app/rag/ingest.py`): Ingests benchmark documents with hierarchical Markdown parsing (`MarkdownNodeParser`) and sentence-aware chunking (`SentenceSplitter`) for PDF and Markdown files.
+- **Model Context Protocol (MCP)** (`apps/backend/app/mcp/server.py`): Implementation using the official `mcp` Python SDK (`MCPServer`) exposing a public, read-only Streamable HTTP server at `/mcp` with standard `search` and `fetch` tools for external assistants (Claude, ChatGPT, Cursor, Claude Code).
 - **Gemini API & Model Routing** (`apps/backend/app/agent/graph.py`): Intelligent model failover across free-tier Gemini models with rate-limit tracking and automatic degradation.
 - **Web Search & Grounding** (`apps/backend/app/agent/tools.py`): Dynamic search tool binding for live small talk and on-demand `web_search` tool execution during benchmark reasoning, returning deduplicated web source citations.
 - **Hybrid RAG Search** (`apps/backend/app/rag/hybrid_search.py`): Dense vector search (`pgvector` with cosine distance) combined with sparse keyword search (`tsvector`, ranked with `ts_rank_cd`), fused via Reciprocal Rank Fusion (RRF).
@@ -45,17 +45,17 @@ Local development and production share a single Neon database (`apps/backend/.en
 
 ## 🌐 Connecting External MCP Clients
 
-NexusAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (`https://nexusagent.onrender.com/mcp` in production, or `http://localhost:8000/mcp` for local use):
+NexusAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (`https://api.nexusagent.avinaba.com/mcp` in production, or `http://localhost:8000/mcp` for local use):
 
-- **Claude (claude.ai / Desktop)**: `Settings` → `Connectors` → `Add custom connector` → paste `https://nexusagent.onrender.com/mcp`.
-- **ChatGPT**: `Settings` → `Apps & Connectors` → `Advanced` → `Developer mode` → `Create connector` → paste `https://nexusagent.onrender.com/mcp` (Authentication: None).
+- **Claude (claude.ai / Desktop)**: `Settings` → `Connectors` → `Add custom connector` → paste `https://api.nexusagent.avinaba.com/mcp`.
+- **ChatGPT**: `Settings` → `Apps & Connectors` → `Advanced` → `Developer mode` → `Create connector` → paste `https://api.nexusagent.avinaba.com/mcp` (Authentication: None).
 - **Cursor / Claude Code**: Add the HTTP transport entry to `mcpServers` (or use `http://localhost:8000/mcp` locally):
     ```json
     {
         "mcpServers": {
             "nexusagent": {
                 "type": "http",
-                "url": "https://nexusagent.onrender.com/mcp"
+                "url": "https://api.nexusagent.avinaba.com/mcp"
             }
         }
     }
@@ -69,7 +69,7 @@ NexusAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (`ht
 nexusagent/
 ├── apps/
 ├── frontend/         # Next.js 16 + React 19 + TypeScript + shadcn/ui + Tailwind v4 + Zustand
-│   └── backend/          # FastAPI + Python 3.14 + LangGraph + LlamaIndex + FastMCP + Neon Postgres 18
+│   └── backend/          # FastAPI + Python 3.14 + LangGraph + LlamaIndex + official mcp Python SDK + Neon Postgres 18
 ├── packages/
 │   └── contracts/        # Shared TypeScript interfaces & OpenAPI wire schemas
 ├── db/
@@ -129,7 +129,7 @@ Backend configuration (`apps/backend/.env.local`):
 
 Frontend configuration (`apps/frontend/.env.local`):
 
-- `NEXT_PUBLIC_API_URL`: API URL (`http://localhost:8000` in dev).
+- `NEXT_PUBLIC_API_URL`: API URL (`http://localhost:8000` in dev, `https://api.nexusagent.avinaba.com` in production).
 - `NEXT_PUBLIC_SITE_HOST`: public hostname shown in legal pages and headers.
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`: Google OAuth client ID matching backend.
 
@@ -169,6 +169,21 @@ Interactive API docs are available at `http://localhost:8000/docs` in developmen
     ```bash
     pnpm contracts:generate
     ```
+
+---
+
+## 🛡️ Security Audit
+
+To run the Cloudflare multi-agent security audit:
+
+1. Install the audit skill globally:
+    ```bash
+    npx skills add https://github.com/cloudflare/security-audit-skill --skill security-audit --global
+    ```
+2. Open the repository in a coding agent that supports sub-agents on the release commit.
+3. Ask: `"Run a full security audit of this codebase with the standard profile."` (Do not allow it to write inside the repository).
+4. Review `REPORT.md`. For each confirmed finding of severity medium or higher, address or document acceptance in `roadmap.md`.
+5. Run the audit a second time after fixes to confirm resolution.
 
 ---
 

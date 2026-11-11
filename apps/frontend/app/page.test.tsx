@@ -79,11 +79,7 @@ describe('Home Page - Layout and Header Controls', () => {
                 createdAt: '2026-09-13T00:00:00Z',
                 lastSeenAt: '2026-09-13T00:00:00Z'
             },
-            tokens: {
-                accessToken: 'mock.jwt.token',
-                tokenType: 'bearer',
-                expiresIn: 86400
-            },
+            expiresIn: 86400,
             quotaRemaining: 5,
             bucketCapacity: 5
         };
@@ -132,8 +128,6 @@ describe('Home Page - Layout and Header Controls', () => {
 
     it('authenticates with Google sign in', async () => {
         const mockAuthResponse = {
-            accessToken: 'google.jwt.token',
-            tokenType: 'bearer',
             expiresIn: 86400,
             user: {
                 id: '44444444-4444-4444-4444-444444444444',
@@ -182,11 +176,7 @@ describe('Home Page - Layout and Header Controls', () => {
                 createdAt: '2026-09-13T00:00:00Z',
                 lastSeenAt: '2026-09-13T00:00:00Z'
             },
-            tokens: {
-                accessToken: 'mock.jwt.token',
-                tokenType: 'bearer',
-                expiresIn: 86400
-            },
+            expiresIn: 86400,
             quotaRemaining: 5,
             bucketCapacity: 5
         };
@@ -249,7 +239,7 @@ describe('Home Page - Layout and Header Controls', () => {
     it('renders stream errors in the assistant bubble with a retry action instead of an endless spinner', async () => {
         const guest = {
             user: { id: '55555555-5555-5555-5555-555555555555', email: null, name: 'Guest Five', avatarUrl: null, isGuest: true },
-            tokens: { accessToken: 'mock.jwt.token', tokenType: 'bearer', expiresIn: 86400 },
+            expiresIn: 86400,
             quotaRemaining: 5,
             bucketCapacity: 5
         };
@@ -280,7 +270,7 @@ describe('Home Page - Layout and Header Controls', () => {
     it('shows the quota alert when the stream is rejected with 429', async () => {
         const guest = {
             user: { id: '66666666-6666-6666-6666-666666666666', email: null, name: 'Guest Six', avatarUrl: null, isGuest: true },
-            tokens: { accessToken: 'mock.jwt.token', tokenType: 'bearer', expiresIn: 86400 },
+            expiresIn: 86400,
             quotaRemaining: 5,
             bucketCapacity: 5
         };

@@ -417,18 +417,6 @@ export interface components {
              */
             sessionId?: string | null;
         };
-        /** AuthTokens */
-        AuthTokens: {
-            /** Accesstoken */
-            accessToken: string;
-            /** Expiresin */
-            expiresIn: number;
-            /**
-             * Tokentype
-             * @default bearer
-             */
-            tokenType: string;
-        };
         /** Body_upload_document_api_documents_upload_post */
         Body_upload_document_api_documents_upload_post: {
             /** File */
@@ -574,9 +562,10 @@ export interface components {
         GuestPassResponse: {
             /** Bucketcapacity */
             bucketCapacity: number;
+            /** Expiresin */
+            expiresIn: number;
             /** Quotaremaining */
             quotaRemaining: number;
-            tokens: components['schemas']['AuthTokens'];
             user: components['schemas']['UserSession'];
         };
         /** HTTPValidationError */
@@ -835,8 +824,6 @@ export interface components {
         };
         /** TokenResponse */
         TokenResponse: {
-            /** Accesstoken */
-            accessToken: string;
             /**
              * Bucketcapacity
              * @default 25
@@ -849,11 +836,6 @@ export interface components {
              * @default 25
              */
             quotaRemaining: number;
-            /**
-             * Tokentype
-             * @default bearer
-             */
-            tokenType: string;
             user: components['schemas']['UserSession'];
         };
         /** UserSession */
@@ -907,7 +889,6 @@ export interface components {
 }
 export type AgentDoneEventWire = components['schemas']['AgentDoneEventWire'];
 export type AgentStreamRequestWire = components['schemas']['AgentStreamRequestWire'];
-export type AuthTokens = components['schemas']['AuthTokens'];
 export type BodyUploadDocumentApiDocumentsUploadPost = components['schemas']['Body_upload_document_api_documents_upload_post'];
 export type ChatConversationDetailWire = components['schemas']['ChatConversationDetailWire'];
 export type ChatConversationWire = components['schemas']['ChatConversationWire'];

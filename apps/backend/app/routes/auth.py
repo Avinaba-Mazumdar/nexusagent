@@ -1,17 +1,18 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.config import settings
 from app.core.auth import (
+    clear_session_cookie,
     create_access_token,
     get_client_ip,
     get_current_user,
     issue_guest_pass,
     resolve_session,
-    security_bearer,
     session_claims,
+    session_token,
+    set_session_cookie,
     verify_google_token,
 )
 from app.core.rate_limiter import (
@@ -39,6 +40,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/guest", response_model=GuestPassResponse)
 async def create_guest_pass(
     request: Request,
+    response: Response,
     payload: GuestPassRequest | None = None,
     db: NeonDatabase = Depends(get_db),
 ):
@@ -46,13 +48,16 @@ async def create_guest_pass(
     client_ip = get_client_ip(request)
     device_id = payload.deviceId if payload else None
     machine_id = payload.machineId if payload else None
-    return await issue_guest_pass(db, client_ip, device_id, machine_id)
+    pass_resp, token_str, expires_in = await issue_guest_pass(db, client_ip, device_id, machine_id)
+    set_session_cookie(response, token_str, expires_in)
+    return pass_resp
 
 
 @router.post("/google", response_model=TokenResponse)
 async def google_auth(
     payload: GoogleAuthRequest,
     request: Request,
+    response: Response,
     db: NeonDatabase = Depends(get_db),
 ):
     """Authenticate or register user via verified Google ID token."""
@@ -71,10 +76,9 @@ async def google_auth(
     remaining, _resets_at = await default_chat_quota.status(user, client_ip)
 
     token_str, expires_in = create_access_token(data=session_claims(user))
+    set_session_cookie(response, token_str, expires_in)
 
     return TokenResponse(
-        accessToken=token_str,
-        tokenType="bearer",
         expiresIn=expires_in,
         user=UserSession.model_validate(user),
         quotaRemaining=remaining,
@@ -109,29 +113,32 @@ async def get_current_user_profile(
 
 @router.post("/logout", response_model=SuccessResponse)
 async def logout(
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: NeonDatabase = Depends(get_db),
 ):
     """Revoke every token issued to this user."""
     await db.bump_token_version(current_user.id)
+    clear_session_cookie(response)
     return {"success": True}
 
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Security(security_bearer),
+    response: Response,
+    token: str | None = Depends(session_token),
     db: NeonDatabase = Depends(get_db),
 ):
     """Refresh JWT access token for currently authenticated session."""
     enforce_ip_limit(refresh_limiter, get_client_ip(request))
-    if not credentials:
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication credentials were not provided",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    current_user, claims = await resolve_session(credentials, db)
+    current_user, claims = await resolve_session(token, db)
 
     auth_time = int(claims.get("auth_time", claims.get("iat", 0)))
     session_age = datetime.now(UTC) - datetime.fromtimestamp(auth_time, UTC)
@@ -146,10 +153,9 @@ async def refresh_token(
     token_str, expires_in = create_access_token(
         data=session_claims(current_user, auth_time=auth_time),
     )
+    set_session_cookie(response, token_str, expires_in)
 
     return TokenResponse(
-        accessToken=token_str,
-        tokenType="bearer",
         expiresIn=expires_in,
         user=UserSession.model_validate(current_user),
         quotaRemaining=remaining,

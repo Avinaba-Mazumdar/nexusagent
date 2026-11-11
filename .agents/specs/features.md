@@ -30,7 +30,7 @@
 ### Phase 3: Admin-Only PDF/Markdown RAG with LlamaIndex [Done]
 
 - [x] Ingestion restricted to administrators (`is_admin = TRUE`); non-admins receive HTTP 403
-- [x] Integrated LlamaIndex (`MarkdownElementNodeParser` + `SentenceSplitter`) for Markdown and PDF chunking
+- [x] Integrated LlamaIndex (`MarkdownNodeParser` + `SentenceSplitter`) for Markdown and PDF chunking
 - [x] Pre-seeded 4 benchmark documents (Artificial Analysis, BenchLM, CursorBench, OpenRouter)
 - [x] UI hides upload controls for non-admin users
 
@@ -49,9 +49,9 @@
 - [x] Web sources rendered under assistant messages for live searches
 - [x] Dynamic DAG node visualization based on execution path
 
-### Phase 6: Public FastMCP Server [Done]
+### Phase 6: Public MCP Server [Done]
 
-- [x] Official FastMCP server mounted at `/mcp` (Streamable HTTP)
+- [x] Official `mcp` SDK server mounted at `/mcp` (Streamable HTTP)
 - [x] Public read-only access (no auth token required by connectors)
 - [x] Standard `search` and `fetch` tools matching ChatGPT and Claude specifications
 - [x] Per-IP rate limiting (60 req/min via `SlidingWindowCounter`)
@@ -59,8 +59,8 @@
 
 ### Phase 7: Code Trim & Hardening [Done]
 
-- [x] Removed canary token generation, hold-back buffer, and redaction logic
-- [x] Removed Mermaid library and viewers in favor of clean Markdown tables and text
+- [x] Removed token hold-back buffer and redaction logic
+- [x] Removed diagram library and viewers in favor of clean Markdown tables and text
 - [x] Scrubbing of sensitive keys and untrusted content delimiters preserved
 
 ### Phase 8: Rebrand & Documentation [Done]
@@ -79,3 +79,7 @@
 - [x] Untrusted tool output wrapping in `<untrusted_tool_output>` XML boundaries with tag stripping
 - [x] Citation validation: reports missing labels in `invalid_citations` and sets `uncited: true` when model cites no sources
 - [x] Frontend observability panel and stream hook updated with `preload`, `agent`, and `tools` nodes, web search badges, and uncited warnings
+
+### Phase 10: Security Audit
+
+- [ ] `security-audit` skill run on the release commit; all confirmed findings of severity medium or higher fixed or accepted in writing in `roadmap.md`

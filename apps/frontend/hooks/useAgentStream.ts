@@ -4,7 +4,7 @@ import * as React from 'react';
 import type { AgentInvokeResponse, Citation, Grounding, PlanStep, UsageEvent, WebSource } from '@nexusagent/contracts';
 import type { LogEntry, TelemetryMetrics } from '@/components/observability-panel';
 
-import { API_BASE, getAuthToken, notifyUnauthorized } from '@/lib/api-client';
+import { API_BASE, notifyUnauthorized } from '@/lib/api-client';
 
 export interface UseAgentStreamOptions {
     onLog?: (entry: LogEntry) => void;
@@ -118,14 +118,11 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json'
                 };
-                const token = getAuthToken();
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`;
-                }
 
                 const response = await fetch(`${API_BASE}/api/agent/stream`, {
                     method: 'POST',
                     headers,
+                    credentials: 'include',
                     body: JSON.stringify({
                         query,
                         sessionId: existingSessionId || undefined

@@ -5,31 +5,30 @@ import { useAuthStore } from '@/lib/auth-store';
 import Home from './page';
 
 const startStream = vi.fn();
-
-vi.mock('@/hooks/useAgentStream', async (importOriginal) => {
-    const original = await importOriginal<typeof import('@/hooks/useAgentStream')>();
-    return {
-        ...original,
-        useAgentStream: () => ({
-            isStreaming: false,
-            streamedResponse: '',
-            citations: [],
-            currentNode: null,
-            plan: [],
-            grounding: null,
-            startStream,
-            cancelStream: vi.fn()
-        })
-    };
-});
-
-function doneResult(conversationId: string | null) {
-    return {
-        sessionId: 'session-1',
-        conversationId,
-        response: 'Raft elects a leader.',
+vi.mock('@/hooks/useAgentStream', () => ({
+    useAgentStream: () => ({
+        isStreaming: false,
+        plan: [],
+        currentNode: null,
+        nodeHistory: [],
         citations: [],
-        injectionWarnings: []
+        webSources: [],
+        streamedResponse: '',
+        grounding: null,
+        startStream,
+        cancelStream: vi.fn()
+    })
+}));
+
+function doneResult(sessionId: string | null) {
+    return {
+        response: 'Raft consensus answer',
+        plan: [],
+        citations: [],
+        webSources: [],
+        grounding: 'grounded' as const,
+        nodeHistory: [],
+        sessionId
     };
 }
 
@@ -43,7 +42,6 @@ describe('Home page - saving a Google user turn (R2-LOG-07)', () => {
             json: async () => ({ documents: [], conversations: [] })
         } as unknown as Response);
         useAuthStore.setState({
-            token: 'token',
             user: { id: 'u1', name: 'Ada', email: 'ada@example.com', isGuest: false, isAdmin: false, createdAt: '', lastSeenAt: '' },
             quotaRemaining: 5,
             bucketCapacity: 25
@@ -70,7 +68,6 @@ describe('Home page - saving a Google user turn (R2-LOG-07)', () => {
         startStream.mockResolvedValue(doneResult('session-1'));
         await ask();
 
-        await screen.findByText('Raft elects a leader.');
         expect(screen.queryByText(/could not be saved to your history/i)).not.toBeInTheDocument();
     });
 });

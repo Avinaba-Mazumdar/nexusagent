@@ -16,7 +16,7 @@ Browser (Next.js 16)                         FastAPI backend                    
 │ Observability panel  │ ◀────────────── │   health                 │ ──▶ Google (ID-token signing keys)
 │ Connect MCP card     │   tokens (SSE)  │ agent/   LangGraph DAG   │
 └──────────────────────┘                 │ rag/     LlamaIndex, RRF │ ──▶ Neon PostgreSQL 18
-                                         │ mcp/     FastMCP server  │       (pgvector + tsvector)
+                                         │ mcp/     official SDK    │       (pgvector + tsvector)
  Claude / ChatGPT / Cursor ─ MCP (/mcp) ─▶ core/    quotas, audit   │
 ```
 
@@ -27,7 +27,7 @@ Browser (Next.js 16)                         FastAPI backend                    
 | Layer    | Technology                                                                                                                                                      |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Frontend | Next.js 16 (App Router, React 19, React Compiler), TypeScript, Tailwind CSS v4, shadcn/ui primitives, Zustand, react-markdown                                   |
-| Backend  | Python 3.14, FastAPI, asyncpg, LangGraph, LangChain Google GenAI, LlamaIndex, FastMCP                                                                           |
+| Backend  | Python 3.14, FastAPI, asyncpg, LangGraph, LangChain Google GenAI, LlamaIndex, official `mcp` Python SDK (`MCPServer`)                                           |
 | Data     | Neon PostgreSQL 18: `pgvector` (HNSW, cosine distance) and `tsvector` (GIN)                                                                                     |
 | Models   | Chat: `GEMINI_MODELS` (free-tier text models, `gemini-3.8-flash` first; failover on 429). Embeddings: `EMBEDDING_MODEL` (default `gemini-embedding-001`, 768-d) |
 | Monorepo | pnpm workspaces + Vite+ (`vp`: oxlint, oxfmt, task runner); `uv` for Python                                                                                     |
@@ -44,7 +44,7 @@ apps/backend/app/
   db/                neon.py (all SQL), models.py (Pydantic & wire contracts)
   agent/             state.py, graph.py (LangGraph DAG), llm.py, tools.py, sse.py, run.py
   rag/               ingest.py (LlamaIndex PDF/Markdown parser), embeddings.py, hybrid_search.py
-  mcp/               server.py (FastMCP Streamable HTTP server at /mcp)
+  mcp/               server.py (official mcp Python SDK Streamable HTTP server at /mcp)
   routes/            health, auth, documents (admin only), rag, agent, chat
 apps/frontend/       app/ (pages), proxy.ts (CSP), components/, hooks/, lib/
 packages/contracts/  shared TypeScript types & OpenAPI wire schemas
@@ -61,9 +61,9 @@ scripts/             seed_kb.py, prune_guests.py (guests + audit retention)
 
 1. Authenticate (Bearer JWT). Validate `documentId` access.
 2. Free, unmetered pre-filter: queries over 60 words or containing code blocks are refused immediately (`REFUSAL`) without reserving quota.
-3. For all other queries, reserve one chat quota token against the rolling 24-hour limit.
+3. For all other queries, reserve one chat quota token against the rolling 24-hour limit. A router refusal is refunded (up to 10 per user per hour).
 4. Run the LangGraph DAG pipeline:
-    - **router**: Calls `gemini-2.5-flash-lite` with structured output (`RouteDecision`) to classify into `smalltalk`, `benchmark`, or `refuse`.
+    - **router**: Calls the first available model whose name contains `lite` (see `ModelRouter.candidates(prefer_lite=True)`) with structured output (`RouteDecision`) to classify into `smalltalk`, `benchmark`, or `refuse`.
     - On `refuse`: Returns fixed `REFUSAL`.
     - On `smalltalk`: Routed to **chat** node. Binds `google_search` tool for live facts (e.g. weather). Extracts search queries and web sources from grounding metadata.
     - On `benchmark`: Routed to **preload** → **agent** ⟷ **tools**.
@@ -77,8 +77,8 @@ scripts/             seed_kb.py, prune_guests.py (guests + audit retention)
 ### 4.2 Document ingestion (`POST /api/documents/upload`)
 
 1. Admin-only: Enforces `is_admin = TRUE`. Non-admins receive HTTP 403.
-2. File validation: PDF (`.pdf`) or Markdown (`.md`), strictly valid, up to 1 MB.
-3. Parsing: LlamaIndex `MarkdownElementNodeParser` for Markdown; PyPDF / LlamaIndex `SentenceSplitter` (chunk size 512, overlap 64) for PDF.
+2. File validation: PDF (`.pdf`) or Markdown (`.md`), strictly valid, up to 5 MB (`routes/documents.py:37`).
+3. Parsing: LlamaIndex `MarkdownNodeParser` for Markdown; PyPDF / LlamaIndex `SentenceSplitter` (chunk size 512, overlap 64) for PDF.
 4. Storage: Embeds chunks in batches of 100 with `gemini-embedding-001`, and inserts documents + document_chunks in Neon PostgreSQL within a single transaction.
 
 ### 4.3 Hybrid search (`POST /api/rag/search`)
@@ -87,7 +87,7 @@ Dense vector search (`pgvector` cosine similarity) and sparse keyword search (`t
 
 ### 4.4 Public MCP server (`/mcp`)
 
-FastMCP Streamable HTTP server mounted at `/mcp` (e.g. `https://nexusagent.onrender.com/mcp` in production, or `http://localhost:8000/mcp` locally):
+Official `mcp` Python SDK (`MCPServer`) Streamable HTTP server mounted at `/mcp` (e.g. `https://nexusagent.onrender.com/mcp` in production, or `http://localhost:8000/mcp` locally):
 
 - Stateless HTTP mode with JSON response formatting.
 - Rate-limited to 60 requests/minute per client IP via `SlidingWindowCounter`. All MCP clients together are limited to 120 requests per minute.
@@ -105,14 +105,38 @@ FastMCP Streamable HTTP server mounted at `/mcp` (e.g. `https://nexusagent.onren
     - Guests: 5 chats / 24h, enforced against guest UUID, device hash, machine hash, and client IP.
     - Google accounts: 25 chats / 24h, keyed by user ID.
 - **Single-worker deployment**: In-memory rate limiters (`SlidingWindowCounter`) and MCP session lifecycle require running one API worker (`uvicorn app.main:app --workers 1`).
-- **Request size caps**: 1 MB + 16 KB on `/api/documents/upload`, 64 KB elsewhere (`MAX_UPLOAD_REQUEST_BYTES`, `MAX_JSON_REQUEST_BYTES`).
+- **Request size caps**: 5 MB + 16 KB on `/api/documents/upload` (`config.py:64`), 64 KB elsewhere (`MAX_UPLOAD_REQUEST_BYTES`, `MAX_JSON_REQUEST_BYTES`).
 
 ---
 
 ## 6. Security
 
-- **OWASP ASI-01 (Prompt injection)**: Retrieved document chunks and tool outputs are sanitized, delimiter tags escaped, and wrapped in strict `<untrusted_document_context>` and `<untrusted_tool_output>` XML tags.
-- **OWASP ASI-02 (Sensitive info disclosure)**: Private keys, AWS keys, JWTs, and database credentials are automatically scrubbed from ingested text via regex patterns.
-- **OWASP ASI-04 (Data poisoning)**: Knowledge base documents are uploaded and managed exclusively by administrators (`is_admin = TRUE`).
-- **OWASP ASI-06 (Excessive agency)**: Tools are strictly read-only (`hybrid_rag_search`, `web_search`, `fetch`, `google_search`).
-- **OWASP ASI-10 (Audit)**: `tool_audit_logs` is protected by database triggers that reject `UPDATE` and `DELETE` queries except by the maintenance retention job.
+### 6.1 OWASP Top 10 for LLM Applications 2025
+
+| ID    | Risk                             | Control in this project                                                                                                                                                                       |
+| :---- | :------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LLM01 | Prompt Injection                 | Retrieved text and tool outputs are encapsulated in strict untrusted XML delimiters, breakout tags are escaped, long or code-carrying queries are prefiltered, and tools are read-only.       |
+| LLM02 | Sensitive Information Disclosure | Secrets, private keys, AWS tokens, and JWTs are scrubbed at ingestion and retrieval, API errors are masked, and production health responses hide system versions.                             |
+| LLM03 | Supply Chain                     | Dependencies and GitHub Actions are pinned with frozen lockfiles, vulnerability audits run in CI, and unneeded dependencies are pruned.                                                       |
+| LLM04 | Data and Model Poisoning         | Knowledge-base document ingestion is strictly restricted to verified administrators (`is_admin = TRUE`) with strict type, size, and chunk bounds.                                             |
+| LLM05 | Improper Output Handling         | Model outputs are rendered without raw HTML or image embedding, links are restricted to http(s), and nonces protect the Content Security Policy.                                              |
+| LLM06 | Excessive Agency                 | All model tools (`hybrid_rag_search`, `web_search`) and MCP tools (`search`, `fetch`) are strictly read-only, bound to a validated registry, and capped at 2 rounds of 2 calls.               |
+| LLM07 | System Prompt Leakage            | System prompts contain no secrets or internal credentials, and all authorization is enforced strictly in application code.                                                                    |
+| LLM08 | Vector and Embedding Weaknesses  | The benchmark corpus is public by design, ingestion is admin-only, and vector searches strictly use a single consistent embedding model.                                                      |
+| LLM09 | Misinformation                   | Answers cite `[S1]..[Sn]` source labels verified by lexical citation auditing, a deterministic grounding check reports semantic support, and uncited answers trigger explicit UI disclaimers. |
+| LLM10 | Unbounded Consumption            | Atomic rolling 24-hour per-user quotas meter agent runs and hybrid searches, request sizes and token budgets are strictly bounded, and free refusals are rate-limited.                        |
+
+### 6.2 OWASP Top 10 for Agentic Applications
+
+| ID    | Risk                                 | Control in this project                                                                                                                                                                           |
+| :---- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ASI01 | Agent Goal Hijack                    | The router pre-determines intent before reference passages are read, prompt-data boundaries are strictly enforced, and tool execution is bounded to a maximum of 2 rounds.                        |
+| ASI02 | Tool Misuse and Exploitation         | All tools are read-only, arguments are strictly validated against Pydantic schemas, and every invocation writes an immutable record to `tool_audit_logs`.                                         |
+| ASI03 | Identity and Privilege Abuse         | The agent possesses no privileged runtime credentials, admin status is enforced in the database, and user sessions are cryptographically signed.                                                  |
+| ASI04 | Agentic Supply Chain Vulnerabilities | NexusAgent operates solely as an MCP server with internal tool registries and loads no remote or third-party MCP tools.                                                                           |
+| ASI05 | Unexpected Code Execution            | The application executes no user- or model-supplied code via `exec`, `eval`, or subprocesses.                                                                                                     |
+| ASI06 | Memory and Context Poisoning         | The knowledge base is admin-managed, guest chats maintain no cross-session state, and persistent chat history is accessible only by the owning authenticated user.                                |
+| ASI07 | Insecure Inter-Agent Communication   | The public MCP server is strictly read-only, provides stateless HTTP responses, and is rate-limited per IP with total capacity ceilings.                                                          |
+| ASI08 | Cascading Failures                   | Automatic failover rotates across free-tier Gemini models on rate limits, keyword search acts as a fallback when embeddings fail, and tool errors degrade gracefully without aborting the answer. |
+| ASI09 | Human-Agent Trust Exploitation       | Inline source citations, live grounding status badges, token counts, and web search source attribution are displayed transparently in the user interface.                                         |
+| ASI10 | Rogue Agents                         | The LangGraph workflow has no self-modification or spawning capability, runs in a bounded deterministic loop, and audits every tool call to an append-only ledger.                                |

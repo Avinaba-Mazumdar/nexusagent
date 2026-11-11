@@ -69,7 +69,6 @@ export default function Home() {
 
     const {
         user,
-        token,
         quotaRemaining,
         bucketCapacity,
         quotaResetsAt,
@@ -176,7 +175,7 @@ export default function Home() {
         } catch {
             setDocsError("Couldn't load the document list.");
         }
-    }, [token]);
+    }, [user]);
 
     React.useEffect(() => {
         void fetchDocs();
@@ -195,7 +194,7 @@ export default function Home() {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const handleUploadClick = () => {
-        if (!token) {
+        if (!user) {
             setDialogOpen(true);
             return;
         }
@@ -205,7 +204,7 @@ export default function Home() {
     const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         e.target.value = '';
-        if (!file || !token) return;
+        if (!file || !user) return;
         if (file.size > MAX_UPLOAD_BYTES) {
             setUploadState({ status: 'error', message: `File is larger than the ${MAX_UPLOAD_MB} MB limit.` });
             return;
@@ -308,7 +307,7 @@ export default function Home() {
     );
 
     const streamInto = async (query: string, assistantMsgId: string) => {
-        if (!token) return;
+        if (!user) return;
 
         setUsage([]);
         setToolCalls([]);
@@ -399,7 +398,7 @@ export default function Home() {
     const sendQuery = (query: string) => {
         if (!query || agentStream.isStreaming) return;
 
-        if (!token) {
+        if (!user) {
             setDialogOpen(true);
             return;
         }
@@ -519,7 +518,7 @@ export default function Home() {
                         onKeyDown={handleComposerKeyDown}
                         isStreaming={agentStream.isStreaming}
                         onStop={agentStream.cancelStream}
-                        quotaExhausted={Boolean(token) && quotaRemaining <= 0}
+                        quotaExhausted={Boolean(user) && quotaRemaining <= 0}
                     />
                 </ChatCanvas>
 

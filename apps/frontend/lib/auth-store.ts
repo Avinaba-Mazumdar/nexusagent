@@ -1,24 +1,33 @@
 import { create } from 'zustand';
 import type { UserSession, GuestPassResponse, TokenResponse } from '@nexusagent/contracts';
-import { apiClient, setAuthTokenGetter, setOnUnauthorizedCallback } from './api-client';
+import { apiClient, setOnUnauthorizedCallback } from './api-client';
 import { clearChatCache } from './chat-cache';
 import { getMachineId } from './machine-id';
 
-const STORAGE_KEY_TOKEN = 'nexusagent_token';
 const STORAGE_KEY_USER = 'nexusagent_user';
 const STORAGE_KEY_QUOTA = 'nexusagent_quota';
+const STORAGE_KEY_EXPIRES = 'nexusagent_session_expires';
 const STORAGE_KEY_DEVICE_ID = 'nexusagent_device_id';
+
 /** Renew the token when less than this is left (tokens last 24 h), and re-check this often while the tab is open. */
 const SESSION_EXPIRED_NOTICE = 'Your session expired. Please sign in again.';
 const REFRESH_WHEN_LEFT_SECONDS = 12 * 60 * 60;
 const REFRESH_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
-/** Seconds until the JWT's `exp`, or null when the token cannot be read. */
-function secondsUntilExpiry(token: string): number | null {
+// One-time cleanup at store creation: remove old localStorage token if present
+if (typeof window !== 'undefined') {
     try {
-        const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-        const exp = (JSON.parse(atob(payload)) as { exp?: unknown }).exp;
-        return typeof exp === 'number' ? exp - Date.now() / 1000 : null;
+        localStorage.removeItem('nexusagent_token');
+    } catch {
+        // Storage unavailable
+    }
+}
+
+function readCachedExpires(): number | null {
+    try {
+        const val = localStorage.getItem(STORAGE_KEY_EXPIRES);
+        const num = val ? Number(val) : NaN;
+        return Number.isFinite(num) ? num : null;
     } catch {
         return null;
     }
@@ -72,7 +81,6 @@ function getOrCreateDeviceId(): string {
 
 interface AuthState {
     user: UserSession | null;
-    token: string | null;
     quotaRemaining: number;
     bucketCapacity: number;
     /** ISO time when the bucket refills, if the server told us. */
@@ -101,9 +109,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
         }
         if (typeof window !== 'undefined') {
             try {
-                localStorage.removeItem(STORAGE_KEY_TOKEN);
+                localStorage.removeItem('nexusagent_token');
                 localStorage.removeItem(STORAGE_KEY_USER);
                 localStorage.removeItem(STORAGE_KEY_QUOTA);
+                localStorage.removeItem(STORAGE_KEY_EXPIRES);
             } catch {
                 // Storage unavailable
             }
@@ -111,7 +120,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
         }
         set({
             user: null,
-            token: null,
             quotaRemaining: NO_QUOTA.remaining,
             bucketCapacity: NO_QUOTA.capacity,
             quotaResetsAt: null,
@@ -121,12 +129,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
         });
     }
 
-    // Register token getter with apiClient so every outbound fetch automatically attaches Authorization header
-    setAuthTokenGetter(() => get().token);
-
-    // Register 401 callback to smoothly reset session if server revokes or expires JWT token
+    // Register 401 callback to smoothly reset session if server revokes or expires JWT session cookie
     setOnUnauthorizedCallback(() => {
-        const hadSession = Boolean(get().token);
+        const hadSession = Boolean(get().user);
         clearSession();
         if (hadSession) set({ sessionNotice: SESSION_EXPIRED_NOTICE });
     });
@@ -140,16 +145,17 @@ export const useAuthStore = create<AuthState>((set, get) => {
     };
 
     /** Single place that records a login: persists the session and updates the store. */
-    const applySession = (token: string, user: UserSession, quota: QuotaSnapshot) => {
+    const applySession = (user: UserSession, quota: QuotaSnapshot, expiresInSeconds: number) => {
         try {
-            localStorage.setItem(STORAGE_KEY_TOKEN, token);
             localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+            if (expiresInSeconds > 0) {
+                localStorage.setItem(STORAGE_KEY_EXPIRES, String(Date.now() + expiresInSeconds * 1000));
+            }
         } catch {
             // Storage unavailable: session lasts until the tab closes.
         }
         persistQuota(quota);
         set({
-            token,
             user,
             quotaRemaining: quota.remaining,
             bucketCapacity: quota.capacity,
@@ -162,21 +168,27 @@ export const useAuthStore = create<AuthState>((set, get) => {
         startRefreshTimer();
     };
 
-    /** Swap the token for a fresh one when it is close to expiring. Failures are ignored: the 401 path handles a dead session. */
+    /** Swap the session cookie for a fresh one when it is close to expiring. Failures are ignored: the 401 path handles a dead session. */
     async function refreshSessionIfNeeded() {
-        const { token, user } = get();
-        if (!token || !user) return;
-        const left = secondsUntilExpiry(token);
-        if (left === null || left > REFRESH_WHEN_LEFT_SECONDS) return;
+        const { user } = get();
+        if (!user) return;
+        const expiresAt = readCachedExpires();
+        if (expiresAt === null) return;
+        const leftSeconds = (expiresAt - Date.now()) / 1000;
+        if (leftSeconds > REFRESH_WHEN_LEFT_SECONDS) return;
         try {
             const data = await apiClient<TokenResponse>('/api/auth/refresh', { method: 'POST' });
-            applySession(data.accessToken, data.user, {
-                remaining: data.quotaRemaining ?? get().quotaRemaining,
-                capacity: data.bucketCapacity ?? get().bucketCapacity,
-                resetsAt: get().quotaResetsAt
-            });
+            applySession(
+                data.user,
+                {
+                    remaining: data.quotaRemaining ?? get().quotaRemaining,
+                    capacity: data.bucketCapacity ?? get().bucketCapacity,
+                    resetsAt: get().quotaResetsAt
+                },
+                data.expiresIn
+            );
         } catch {
-            // Keep the current token.
+            // Keep the current session.
         }
     }
 
@@ -187,7 +199,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     return {
         user: null,
-        token: null,
         quotaRemaining: NO_QUOTA.remaining,
         bucketCapacity: NO_QUOTA.capacity,
         quotaResetsAt: null,
@@ -209,15 +220,13 @@ export const useAuthStore = create<AuthState>((set, get) => {
         initAuth: async () => {
             if (typeof window === 'undefined') return;
             try {
-                const token = localStorage.getItem(STORAGE_KEY_TOKEN);
                 const userStr = localStorage.getItem(STORAGE_KEY_USER);
-                if (!token || !userStr) {
+                if (!userStr) {
                     return;
                 }
 
                 const cached = readCachedQuota();
                 set({
-                    token,
                     user: JSON.parse(userStr) as UserSession,
                     quotaRemaining: cached.remaining,
                     bucketCapacity: cached.capacity,
@@ -230,11 +239,17 @@ export const useAuthStore = create<AuthState>((set, get) => {
                         user: UserSession;
                         quota: { tokensRemaining: number; bucketCapacity: number; resetsAt?: string };
                     }>('/api/auth/me');
-                    applySession(token, data.user, {
-                        remaining: data.quota.tokensRemaining,
-                        capacity: data.quota.bucketCapacity,
-                        resetsAt: data.quota.resetsAt ?? null
-                    });
+                    const expiresAt = readCachedExpires();
+                    const remainingSeconds = expiresAt ? Math.max(Math.floor((expiresAt - Date.now()) / 1000), 0) : 0;
+                    applySession(
+                        data.user,
+                        {
+                            remaining: data.quota.tokensRemaining,
+                            capacity: data.quota.bucketCapacity,
+                            resetsAt: data.quota.resetsAt ?? null
+                        },
+                        remainingSeconds
+                    );
                     await refreshSessionIfNeeded();
                 } catch {
                     // Handled by 401 interceptor or offline resilience
@@ -256,7 +271,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
                         machineId: machineId || undefined
                     })
                 });
-                applySession(data.tokens.accessToken, data.user, { remaining: data.quotaRemaining, capacity: data.bucketCapacity, resetsAt: null });
+                applySession(data.user, { remaining: data.quotaRemaining, capacity: data.bucketCapacity, resetsAt: null }, data.expiresIn);
                 return true;
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Unknown error during guest sign-in';
@@ -272,11 +287,15 @@ export const useAuthStore = create<AuthState>((set, get) => {
                     method: 'POST',
                     body: JSON.stringify({ credential })
                 });
-                applySession(data.accessToken, data.user, {
-                    remaining: data.quotaRemaining ?? 0,
-                    capacity: data.bucketCapacity ?? 0,
-                    resetsAt: null
-                });
+                applySession(
+                    data.user,
+                    {
+                        remaining: data.quotaRemaining ?? 0,
+                        capacity: data.bucketCapacity ?? 0,
+                        resetsAt: null
+                    },
+                    data.expiresIn
+                );
                 return true;
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Unknown error during Google sign-in';
@@ -286,8 +305,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
         },
 
         logout: () => {
-            // Revoke the token server-side (fire and forget), then forget it locally.
-            if (get().token) void apiClient('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+            // Revoke the session server-side (fire and forget), then forget it locally.
+            if (get().user) void apiClient('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
             clearSession();
         }
     };

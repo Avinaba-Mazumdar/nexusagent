@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.core.auth import get_client_ip
 from app.core.body_limit import BodySizeLimitMiddleware
+from app.core.csrf import CsrfProtectionMiddleware
 from app.core.rate_limiter import SlidingWindowCounter
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.db.neon import DatabaseUnavailable, neon_db
@@ -97,11 +98,13 @@ app.add_middleware(
 
 app.add_middleware(SecurityHeadersMiddleware, hsts=not settings.is_dev)
 
+app.add_middleware(CsrfProtectionMiddleware)
+
 # Hardened CORS configuration: explicit origins from settings, restrictive methods and headers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=[
         "Content-Type",
@@ -109,7 +112,6 @@ app.add_middleware(
         "X-Requested-With",
         "Accept",
         "Origin",
-        "X-Device-Id",
     ],
 )
 

@@ -1,27 +1,9 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-let authTokenGetter: () => string | null = () => {
-    if (typeof window === 'undefined') return null;
-    try {
-        return localStorage.getItem('nexusagent_token');
-    } catch {
-        return null;
-    }
-};
-
 let onUnauthorizedCallback: (() => void) | null = null;
-
-export function setAuthTokenGetter(getter: () => string | null): void {
-    authTokenGetter = getter;
-}
 
 export function setOnUnauthorizedCallback(callback: () => void): void {
     onUnauthorizedCallback = callback;
-}
-
-/** Current bearer token, for callers that cannot go through `apiClient` (e.g. SSE streaming). */
-export function getAuthToken(): string | null {
-    return authTokenGetter();
 }
 
 /** Signal that the server rejected the session (HTTP 401) so the app can sign the user out. */
@@ -34,15 +16,10 @@ export interface ApiClientOptions extends RequestInit {
 }
 
 export async function apiClient<T>(endpoint: string, options: ApiClientOptions = {}): Promise<T> {
-    const token = authTokenGetter();
     const headers = new Headers(options.headers || {});
 
     if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
         headers.set('Content-Type', 'application/json');
-    }
-
-    if (token && !headers.has('Authorization')) {
-        headers.set('Authorization', `Bearer ${token}`);
     }
 
     const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
@@ -60,7 +37,12 @@ export async function apiClient<T>(endpoint: string, options: ApiClientOptions =
     const timer = timeoutController ? setTimeout(() => timeoutController?.abort(), timeoutMs) : null;
 
     try {
-        const response = await fetch(url, { ...fetchOptions, headers, signal });
+        const response = await fetch(url, {
+            ...fetchOptions,
+            headers,
+            signal,
+            credentials: 'include'
+        });
 
         if (!response.ok) {
             if (response.status === 401) {

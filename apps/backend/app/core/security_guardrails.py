@@ -22,7 +22,7 @@ INJECTION_PATTERNS = [
     re.compile(r"</?untrusted_tool_output.*?>", re.IGNORECASE),
 ]
 
-# Sensitive Information & Secret Redaction Patterns (OWASP LLM02 / ASI-02)
+# Sensitive Information & Secret Redaction Patterns (OWASP LLM02)
 SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Private Key blocks
     (
@@ -71,7 +71,7 @@ SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
 def scrub_sensitive_information(text: str, preserve_lines: bool = False) -> str:
     """
     Scrub credentials, API keys, JWTs, and private keys from untrusted document text.
-    Mitigates OWASP LLM02 & ASI-02 (Sensitive Information Disclosure).
+    Mitigates OWASP LLM02 (Sensitive Information Disclosure).
 
     With ``preserve_lines`` a multi-line redaction keeps its newline count, so line
     numbers computed on the scrubbed text still match the original document.

@@ -158,9 +158,8 @@ export default function PrivacyPolicyPage() {
                         <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
                             <p className="font-semibold text-foreground text-xs">Host-Only Token Scoping:</p>
                             <p className="text-xs">
-                                Your session token is kept in this browser&apos;s local storage, which browsers isolate per origin, so other subdomains under{' '}
-                                <code className="font-mono text-xs">avinaba.com</code> (such as portfolio, blog, or mail services) cannot read it. Signing out
-                                revokes the token on the server.
+                                Your session is kept in an httpOnly cookie that scripts cannot read. Your browser&apos;s local storage holds only your display
+                                profile, your theme and a random device identifier.
                             </p>
                         </div>
                     </section>

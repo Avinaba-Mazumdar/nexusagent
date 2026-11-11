@@ -112,15 +112,9 @@ class GuestPassRequest(BaseModel):
     machineId: str | None = Field(default=None, max_length=128)
 
 
-class AuthTokens(BaseModel):
-    accessToken: str
-    tokenType: str = "bearer"
-    expiresIn: int
-
-
 class GuestPassResponse(BaseModel):
     user: UserSession
-    tokens: AuthTokens
+    expiresIn: int
     quotaRemaining: int
     bucketCapacity: int
 
@@ -136,8 +130,6 @@ class GoogleAuthRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    accessToken: str
-    tokenType: str = "bearer"
     expiresIn: int
     user: UserSession
     quotaRemaining: int = 25

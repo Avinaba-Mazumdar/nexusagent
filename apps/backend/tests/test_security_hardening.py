@@ -93,7 +93,7 @@ async def test_audit_logs_endpoint_reads_db_rows():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         guest = await client.post("/api/auth/guest", json={})
-        token = guest.json()["tokens"]["accessToken"]
+        token = guest.cookies["nexus_session"]
         user_id = UUID(guest.json()["user"]["id"])
 
         await default_audit_logger.log_tool_audit(

@@ -238,7 +238,7 @@ async def test_immutable_audit_logging_and_endpoint():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # 1. Register guest user first to associate audit log with owner
         guest_res = await client.post("/api/auth/guest", json={})
-        token = guest_res.json()["tokens"]["accessToken"]
+        token = guest_res.cookies["nexus_session"]
         user_id = UUID(guest_res.json()["user"]["id"])
 
         # 2. Log tool execution via coordinator for user

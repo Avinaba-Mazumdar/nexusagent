@@ -27,7 +27,11 @@ async def test_jwt_token_encode_decode():
 @pytest.mark.asyncio
 async def test_guest_pass_endpoint():
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"Origin": "http://localhost:3000"},
+    ) as client:
         response = await client.post("/api/auth/guest")
         assert response.status_code == 200
         data = response.json()
@@ -35,15 +39,18 @@ async def test_guest_pass_endpoint():
         assert "user" in data
         assert data["user"]["isGuest"] is True
         assert "Guest User" in data["user"]["name"]
-        assert "tokens" in data
-        assert data["tokens"]["tokenType"] == "bearer"
-        assert len(data["tokens"]["accessToken"]) > 20
+        assert "tokens" not in data
+        assert "accessToken" not in data
+        assert "expiresIn" in data
+        assert data["expiresIn"] > 0
         assert data["quotaRemaining"] == 5
         assert data["bucketCapacity"] == 5
+        assert "nexus_session" in response.cookies
+        token = response.cookies["nexus_session"]
+        assert len(token) > 20
 
-        # Test authenticated /me with this guest token
-        token = data["tokens"]["accessToken"]
-        me_resp = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        # Test authenticated /me with this guest session cookie
+        me_resp = await client.get("/api/auth/me")
         assert me_resp.status_code == 200
         me_data = me_resp.json()
         assert me_data["user"]["id"] == data["user"]["id"]
@@ -128,21 +135,27 @@ async def test_google_oauth_endpoint(monkeypatch):
     monkeypatch.setattr("app.routes.auth.verify_google_token", fake_verify)
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"Origin": "http://localhost:3000"},
+    ) as client:
         # 1. Valid Google OAuth authentication
         resp = await client.post("/api/auth/google", json={"credential": "valid_token_1"})
         assert resp.status_code == 200
         data = resp.json()
 
-        assert "accessToken" in data
-        assert data["tokenType"] == "bearer"
+        assert "accessToken" not in data
+        assert "expiresIn" in data
+        assert "nexus_session" in resp.cookies
+        token = resp.cookies["nexus_session"]
+        assert len(token) > 20
         assert data["user"]["email"] == "google.lead@distributed.io"
         assert data["user"]["name"] == "Senior Google Architect"
         assert data["user"]["isGuest"] is False
 
-        # 2. Check /me with returned JWT token
-        token = data["accessToken"]
-        me_resp = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        # 2. Check /me with returned session cookie
+        me_resp = await client.get("/api/auth/me")
         assert me_resp.status_code == 200
         me_data = me_resp.json()
         assert me_data["user"]["email"] == "google.lead@distributed.io"
@@ -306,21 +319,18 @@ async def test_token_from_before_logout_is_rejected():
     """Bumping token_version (logout) invalidates previously issued tokens."""
     from unittest.mock import AsyncMock
 
-    from fastapi.security import HTTPAuthorizationCredentials
-
     from app.core.auth import get_current_user, session_claims
 
     user = _user(token_version=0)
     token, _ = create_access_token(session_claims(user))
-    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
     db = AsyncMock()
     db.get_user_by_id.return_value = user
 
-    assert (await get_current_user(creds, db)).id == user.id
+    assert (await get_current_user(token, db)).id == user.id
 
     user.token_version = 1  # user logged out
     with pytest.raises(HTTPException) as exc:
-        await get_current_user(creds, db)
+        await get_current_user(token, db)
     assert exc.value.status_code == 401
 
 
@@ -358,20 +368,24 @@ async def test_refresh_cannot_extend_a_session_past_the_max_age(monkeypatch, fak
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"Origin": "http://localhost:3000"},
+        ) as client:
             res = await client.post(
                 "/api/auth/refresh", headers={"Authorization": f"Bearer {token}"}
             )
-        assert res.status_code == 401
+            assert res.status_code == 401
 
-        fresh, _ = create_access_token(session_claims(user))
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            fresh, _ = create_access_token(session_claims(user))
             ok = await client.post(
                 "/api/auth/refresh", headers={"Authorization": f"Bearer {fresh}"}
             )
-        assert ok.status_code == 200
-        new_claims = decode_access_token(ok.json()["accessToken"])
-        assert new_claims["auth_time"] == decode_access_token(fresh)["auth_time"]
+            assert ok.status_code == 200
+            refreshed_token = ok.cookies["nexus_session"]
+            new_claims = decode_access_token(refreshed_token)
+            assert new_claims["auth_time"] == decode_access_token(fresh)["auth_time"]
     finally:
         app.dependency_overrides.pop(get_db, None)
 
@@ -400,21 +414,18 @@ async def test_optional_user_ignores_a_signed_out_token_r2_sec_04():
     """A token from before logout must not identify the user on optional-auth endpoints."""
     from unittest.mock import AsyncMock
 
-    from fastapi.security import HTTPAuthorizationCredentials
-
     from app.core.auth import get_current_user_optional, session_claims
 
     user = _user(token_version=0)
     token, _ = create_access_token(session_claims(user))
-    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
     db = AsyncMock()
     db.get_user_by_id.return_value = user
 
-    resolved = await get_current_user_optional(creds, db)
+    resolved = await get_current_user_optional(token, db)
     assert resolved is not None and resolved.id == user.id
 
     user.token_version = 1  # user logged out
-    assert await get_current_user_optional(creds, db) is None
+    assert await get_current_user_optional(token, db) is None
     assert await get_current_user_optional(None, db) is None
 
 
@@ -422,15 +433,13 @@ async def test_optional_user_ignores_a_signed_out_token_r2_sec_04():
 async def test_authenticated_requests_use_the_throttled_last_seen_write_r2_log_09():
     from unittest.mock import AsyncMock
 
-    from fastapi.security import HTTPAuthorizationCredentials
-
     from app.core.auth import get_current_user, session_claims
 
     user = _user()
     token, _ = create_access_token(session_claims(user))
     db = AsyncMock()
     db.get_user_by_id.return_value = user
-    await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=token), db)
+    await get_current_user(token, db)
 
     db.touch_user.assert_awaited_once_with(user.id)
     db.update_user_last_seen.assert_not_called()
@@ -481,3 +490,128 @@ async def test_guest_device_id_must_be_a_reasonable_length_r2_sec_11():
         too_short = await client.post("/api/auth/guest", json={"deviceId": "abc"})
     assert too_long.status_code == 422
     assert too_short.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# D2: Stateless Session Hardening with httpOnly Cookies and CSRF
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_cookie_attributes_guest_pass():
+    """(a) guest sign-in sets a cookie with HttpOnly and SameSite=lax."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.post("/api/auth/guest")
+        assert res.status_code == 200
+        set_cookie = res.headers.get("set-cookie", "").lower()
+        assert "nexus_session=" in set_cookie
+        assert "httponly" in set_cookie
+        assert "samesite=lax" in set_cookie
+        assert "path=/" in set_cookie
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_auth_me_works_with_only_cookie():
+    """(b) /api/auth/me works with only the cookie (no Authorization header)."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        guest_res = await client.post("/api/auth/guest")
+        assert guest_res.status_code == 200
+        token = guest_res.cookies["nexus_session"]
+
+    async with AsyncClient(
+        transport=transport, base_url="http://test", cookies={"nexus_session": token}
+    ) as client:
+        me_res = await client.get("/api/auth/me")
+        assert me_res.status_code == 200
+        assert me_res.json()["user"]["isGuest"] is True
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_logout_clears_cookie():
+    """(c) logout clears the cookie."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        guest_res = await client.post("/api/auth/guest")
+        assert guest_res.status_code == 200
+        assert "nexus_session" in client.cookies
+
+        logout_res = await client.post(
+            "/api/auth/logout", headers={"Origin": "http://localhost:3000"}
+        )
+        assert logout_res.status_code == 200
+        set_cookie = logout_res.headers.get("set-cookie", "").lower()
+        assert (
+            "max-age=0" in set_cookie
+            or 'nexus_session=""' in set_cookie
+            or "nexus_session=;" in set_cookie
+        )
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_auth_json_responses_contain_no_access_token():
+    """(d) the JSON bodies contain no accessToken."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        guest_res = await client.post("/api/auth/guest")
+        assert guest_res.status_code == 200
+        assert "accessToken" not in guest_res.text
+        assert "tokens" not in guest_res.json()
+
+        refresh_res = await client.post(
+            "/api/auth/refresh", headers={"Origin": "http://localhost:3000"}
+        )
+        assert refresh_res.status_code == 200
+        assert "accessToken" not in refresh_res.text
+
+
+@pytest.mark.asyncio
+async def test_csrf_rejects_evil_origin():
+    """(e) a POST with Origin: https://evil.example returns 403."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.post("/api/auth/guest", headers={"Origin": "https://evil.example"})
+        assert res.status_code == 403
+        assert res.json() == {"detail": "Cross-site request blocked"}
+
+
+@pytest.mark.asyncio
+async def test_csrf_rejects_cookie_without_origin():
+    """(f) a POST with the cookie and no Origin returns 403."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport, base_url="http://test", cookies={"nexus_session": "any-token"}
+    ) as client:
+        res = await client.post("/api/auth/guest")
+        assert res.status_code == 403
+        assert res.json() == {"detail": "Cross-site request blocked"}
+
+
+@pytest.mark.asyncio
+async def test_csrf_allows_bearer_without_origin_and_no_cookie(fake_rate_db):
+    """(g) a POST with a Bearer header and no Origin and no cookie works."""
+    from unittest.mock import AsyncMock
+
+    from app.core.auth import session_claims
+    from app.db.neon import get_db
+
+    user = _user()
+    token, _ = create_access_token(session_claims(user))
+    mock_db = AsyncMock()
+    mock_db.get_user_by_id.return_value = user
+    app.dependency_overrides[get_db] = lambda: mock_db
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.post(
+                "/api/auth/refresh",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert res.status_code == 200
+    finally:
+        app.dependency_overrides.pop(get_db, None)

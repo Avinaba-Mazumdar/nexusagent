@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: NexusAgent-Design-System
-description: A clean, anti-slop light-mode systems intelligence and architecture observability console inspired by modern enterprise cloud dashboards (Datadog, Linear, Stripe). Anchored on an airy slate-tinted canvas (#F5F6FA), crisp elevated white cards (#FFFFFF), refined hairline borders (#DDE0EB), signature Nexus Indigo (#2C357D) as primary and Slate Blue (#8E97B6) as the secondary hue the neutrals derive from, in three themes (Light, Dark, Black AMOLED), with high-contrast charcoal action pills (#1E232A). Engineered for Next.js 16 + React 19 + shadcn/ui + Tailwind CSS v4, with real-time streaming observability, WCAG 2.2 AA accessibility (4.5:1 text contrast, skip link), and line-level citation inspection.
+description: A clean, anti-slop light-mode systems intelligence and architecture observability console inspired by modern enterprise cloud dashboards (Datadog, Linear, Stripe). Anchored on an airy slate-tinted canvas (#F5F6FA), crisp elevated white cards (#FFFFFF), refined hairline borders (#DDE0EB), signature Nexus Indigo (#2C357D) as primary and Slate Blue (#8E97B6) as the secondary hue the neutrals derive from, in three themes (Light, Dark, Black AMOLED), with high-contrast charcoal action pills (#1E232A). Engineered for Next.js 16 + React 19 + shadcn/ui + Tailwind CSS v4, with real-time streaming observability, WCAG 2.2 AA accessibility (4.5:1 text contrast, skip link), and source-passage citation inspection.
 
 colors:
     primary: '#2c357d'
@@ -48,56 +48,48 @@ shadows:
     modal: '0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)'
 
 typography:
-    display-xl:
-        fontFamily: 'Outfit, system-ui, sans-serif'
-        fontSize: 32px
-        fontWeight: 700
-        lineHeight: 1.15
-        letterSpacing: -0.5px
-    display-lg:
-        fontFamily: 'Outfit, system-ui, sans-serif'
-        fontSize: 24px
-        fontWeight: 700
-        lineHeight: 1.2
-        letterSpacing: -0.3px
-    title-md:
-        fontFamily: "'Instrument Sans', system-ui, sans-serif"
-        fontSize: 16px
-        fontWeight: 600
-        lineHeight: 1.35
-        letterSpacing: -0.1px
-    title-sm:
-        fontFamily: "'Instrument Sans', system-ui, sans-serif"
-        fontSize: 14px
-        fontWeight: 600
-        lineHeight: 1.4
-        letterSpacing: 0
-    body-md:
-        fontFamily: "'Instrument Sans', system-ui, sans-serif"
-        fontSize: 14px
-        fontWeight: 400
-        lineHeight: 1.5
-        letterSpacing: 0
-    body-sm:
-        fontFamily: "'Instrument Sans', system-ui, sans-serif"
-        fontSize: 12px
-        fontWeight: 400
-        lineHeight: 1.45
-        letterSpacing: 0
-    code:
-        fontFamily: 'JetBrains Mono, monospace'
-        fontSize: 13px
-        fontWeight: 500
-        lineHeight: 1.5
-        letterSpacing: -0.2px
----
+    font-family-sans: Outfit, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif
+    font-family-body: Instrument Sans, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif
+    font-family-mono: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace
+    font-size-xs: 0.75rem
+    font-size-sm: 0.875rem
+    font-size-base: 1rem
+    font-size-lg: 1.125rem
+    font-size-xl: 1.25rem
+    font-size-2xl: 1.5rem
+    font-size-3xl: 1.875rem
+    font-weight-regular: '400'
+    font-weight-medium: '500'
+    font-weight-semibold: '600'
+    font-weight-bold: '700'
+    line-height-tight: '1.25'
+    line-height-normal: '1.5'
+    line-height-relaxed: '1.625'
 
-# NexusAgent — UI/UX Design System
+spacing:
+    container-padding-desktop: 1.5rem
+    container-padding-mobile: 1rem
+    element-gap-sm: 0.5rem
+    element-gap-md: 0.75rem
+    element-gap-lg: 1rem
+    card-padding: 1.25rem
+    header-height: 3.5rem
+    sidebar-width: 17.5rem
+    observability-width: 22.5rem
 
-## 1. Design philosophy
+borders:
+    radius-sm: 0.25rem
+    radius-md: 0.375rem
+    radius-lg: 0.5rem
+    radius-full: 9999px
+    width-hairline: 1px
+    width-focus: 2px
 
-A calm, light-first console for engineers reading long technical answers. Soft slate-tinted canvas (`#F5F6FA`), white elevated cards, one signature indigo (`#2C357D`) for actions and links, and restrained motion. Slate Blue (`#8E97B6`) is the secondary brand hue: neutrals (surfaces, borders, muted text) are tints and shades of it, and `brand-secondary` carries it for decorative accents (featured and citation borders), never body text on light. Three themes share the same tokens: Light, Dark (navy-charcoal) and Black (true `#000` for AMOLED). Primary is split by role so the brand colour never changes between themes: `primary-fill` (buttons, badges, user bubble, logo) is `#2C357D` in every theme, with white text at 11:1. `primary` (text, icons, borders, rings, tints) is `#2C357D` on light; on dark and black it is the same hue and saturation (233°, 48%) lifted only to `#7F88D2`, the lowest lightness that clears 4.5:1 on every dark surface. Never put text in raw `#2C357D` on a dark surface. No neon glows or decorative animation.
-
+motion:
+    duration-fast: 150ms
+    duration-normal: 250ms
+    duration-slow: 350ms
+    easing-default: cubic-bezier(0.16, 1, 0.3, 1)
 ---
 
 ## 2. Implementation
@@ -117,11 +109,13 @@ A calm, light-first console for engineers reading long technical answers. Soft s
 ├──────────────┬───────────────────────────────────────┬────────────────────┤
 │ Workspace    │ Chat canvas                           │ Observability      │
 │ - Documents  │  toolbar (New chat, guest note)       │ - pipeline steps   │
-│   (upload,   │  thread: answers with [S1] pills,     │ - first-token/total│
-│   delete)    │          tables, diagrams, sources    │ - grounding badge  │
-│ - Chats      │  quota notice (with refill time)      │ - plan             │
-│ - MCP tool   │  composer                             │ - run log          │
-│   inspector  │                                       │                    │
+│   (upload and│  thread: answers with [S1] pills,     │ - first-token/total│
+│   delete for │          tables, sources              │ - grounding badge  │
+│   admins     │  quota notice (with refill time)      │ - plan             │
+│   only)      │  composer                             │ - run log          │
+│ - Chats      │                                       │                    │
+│ - MCP connect│                                       │                    │
+│   card       │                                       │                    │
 └──────────────┴───────────────────────────────────────┴────────────────────┘
 ```
 
@@ -130,14 +124,13 @@ Below the `xl` breakpoint the three panels become tabs (Workspace / Canvas / Obs
 ### 3.1 Chat canvas
 
 - Answers render Markdown (GFM tables, callouts `> [!NOTE]`, numbered section headings, code with copy button). Raw HTML is never rendered.
-- Citations: the answer cites sources as `[S1]`. A pill shows the source label, filename and line range with a hover preview; clicking opens a dialog with the full passage. A "Sources" row lists every source the model saw.
-- Mermaid diagrams render as sanitised SVG with zoom, pan, source view and a maximised mode (Escape closes, focus is trapped).
+- Citations: the answer cites sources as `[S1]`. A pill shows the source label, the filename and, for PDFs, the page number with a hover preview; clicking opens a dialog with the full passage. A "Sources" row lists every source the model saw.
 - States: empty (starter prompts that the bundled knowledge base can answer), streaming (status text per pipeline step, then live text with a cursor), error (message + Retry), stopped (Regenerate), quota exhausted (notice with the refill time; Send disabled).
 - Guests see a note that their chats are not saved and do not carry context.
 
 ### 3.2 Workspace panel
 
-Collapsible sections: **Documents** (seeded benchmarks plus the user's uploads; uploads can be deleted with a two-step confirm), **Chats** (Google users: search, grouped by recency, delete with confirm), **MCP Protocol** (inspector; asks guests to sign in first).
+Collapsible sections: **Documents** (the knowledge-base documents; admins can upload and delete (two-step confirm)), **Chats** (Google users: search, grouped by recency, delete with confirm), **MCP Protocol** (MCP (public connection instructions; no sign-in needed)).
 
 ---
 
@@ -149,7 +142,6 @@ Target: **WCAG 2.2 AA**. Implemented:
 - Visible focus ring on all interactive elements (2 px, offset 2 px). Interactive controls meet a 36 px minimum target (primary buttons 44 px).
 - Skip link ("Skip to chat") jumps to `#main-canvas`.
 - Landmarks (`banner`, `main`, `complementary`, `nav`), labelled dialogs with focus trapping (Radix), and a polite live region announcing run status.
-- Diagram viewport is keyboard operable (arrows pan, `+`/`-` zoom, `0` resets).
 
 Not claimed: WCAG AAA (7:1 contrast and 44 px targets everywhere).
 

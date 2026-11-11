@@ -163,26 +163,6 @@
                 "title": "AgentStreamRequestWire",
                 "type": "object"
             },
-            "AuthTokens": {
-                "properties": {
-                    "accessToken": {
-                        "title": "Accesstoken",
-                        "type": "string"
-                    },
-                    "expiresIn": {
-                        "title": "Expiresin",
-                        "type": "integer"
-                    },
-                    "tokenType": {
-                        "default": "bearer",
-                        "title": "Tokentype",
-                        "type": "string"
-                    }
-                },
-                "required": ["accessToken", "expiresIn"],
-                "title": "AuthTokens",
-                "type": "object"
-            },
             "Body_upload_document_api_documents_upload_post": {
                 "properties": {
                     "file": {
@@ -541,18 +521,19 @@
                         "title": "Bucketcapacity",
                         "type": "integer"
                     },
+                    "expiresIn": {
+                        "title": "Expiresin",
+                        "type": "integer"
+                    },
                     "quotaRemaining": {
                         "title": "Quotaremaining",
                         "type": "integer"
-                    },
-                    "tokens": {
-                        "$ref": "#/components/schemas/AuthTokens"
                     },
                     "user": {
                         "$ref": "#/components/schemas/UserSession"
                     }
                 },
-                "required": ["user", "tokens", "quotaRemaining", "bucketCapacity"],
+                "required": ["user", "expiresIn", "quotaRemaining", "bucketCapacity"],
                 "title": "GuestPassResponse",
                 "type": "object"
             },
@@ -1091,10 +1072,6 @@
             },
             "TokenResponse": {
                 "properties": {
-                    "accessToken": {
-                        "title": "Accesstoken",
-                        "type": "string"
-                    },
                     "bucketCapacity": {
                         "default": 25,
                         "title": "Bucketcapacity",
@@ -1109,16 +1086,11 @@
                         "title": "Quotaremaining",
                         "type": "integer"
                     },
-                    "tokenType": {
-                        "default": "bearer",
-                        "title": "Tokentype",
-                        "type": "string"
-                    },
                     "user": {
                         "$ref": "#/components/schemas/UserSession"
                     }
                 },
-                "required": ["accessToken", "expiresIn", "user"],
+                "required": ["expiresIn", "user"],
                 "title": "TokenResponse",
                 "type": "object"
             },

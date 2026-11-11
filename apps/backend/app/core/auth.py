@@ -5,12 +5,12 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import jwt
-from fastapi import Depends, HTTPException, Request, Security, status
+from fastapi import Depends, HTTPException, Request, Response, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
 from app.core.rate_limiter import default_chat_quota, guest_signup_limiter
-from app.db.models import AuthTokens, GuestPassResponse, User, UserSession
+from app.db.models import GuestPassResponse, User, UserSession
 from app.db.neon import NeonDatabase, get_db
 
 logger = logging.getLogger("nexusagent.core.auth")
@@ -105,11 +105,40 @@ def _unauthorized(detail: str) -> HTTPException:
     )
 
 
-async def resolve_session(
-    credentials: HTTPAuthorizationCredentials, db: NeonDatabase
-) -> tuple[User, dict]:
-    """Decode the bearer token and load its user (with the token claims); 401 if bad or signed out."""
-    payload = decode_access_token(credentials.credentials)
+def set_session_cookie(response: Response, token: str, max_age: int) -> None:
+    response.set_cookie(
+        settings.SESSION_COOKIE_NAME,
+        token,
+        max_age=max_age,
+        httponly=True,
+        secure=not settings.is_dev,
+        samesite="lax",
+        path="/",
+    )
+
+
+def clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(
+        settings.SESSION_COOKIE_NAME,
+        path="/",
+        secure=not settings.is_dev,
+        httponly=True,
+        samesite="lax",
+    )
+
+
+async def session_token(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Security(security_bearer),
+) -> str | None:
+    return request.cookies.get(settings.SESSION_COOKIE_NAME) or (
+        credentials.credentials if credentials else None
+    )
+
+
+async def resolve_session(token: str, db: NeonDatabase) -> tuple[User, dict]:
+    """Decode the token and load its user (with the token claims); 401 if bad or signed out."""
+    payload = decode_access_token(token)
     user_id_str = payload.get("sub")
     if not user_id_str:
         raise _unauthorized("Invalid token subject")
@@ -128,13 +157,13 @@ async def resolve_session(
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Security(security_bearer),
+    token: str | None = Depends(session_token),
     db: NeonDatabase = Depends(get_db),
 ) -> User:
     """FastAPI dependency to extract and verify authenticated user."""
-    if not credentials:
+    if not token:
         raise _unauthorized("Authentication credentials were not provided")
-    user, _claims = await resolve_session(credentials, db)
+    user, _claims = await resolve_session(token, db)
     await db.touch_user(user.id)
     return user
 
@@ -146,14 +175,14 @@ async def require_admin(current_user: User = Depends(get_current_user)) -> User:
 
 
 async def get_current_user_optional(
-    credentials: HTTPAuthorizationCredentials | None = Security(security_bearer),
+    token: str | None = Depends(session_token),
     db: NeonDatabase = Depends(get_db),
 ) -> User | None:
     """Optional user extractor for endpoints supporting anonymous sessions."""
-    if not credentials:
+    if not token:
         return None
     try:
-        return (await resolve_session(credentials, db))[0]
+        return (await resolve_session(token, db))[0]
     except HTTPException:
         return None
 
@@ -163,7 +192,7 @@ async def issue_guest_pass(
     client_ip: str,
     device_id: str | None = None,
     machine_id: str | None = None,
-) -> GuestPassResponse:
+) -> tuple[GuestPassResponse, str, int]:
     """Issue or retrieve 1-Click Guest Pass token bound to client IP & device ID & machine ID."""
     now = datetime.now(UTC)
     clean_device_id = device_id.strip() if device_id and device_id.strip() else None
@@ -218,16 +247,13 @@ async def issue_guest_pass(
 
     token_str, expires_in = create_access_token(data=session_claims(target_user))
 
-    return GuestPassResponse(
+    response = GuestPassResponse(
         user=UserSession.model_validate(target_user),
-        tokens=AuthTokens(
-            accessToken=token_str,
-            tokenType="bearer",
-            expiresIn=expires_in,
-        ),
+        expiresIn=expires_in,
         quotaRemaining=tokens_remaining,
         bucketCapacity=settings.GUEST_QUOTA_DEFAULT,
     )
+    return response, token_str, expires_in
 
 
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
