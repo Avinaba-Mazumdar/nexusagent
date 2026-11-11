@@ -146,3 +146,20 @@ def test_importing_the_app_enables_info_logging_r2_ops_05():
         check=True,
     )
     assert result.stdout.strip().splitlines()[-1] == str(logging.INFO)
+
+
+def test_mcp_rate_limiter_window_and_limit():
+    from datetime import timedelta
+
+    from app.main import mcp_rate_limiter
+
+    mcp_rate_limiter.reset_for_test()
+    try:
+        assert mcp_rate_limiter.window == timedelta(minutes=1)
+        assert mcp_rate_limiter.limit == 60
+        ip = "203.0.113.9"
+        for _ in range(60):
+            assert mcp_rate_limiter.hit(ip) is True
+        assert mcp_rate_limiter.hit(ip) is False
+    finally:
+        mcp_rate_limiter.reset_for_test()

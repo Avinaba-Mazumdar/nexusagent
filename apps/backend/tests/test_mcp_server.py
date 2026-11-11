@@ -41,7 +41,7 @@ async def test_list_tools():
 
 
 @pytest.mark.asyncio
-async def test_search_tool():
+async def test_search_tool(monkeypatch):
     fake_results = [
         HybridSearchResult(
             id="chunk-1",
@@ -65,6 +65,13 @@ async def test_search_tool():
         ),
     ]
 
+    audit_calls = []
+
+    async def fake_log_tool_audit(**kwargs):
+        audit_calls.append(kwargs)
+
+    monkeypatch.setattr("app.mcp.server.default_audit_logger.log_tool_audit", fake_log_tool_audit)
+
     with (
         patch("app.mcp.server._db", new_callable=AsyncMock),
         patch(
@@ -83,6 +90,10 @@ async def test_search_tool():
             assert first["id"] == "doc-1:chunk-1"
             assert first["title"] == "benchmarks.md - Overview > Evals"
             assert "doc=doc-1&chunk=chunk-1" in first["url"]
+
+    assert len(audit_calls) == 1
+    assert audit_calls[0]["tool_name"] == "mcp.search"
+    assert audit_calls[0]["mcp_server"] == "mcp-public"
 
 
 @pytest.mark.asyncio
@@ -111,9 +122,16 @@ async def test_fetch_tool_invalid_id():
 
 
 @pytest.mark.asyncio
-async def test_fetch_tool_success():
+async def test_fetch_tool_success(monkeypatch):
     fake_chunk = MagicMock(content="Passage full text content", metadata={"page": 3})
     fake_doc = MagicMock(filename="benchmarks.md")
+
+    audit_calls = []
+
+    async def fake_log_tool_audit(**kwargs):
+        audit_calls.append(kwargs)
+
+    monkeypatch.setattr("app.mcp.server.default_audit_logger.log_tool_audit", fake_log_tool_audit)
 
     with (
         patch("app.mcp.server._db", new_callable=AsyncMock),
@@ -142,3 +160,7 @@ async def test_fetch_tool_success():
             assert data["title"] == "benchmarks.md"
             assert data["text"] == "Passage full text content"
             assert data["metadata"] == {"page": 3}
+
+    assert len(audit_calls) == 1
+    assert audit_calls[0]["tool_name"] == "mcp.fetch"
+    assert audit_calls[0]["mcp_server"] == "mcp-public"

@@ -173,8 +173,8 @@ async def issue_guest_pass(
     hashed_machine_id = hash_device_id(clean_machine_id) if clean_machine_id else None
 
     target_user: User | None = None
-    if hashed_device_id or hashed_machine_id:
-        target_user = await db.get_guest_by_device(hashed_device_id, hashed_machine_id)
+    if hashed_device_id:
+        target_user = await db.get_guest_by_device(hashed_device_id)
 
     if target_user:
         await db.update_user_last_seen(

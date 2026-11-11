@@ -3,15 +3,23 @@
 Tools follow the search/fetch shape ChatGPT connectors expect; Claude and other clients use them too.
 """
 
+import time
 from uuid import UUID
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
 from app.config import settings
-from app.core.security_guardrails import sanitize_retrieved_chunks
+from app.core.audit_log import default_audit_logger
+from app.core.security_guardrails import (
+    sanitize_retrieved_chunks,
+    sanitize_untrusted_text,
+    scrub_sensitive_information,
+)
 from app.db.neon import neon_db
 from app.rag.hybrid_search import default_hybrid_search_engine
+
+MCP_AUDIT_SOURCE = "mcp-public"
 
 mcp = MCPServer(
     "nexusagent",
@@ -31,11 +39,12 @@ def _url(document_id: str, chunk_id: str) -> str:
 @mcp.tool()
 async def search(query: str) -> dict:
     """Search the LLM benchmark knowledge base. Returns up to 8 matching passages (id, title, url)."""
+    started = time.perf_counter()
     await _db()
     results, _ = sanitize_retrieved_chunks(
         await default_hybrid_search_engine.search(query=query[:1000], limit=8)
     )
-    return {
+    result_data = {
         "results": [
             {
                 "id": f"{r.document_id}:{r.id}",
@@ -45,11 +54,20 @@ async def search(query: str) -> dict:
             for r in results
         ]
     }
+    await default_audit_logger.log_tool_audit(
+        tool_name="mcp.search",
+        input_args={"query": query[:200]},
+        output_summary={"results": len(results)},
+        duration_ms=max(int((time.perf_counter() - started) * 1000), 1),
+        mcp_server=MCP_AUDIT_SOURCE,
+    )
+    return result_data
 
 
 @mcp.tool()
 async def fetch(id: str) -> dict:
     """Fetch the full text of a passage returned by `search` (id is `document_id:chunk_id`)."""
+    started = time.perf_counter()
     parts = id.split(":", 1)
     if len(parts) != 2:
         raise ValueError(f"Invalid id format: {id}. Expected 'document_id:chunk_id'")
@@ -68,13 +86,21 @@ async def fetch(id: str) -> dict:
     doc = await neon_db.get_document_by_id(doc_id)
     filename = doc.filename if doc else "document"
 
-    return {
+    result_data = {
         "id": id,
         "title": filename,
-        "text": chunk.content,
+        "text": scrub_sensitive_information(sanitize_untrusted_text(chunk.content)),
         "url": _url(str(doc_id), str(chunk_id)),
         "metadata": chunk.metadata,
     }
+    await default_audit_logger.log_tool_audit(
+        tool_name="mcp.fetch",
+        input_args={"id": id[:100]},
+        output_summary={"chars": len(chunk.content)},
+        duration_ms=max(int((time.perf_counter() - started) * 1000), 1),
+        mcp_server=MCP_AUDIT_SOURCE,
+    )
+    return result_data
 
 
 def create_streamable_http_app():

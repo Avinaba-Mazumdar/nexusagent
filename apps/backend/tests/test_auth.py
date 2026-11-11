@@ -65,6 +65,29 @@ async def test_guest_pass_endpoint():
         assert "clientIp" not in user2
 
 
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_guests_with_same_machine_hash_get_distinct_accounts():
+    """B1: machineId collision must never hand Guest B the account of Guest A."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res_a = await client.post(
+            "/api/auth/guest",
+            json={"deviceId": "a" * 32, "machineId": "same-machine"},
+        )
+        assert res_a.status_code == 200
+        user_a = res_a.json()["user"]
+
+        res_b = await client.post(
+            "/api/auth/guest",
+            json={"deviceId": "b" * 32, "machineId": "same-machine"},
+        )
+        assert res_b.status_code == 200
+        user_b = res_b.json()["user"]
+
+        assert user_a["id"] != user_b["id"]
+
+
 @pytest.mark.asyncio
 async def test_prune_endpoint_is_not_exposed():
     """Regression (audit S-03): guest pruning is a scheduled script, not an HTTP route."""

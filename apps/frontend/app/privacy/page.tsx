@@ -153,9 +153,8 @@ export default function PrivacyPolicyPage() {
                             2. Subdomain Architecture &amp; Security Boundary
                         </h2>
                         <p>
-                            NexusAgent is deployed exclusively at the dedicated subdomain{' '}
-                            <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>. To safeguard your session against cross-origin or
-                            cross-subdomain attacks:
+                            NexusAgent is deployed exclusively at the dedicated subdomain <code className="font-mono text-xs text-foreground">{SITE_HOST}</code>
+                            . To safeguard your session against cross-origin or cross-subdomain attacks:
                         </p>
                         <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
                             <p className="font-semibold text-foreground text-xs">Host-Only Token Scoping:</p>

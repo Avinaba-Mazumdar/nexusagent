@@ -96,6 +96,11 @@ class Settings(BaseSettings):
             raise ValueError("GOOGLE_CLIENT_ID must be set outside development/test.")
         if self.DEBUG:
             raise ValueError("DEBUG cannot be enabled outside development/test.")
+        if self.TRUSTED_PROXY_HOPS < 1:
+            raise ValueError(
+                "TRUSTED_PROXY_HOPS must be >= 1 outside development/test "
+                "(Render = 1). With 0 every client shares the proxy's IP address."
+            )
         return self
 
     model_config = SettingsConfigDict(

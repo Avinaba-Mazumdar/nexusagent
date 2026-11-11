@@ -215,23 +215,19 @@ class NeonDatabase:
                 "UPDATE users SET token_version = token_version + 1 WHERE id = $1;", user_id
             )
 
-    async def get_guest_by_device(
-        self, device_hash: str | None, machine_hash: str | None
-    ) -> User | None:
-        """Fetch active guest user by device hash or machine hash. NULL argument never matches."""
-        if not device_hash and not machine_hash:
+    async def get_guest_by_device(self, device_hash: str | None) -> User | None:
+        """Fetch a guest by device hash. The machine hash is never used to find an account; it is only a quota key."""
+        if not device_hash:
             return None
         pool = self.get_pool()
         query = """
             SELECT * FROM users
-            WHERE is_guest = TRUE
-              AND (($1::text IS NOT NULL AND device_id = $1)
-                   OR ($2::text IS NOT NULL AND machine_hash = $2))
+            WHERE is_guest = TRUE AND device_id = $1
             ORDER BY last_seen_at DESC
             LIMIT 1;
         """
         async with pool.acquire() as conn:
-            row = await conn.fetchrow(query, device_hash, machine_hash)
+            row = await conn.fetchrow(query, device_hash)
             return User(**dict(row)) if row else None
 
     async def update_user_last_seen(

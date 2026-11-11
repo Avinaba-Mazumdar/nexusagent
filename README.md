@@ -68,7 +68,7 @@ NexusAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (`ht
 ```
 nexusagent/
 ├── apps/
-│   ├── frontend/         # Next.js 16 + React 19 + TypeScript + shadcn/ui + Tailwind v4 + Zustand
+├── frontend/         # Next.js 16 + React 19 + TypeScript + shadcn/ui + Tailwind v4 + Zustand
 │   └── backend/          # FastAPI + Python 3.14 + LangGraph + LlamaIndex + FastMCP + Neon Postgres 18
 ├── packages/
 │   └── contracts/        # Shared TypeScript interfaces & OpenAPI wire schemas
@@ -124,6 +124,7 @@ Backend configuration (`apps/backend/.env.local`):
 - `GOOGLE_CLIENT_ID`: required for Google OAuth.
 - `NEON_DATABASE_URL`: database connection string. Paste your production Neon URL here (shared with local dev).
 - `GEMINI_API_KEY`: required. Generates answers and vector embeddings (`gemini-embedding-001`).
+- `TRUSTED_PROXY_HOPS`: number of proxies in front of the API. Required in production. Render = 1.
 - `PUBLIC_SITE_HOST`: public hostname (default: `nexusagent.avinaba.com`).
 
 Frontend configuration (`apps/frontend/.env.local`):
@@ -150,12 +151,11 @@ Interactive API docs are available at `http://localhost:8000/docs` in developmen
     cd apps/backend
     uv run ruff check .
     uv run ruff format --check .
-    uv run pytest -q
+    uv run python -m pytest -q -rs
     ```
-    _To run database-backed tests against local PostgreSQL:_
+    _To run the database-backed tests, create a Neon branch of the production database (Neon console → Branches → Create branch) and use its URL. Never use the production URL; the tests refuse it._
     ```bash
-    docker run -d --name nexus-pg -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=nexus_test pgvector/pgvector:pg18
-    TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nexus_test uv run pytest -q
+    TEST_DATABASE_URL='<test branch URL>' uv run python -m pytest -q -rs
     ```
 - **Frontend checks**:
     ```bash

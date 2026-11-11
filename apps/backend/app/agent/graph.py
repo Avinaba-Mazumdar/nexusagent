@@ -406,6 +406,14 @@ async def chat_node(state: AgentState, config: RunnableConfig | None = None) -> 
 
         if state.web_search_queries:
             state.search_duration_ms = duration_ms
+            await default_audit_logger.log_tool_audit(
+                tool_name="google_search",
+                input_args={"queries": state.web_search_queries},
+                output_summary={"sources": len(sources)},
+                duration_ms=duration_ms,
+                user_id=state.user_id,
+                conversation_id=state.conversation_id,
+            )
 
         usage_meta = getattr(merged, "usage_metadata", None) or {}
         state.usage.append(

@@ -46,6 +46,7 @@ describe('theme', () => {
     });
 
     it('boot script restores the stored theme before paint', () => {
+        // oxlint-disable-next-line typescript/no-implied-eval -- the test must execute the same inline script the page ships
         const boot = new Function(THEME_BOOT_SCRIPT);
 
         localStorage.setItem('nexusagent_theme', 'black');

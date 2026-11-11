@@ -7,16 +7,32 @@ connection pool is opened for the whole session instead of one per test.
 """
 
 import os
+from pathlib import Path
+
+from dotenv import dotenv_values
+
+from tests.db_guard import neon_endpoint
 
 os.environ.setdefault("ENVIRONMENT", "test")
-# db-marked tests only ever touch a dedicated database (e.g. a Neon branch per CI run).
-os.environ["NEON_DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "")
 
 _test_url = os.environ.get("TEST_DATABASE_URL", "")
+_env_file = Path(__file__).resolve().parents[1] / ".env.local"
+_prod_url = (dotenv_values(_env_file).get("NEON_DATABASE_URL") or "") if _env_file.exists() else ""
+
 if "neon.tech" in _test_url:
-    raise RuntimeError(
-        "TEST_DATABASE_URL points at Neon (the shared production DB). Use a local Postgres."
-    )
+    if not _prod_url:
+        raise RuntimeError(
+            "TEST_DATABASE_URL is a Neon URL, but apps/backend/.env.local has no NEON_DATABASE_URL, "
+            "so it cannot be proven that this is not the production database."
+        )
+    if neon_endpoint(_test_url) == neon_endpoint(_prod_url):
+        raise RuntimeError(
+            "TEST_DATABASE_URL points at the production Neon database. "
+            "Use the test branch URL instead (roadmap.md H10)."
+        )
+
+# db-marked tests only ever touch a dedicated database (e.g. a Neon branch per CI run).
+os.environ["NEON_DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "")
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -276,14 +292,17 @@ def reset_rate_limiters():
     """Reset chat quotas and sliding-window counters between tests."""
     from app.agent.graph import _get_llm, default_model_router
     from app.core.rate_limiter import default_chat_quota
+    from app.main import mcp_rate_limiter
 
     _get_llm.cache_clear()
     default_model_router.reset()
     default_chat_quota.reset_for_test()
+    mcp_rate_limiter.reset_for_test()
     yield
     _get_llm.cache_clear()
     default_model_router.reset()
     default_chat_quota.reset_for_test()
+    mcp_rate_limiter.reset_for_test()
 
 
 @pytest.fixture(autouse=True)

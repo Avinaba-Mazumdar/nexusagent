@@ -8,6 +8,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from starlette.requests import Request
 
+from app.config import settings
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip
 from app.core.security_guardrails import sanitize_retrieved_chunks
@@ -19,7 +20,8 @@ def _make_request(headers: dict[str, str], host: str = "10.0.0.5"):
     return SimpleNamespace(headers=headers, client=SimpleNamespace(host=host))
 
 
-def test_get_client_ip_ignores_forwarded_header_by_default():
+def test_get_client_ip_ignores_forwarded_header_by_default(monkeypatch):
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 0)
     req = _make_request({"X-Forwarded-For": "1.2.3.4, 5.6.7.8"})
     assert get_client_ip(cast(Request, req)) == "10.0.0.5"
 
@@ -126,11 +128,28 @@ def test_localhost_origins_are_only_allowed_in_development_r2_sec_09():
     from app.config import Settings
 
     prod = Settings(
+        _env_file=None,
         ENVIRONMENT="production",
         JWT_SECRET_KEY="x" * 40,
         GOOGLE_CLIENT_ID="client",
+        TRUSTED_PROXY_HOPS=1,
     )
     assert prod.CORS_ORIGINS == ["https://nexusagent.avinaba.com"]
-    dev = Settings(ENVIRONMENT="development")
+    dev = Settings(_env_file=None, ENVIRONMENT="development")
     assert "http://localhost:3000" in dev.CORS_ORIGINS
     assert "https://nexusagent.avinaba.com" in dev.CORS_ORIGINS
+
+
+def test_production_refuses_zero_trusted_proxy_hops():
+    import pytest
+
+    from app.config import Settings
+
+    with pytest.raises(ValueError, match="TRUSTED_PROXY_HOPS"):
+        Settings(
+            _env_file=None,
+            ENVIRONMENT="production",
+            JWT_SECRET_KEY="x" * 40,
+            GOOGLE_CLIENT_ID="client",
+            TRUSTED_PROXY_HOPS=0,
+        )

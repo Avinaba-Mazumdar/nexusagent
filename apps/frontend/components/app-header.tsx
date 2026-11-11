@@ -56,7 +56,9 @@ function ThemeSegmentedControl({ theme, onThemeChange }: { theme: ThemeName; onT
                         onClick={() => onThemeChange(id)}
                         onKeyDown={(event) => onKeyDown(event, index)}
                         className={`flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                            selected ? 'bg-card text-primary shadow-xs border border-border' : 'text-muted-foreground hover:text-foreground border border-transparent'
+                            selected
+                                ? 'bg-card text-primary shadow-xs border border-border'
+                                : 'text-muted-foreground hover:text-foreground border border-transparent'
                         }`}
                     >
                         <Icon className="h-3.5 w-3.5" aria-hidden="true" />

@@ -1,6 +1,7 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import timedelta
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -47,10 +48,6 @@ def ensure_single_worker() -> None:
 async def lifespan(app: FastAPI):
     """Lifecycle manager for Neon PostgreSQL 18 connection pool and MCP session manager."""
     ensure_single_worker()
-    if not settings.is_dev and settings.TRUSTED_PROXY_HOPS == 0:
-        logger.warning(
-            "IP-based limits use the socket address; set TRUSTED_PROXY_HOPS if you run behind a proxy."
-        )
     connected = await neon_db.connect()
     if not connected and not settings.is_dev:
         raise RuntimeError("Database connection failed; refusing to start in production.")
@@ -71,12 +68,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-mcp_rate_limiter = SlidingWindowCounter(limit=60)
+MCP_PATH = "/mcp"
+mcp_rate_limiter = SlidingWindowCounter(limit=60, window=timedelta(minutes=1))
 
 
 @app.middleware("http")
 async def mcp_rate_limit_middleware(request: Request, call_next):
-    if request.method == "POST" and request.url.path == "/mcp":
+    if request.url.path.rstrip("/") == MCP_PATH:
         client_ip = get_client_ip(request)
         if not mcp_rate_limiter.hit(client_ip):
             return JSONResponse(
