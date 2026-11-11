@@ -35,11 +35,13 @@ if "neon.tech" in _test_url:
 os.environ["NEON_DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "")
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import pytest
 from langchain_core.messages import AIMessageChunk
+from langchain_core.messages.ai import UsageMetadata
+from langchain_core.messages.tool import ToolCall
 
 from app.config import REPO_ROOT
 from app.db.neon import neon_db
@@ -162,7 +164,7 @@ class FakeChunk(AIMessageChunk):
         tool_calls: list[dict[str, Any]] | None = None,
         **kwargs: Any,
     ):
-        usage = None
+        usage: UsageMetadata | None = None
         if usage_metadata:
             usage = {
                 "input_tokens": usage_metadata.get("input_tokens", 0),
@@ -173,7 +175,7 @@ class FakeChunk(AIMessageChunk):
             content=content,
             usage_metadata=usage,
             response_metadata=response_metadata or {},
-            tool_calls=tool_calls or [],
+            tool_calls=cast(list[ToolCall], tool_calls or []),
             **kwargs,
         )
 

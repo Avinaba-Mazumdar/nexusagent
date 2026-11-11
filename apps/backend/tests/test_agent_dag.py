@@ -1,7 +1,9 @@
+from typing import Any
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from langchain_core.messages import ToolMessage
 
 from app.agent.graph import (
     REFUSAL,
@@ -15,7 +17,7 @@ from app.agent.llm import AllModelsRateLimited
 from app.agent.state import AgentState, Citation
 from app.agent.tools import WebSearchResult, web_sources_from
 from app.core.audit_log import default_audit_logger
-from app.rag.hybrid_search import HybridSearchResult
+from app.rag.hybrid_search import HybridSearchEngine, HybridSearchResult
 
 
 def _chunk(chunk_id: str = "chunk-1", dense_score: float = 0.9) -> HybridSearchResult:
@@ -31,11 +33,11 @@ def _chunk(chunk_id: str = "chunk-1", dense_score: float = 0.9) -> HybridSearchR
     )
 
 
-class _FakeSearch:
-    def __init__(self, chunks=None):
+class _FakeSearch(HybridSearchEngine):
+    def __init__(self, chunks=None):  # no super(): never touches the database
         self._chunks = chunks or [_chunk("c-1", 0.9), _chunk("c-2", 0.8)]
 
-    async def search(self, **kwargs):
+    async def search(self, query: str, *args: Any, **kwargs: Any) -> list[HybridSearchResult]:
         return list(self._chunks)
 
 
@@ -204,8 +206,11 @@ async def test_scenario_2_rag_tool_call_then_answers(fake_llm, monkeypatch):
 
     call_count = 0
 
-    class MultiSearch:
-        async def search(self, **kwargs):
+    class MultiSearch(HybridSearchEngine):
+        def __init__(self):  # no super(): never touches the database
+            pass
+
+        async def search(self, query: str, *args: Any, **kwargs: Any) -> list[HybridSearchResult]:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -369,7 +374,7 @@ async def test_scenario_5_max_tools_per_round_capped(fake_llm):
 
     assert final_state.is_complete is True
     assert len(final_state.tool_events) == 3  # 1 preload + 2 executed tool calls
-    tool_msgs = [m for m in final_state.agent_messages if getattr(m, "type", "") == "tool"]
+    tool_msgs = [m for m in final_state.agent_messages if isinstance(m, ToolMessage)]
     assert len(tool_msgs) == 3
     assert tool_msgs[2].content == "Skipped: at most 2 tool calls per round."
     assert {m.tool_call_id for m in tool_msgs} == {"c1", "c2", "c3"}
@@ -503,6 +508,7 @@ async def test_scenario_10_agent_rate_limit(monkeypatch, fake_llm):
     state = AgentState(query="benchmark question", user_id=uuid4())
     final_state = await graph.invoke(state)
 
+    assert final_state.error is not None
     assert "reached its usage limit" in final_state.error
     assert final_state.response == ""
 

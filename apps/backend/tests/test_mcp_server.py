@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from mcp.client.session import ClientSession
 from mcp.shared.memory import create_client_server_memory_streams
+from mcp.types import TextContent
 
 from app.mcp.server import mcp
 from app.rag.hybrid_search import HybridSearchResult
@@ -83,6 +84,7 @@ async def test_search_tool(monkeypatch):
         async with connected_client() as client:
             result = await client.call_tool("search", {"query": "gpt"})
             assert not result.is_error
+            assert isinstance(result.content[0], TextContent)
             data = json.loads(result.content[0].text)
             assert "results" in data
             assert len(data["results"]) == 2
@@ -152,6 +154,7 @@ async def test_fetch_tool_success(monkeypatch):
                 {"id": "00000000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000000002"},
             )
             assert not result.is_error
+            assert isinstance(result.content[0], TextContent)
             data = json.loads(result.content[0].text)
             assert (
                 data["id"]

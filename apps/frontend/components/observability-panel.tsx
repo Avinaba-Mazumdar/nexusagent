@@ -341,7 +341,7 @@ export function ObservabilityPanel({
                                         [{log.stage}]
                                     </span>
                                 </div>
-                                <p className="text-foreground/90 mt-0.5 break-words text-xs">{log.message}</p>
+                                <p className="text-foreground/90 mt-0.5 wrap-break-word text-xs">{log.message}</p>
                             </div>
                         ))
                     )}

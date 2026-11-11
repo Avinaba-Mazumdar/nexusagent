@@ -42,6 +42,7 @@ async def test_rolling_24h_quota_enforcement():
     with pytest.raises(HTTPException) as exc_info:
         await default_chat_quota.reserve(guest1, client_ip)
     assert exc_info.value.status_code == 429
+    assert exc_info.value.headers is not None
     assert int(exc_info.value.headers.get("Retry-After", 0)) > 0
     assert "Daily chat limit reached" in exc_info.value.detail
 

@@ -1,4 +1,5 @@
 import json
+from collections.abc import AsyncGenerator
 from typing import Any, cast
 from uuid import uuid4
 
@@ -269,7 +270,7 @@ async def test_abort_after_retrieval_keeps_the_quota_charge(stream_client):
     async for frame in stream:
         if frame.startswith("event: tool_result"):
             break
-    await stream.aclose()
+    await cast(AsyncGenerator[str], stream).aclose()
     await asyncio.sleep(0.1)
 
     assert len(db.rows) == 1

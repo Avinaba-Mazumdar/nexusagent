@@ -38,7 +38,7 @@ class AgentStreamRequestWire(BaseModel):
 
 def generate_agent_stream(
     query: str,
-    intent: Intent,
+    intent: Intent | None,
     user_id: UUID | None,
     document_id: UUID | None,
     session_id: str,

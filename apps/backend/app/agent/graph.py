@@ -16,8 +16,10 @@ from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+from google.genai.errors import ServerError
 from langchain_core.messages import (
     AIMessage,
+    AnyMessage,
     BaseMessage,
     HumanMessage,
     SystemMessage,
@@ -25,10 +27,7 @@ from langchain_core.messages import (
 )
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
-from langchain_google_genai.chat_models import (
-    GoogleRateLimitError,
-    ServerError,
-)
+from langchain_google_genai.chat_models import GoogleRateLimitError
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, ValidationError
 
@@ -452,7 +451,7 @@ def update_grounding(state: AgentState) -> None:
 def build_agent_messages(state: AgentState, context: str) -> None:
     """Build the agent's opening prompt: system prompt, history, query and wrapped passages."""
     system = AGENT_PROMPT + (NO_SOURCES_NOTE if state.grounding == "none" else "")
-    messages: list[BaseMessage] = [SystemMessage(content=system)]
+    messages: list[AnyMessage] = [SystemMessage(content=system)]
     for turn in state.chat_history:
         role = turn.get("role")
         content = turn.get("content", "").strip()

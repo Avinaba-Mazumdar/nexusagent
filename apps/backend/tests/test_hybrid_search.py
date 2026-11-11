@@ -163,7 +163,7 @@ async def test_hybrid_search_end_to_end_endpoint():
     doc_id = uuid4()
     doc = Document(
         id=doc_id,
-        user_id=test_user.id,
+        uploaded_by=test_user.id,
         filename="rfc-104-raft-consensus.md",
         mime_type="text/markdown",
         sha256_hash=uuid4().hex,
@@ -378,7 +378,7 @@ async def test_dense_search_finds_user_chunks_behind_many_seeded_chunks_r2_log_0
     )
     seeded_doc = Document(
         id=uuid4(),
-        user_id=None,
+        uploaded_by=None,
         filename="seed.md",
         mime_type="text/markdown",
         sha256_hash=uuid4().hex,
@@ -387,7 +387,7 @@ async def test_dense_search_finds_user_chunks_behind_many_seeded_chunks_r2_log_0
     )
     user_doc = Document(
         id=uuid4(),
-        user_id=user.id,
+        uploaded_by=user.id,
         filename="mine.md",
         mime_type="text/markdown",
         sha256_hash=uuid4().hex,

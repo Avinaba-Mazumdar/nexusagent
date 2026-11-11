@@ -161,7 +161,7 @@ async def test_all_models_limited_reports_when_to_retry(models):
 
 @pytest.mark.asyncio
 async def test_server_error_model_hands_over_and_stays_skipped(models):
-    from langchain_google_genai.chat_models import ServerError
+    from google.genai.errors import ServerError
 
     fakes = models({"m1": _Model(error=ServerError(500, {})), "m2": _Model(["Answer from m2."])})
     first = await answer_node(_state())
@@ -189,7 +189,7 @@ async def test_timed_out_model_hands_over_and_stays_skipped(models):
 
 @pytest.mark.asyncio
 async def test_no_switch_after_text_reached_the_client_on_server_error(models):
-    from langchain_google_genai.chat_models import ServerError
+    from google.genai.errors import ServerError
 
     fakes = models(
         {"m1": _Model(["Partial "], error=ServerError(500, {})), "m2": _Model(["Never used."])}

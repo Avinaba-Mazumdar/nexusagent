@@ -2,6 +2,7 @@
 Tests for security guardrails: secret scrubbing, prompt-injection delimiters, the token-bucket rate limiter and the tool audit log.
 """
 
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -15,6 +16,7 @@ from app.core.security_guardrails import (
     wrap_untrusted_tool_output,
 )
 from app.db.models import User
+from app.db.neon import NeonDatabase
 from app.main import app
 from tests.conftest import FakeUsageDb
 
@@ -137,7 +139,7 @@ def test_wrap_untrusted_tool_output_escapes_existing_tags():
 @pytest.mark.asyncio
 async def test_chat_quota_rate_limiter_depletion():
     db = FakeUsageDb()
-    quota = ChatQuota(db=db)
+    quota = ChatQuota(db=cast(NeonDatabase, db))
     user = User(id=uuid4(), is_guest=True, device_id="dev1", machine_hash="mach1")
 
     for i in range(5):
@@ -150,14 +152,14 @@ async def test_chat_quota_rate_limiter_depletion():
     assert exc_info.value.status_code == 429
     assert "Daily chat limit reached" in exc_info.value.detail
     assert exc_info.value.headers is not None
-    assert int(exc_info.value.headers.get("Retry-After")) > 0
+    assert int(exc_info.value.headers.get("Retry-After", "0")) > 0
 
 
 @pytest.mark.asyncio
 async def test_ip_rotation_does_not_reset_quota_sec_02():
     """Regression (SEC-02): rotating IP address does not reset a user's quota."""
     db = FakeUsageDb()
-    quota = ChatQuota(db=db)
+    quota = ChatQuota(db=cast(NeonDatabase, db))
     user = User(id=uuid4(), is_guest=True, device_id="dev1", machine_hash="mach1")
 
     for _ in range(5):
@@ -205,7 +207,7 @@ async def test_audit_logger_survives_missing_database():
     """Audit failures must never break a request: no pool means the row is dropped, not raised."""
     from types import SimpleNamespace
 
-    logger = ToolAuditLogger(db=SimpleNamespace(pool=None))
+    logger = ToolAuditLogger(db=cast(NeonDatabase, SimpleNamespace(pool=None)))
     record = await logger.log_tool_audit(
         tool_name="hybrid_rag_search",
         input_args={"query": "x"},
@@ -268,7 +270,7 @@ async def test_429_retry_after_reflects_actual_reset_time():
     from datetime import UTC, datetime, timedelta
 
     db = FakeUsageDb()
-    quota = ChatQuota(db=db)
+    quota = ChatQuota(db=cast(NeonDatabase, db))
     user = User(id=uuid4(), is_guest=True, device_id="dev1", machine_hash="mach1")
     # Insert oldest chat 23 hours ago
     db.rows.append(
@@ -287,6 +289,7 @@ async def test_429_retry_after_reflects_actual_reset_time():
 
     with pytest.raises(HTTPException) as exc_info:
         await quota.reserve(user, "203.0.113.7")
+    assert exc_info.value.headers is not None
     retry_after = int(exc_info.value.headers["Retry-After"])
     assert 3500 <= retry_after <= 3600
 

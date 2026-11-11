@@ -128,14 +128,17 @@ def test_localhost_origins_are_only_allowed_in_development_r2_sec_09():
     from app.config import Settings
 
     prod = Settings(
-        _env_file=None,
+        _env_file=None,  # pyright: ignore[reportCallIssue]  (pydantic-settings init kwarg)
         ENVIRONMENT="production",
         JWT_SECRET_KEY="x" * 40,
         GOOGLE_CLIENT_ID="client",
         TRUSTED_PROXY_HOPS=1,
     )
     assert prod.CORS_ORIGINS == ["https://nexusagent.avinaba.com"]
-    dev = Settings(_env_file=None, ENVIRONMENT="development")
+    dev = Settings(
+        _env_file=None,  # pyright: ignore[reportCallIssue]  (pydantic-settings init kwarg)
+        ENVIRONMENT="development",
+    )
     assert "http://localhost:3000" in dev.CORS_ORIGINS
     assert "https://nexusagent.avinaba.com" in dev.CORS_ORIGINS
 
@@ -147,7 +150,7 @@ def test_production_refuses_zero_trusted_proxy_hops():
 
     with pytest.raises(ValueError, match="TRUSTED_PROXY_HOPS"):
         Settings(
-            _env_file=None,
+            _env_file=None,  # pyright: ignore[reportCallIssue]  (pydantic-settings init kwarg)
             ENVIRONMENT="production",
             JWT_SECRET_KEY="x" * 40,
             GOOGLE_CLIENT_ID="client",

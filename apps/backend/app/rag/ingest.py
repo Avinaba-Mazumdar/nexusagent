@@ -37,7 +37,7 @@ def build_chunks(
         md_nodes = _markdown.get_nodes_from_documents(
             [LIDocument(text=text, metadata={"filename": filename})]
         )
-        nodes = _splitter.get_nodes_from_documents(md_nodes)  # split oversized sections
+        nodes = _splitter(md_nodes)  # split oversized sections
     chunks = []
     for _index, node in enumerate(nodes):
         content = node.get_content().strip()

@@ -69,7 +69,7 @@ export function SourceDialog({ citation, onClose }: SourceDialogProps) {
                         </p>
                     )}
                     {state.status === 'ready' && (
-                        <pre data-testid="source-passage" className="whitespace-pre-wrap break-words font-mono text-code text-foreground">
+                        <pre data-testid="source-passage" className="whitespace-pre-wrap wrap-break-word font-mono text-code text-foreground">
                             {state.chunk.content}
                         </pre>
                     )}

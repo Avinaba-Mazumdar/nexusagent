@@ -25,7 +25,7 @@ async def test_list_seeded_documents_without_auth():
         if await neon_db.get_document_by_id(doc_id) is None:
             doc = Document(
                 id=doc_id,
-                user_id=None,
+                uploaded_by=None,
                 filename=name,
                 mime_type="text/markdown",
                 sha256_hash=doc_id.hex,

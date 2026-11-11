@@ -3,17 +3,17 @@
 import functools
 import inspect
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
 import httpx
+from google.genai.errors import ServerError
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_genai.chat_models import (
     GoogleModelNotFoundError,
     GooglePermissionDeniedError,
     GoogleRateLimitError,
-    ServerError,
 )
 
 from app.agent.model_router import ModelRouter
@@ -62,7 +62,7 @@ def _chunk_text(chunk: Any) -> str:
 
 async def _stream_llm(
     llm_chain: Any,
-    messages: list[BaseMessage],
+    messages: Sequence[BaseMessage],
     on_token: TokenSink | None = None,
 ) -> Any:
     """Stream model output, forwarding text tokens to ``on_token`` and returning the merged chunk."""

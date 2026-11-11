@@ -18,7 +18,7 @@ export default function TermsAndConditionsPage() {
     return (
         <div className="min-h-dvh bg-background text-foreground flex flex-col">
             {/* Header / Navigation Bar */}
-            <header className="h-14 bg-card border-b border-border px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md bg-card/90">
+            <header className="h-14 border-b border-border px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md bg-card/90">
                 <div className="flex items-center gap-3">
                     <Link href="/" className="flex items-center gap-2 group cursor-pointer" aria-label="Return to NexusAgent Studio">
                         <NexusLogo className="h-8 w-8 rounded-xl shadow-xs shrink-0 transition-transform group-hover:scale-105" />
