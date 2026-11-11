@@ -16,7 +16,7 @@ from app.agent.sse import (
     tool_call_frame,
 )
 from app.agent.state import AgentState, Intent
-from app.core.rate_limiter import default_chat_quota
+from app.core.rate_limiter import default_chat_quota, refusal_refund_limiter
 from app.services.conversations import persist_turn
 
 logger = logging.getLogger("nexusagent.agent.run")
@@ -138,7 +138,19 @@ class AgentRun:
         if upcoming == TOOL_NODE:
             self._send(tool_call_frame(self.session_id, state))
 
+    async def _refund_router_refusal(self, final_state: AgentState) -> None:
+        """A refusal decided by the router is free, up to a per-user hourly cap."""
+        if final_state.intent != "refuse" or not self.usage_id:
+            return
+        if not refusal_refund_limiter.hit(str(self.user_id)):
+            return
+        await default_chat_quota.refund(self.usage_id)
+        self.usage_id = None
+        if self.quota_remaining is not None:
+            self.quota_remaining += 1
+
     async def _finish(self, final_state: AgentState) -> None:
+        await self._refund_router_refusal(final_state)
         # Planner refusals are fixed text, not model output: send them as one chunk.
         if not self._tokens_sent and final_state.response:
             self._send(token_frame(self.session_id, final_state.response))
@@ -150,7 +162,15 @@ class AgentRun:
             conversation_id = await asyncio.shield(
                 persist_turn(self.user_id, self.session_id, self.query, final_state)
             )
-        self._send(done_frame(self.session_id, conversation_id, self.query, final_state))
+        self._send(
+            done_frame(
+                self.session_id,
+                conversation_id,
+                self.query,
+                final_state,
+                self.quota_remaining,
+            )
+        )
 
     async def _refund_unless_streamed(self) -> None:
         if self._tokens_sent or not self.usage_id:

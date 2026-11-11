@@ -158,3 +158,41 @@ async def test_all_models_limited_reports_when_to_retry(models):
     assert result.error is not None
     assert "reached its usage limit" in result.error
     assert "about 1 minute" in result.error
+
+
+@pytest.mark.asyncio
+async def test_server_error_model_hands_over_and_stays_skipped(models, monkeypatch):
+    from types import SimpleNamespace
+
+    from langchain_google_genai.chat_models import ServerError
+
+    clock = SimpleNamespace(t=1000.0)
+    monkeypatch.setattr(default_model_router, "_clock", lambda: clock.t)
+
+    server_err = ServerError(503, {"error": "model overloaded"})
+    models({"m1": _Model(error=server_err), "m2": _Model(["Answer from m2."])})
+
+    first = await answer_node(_state())
+    assert (first.response, first.model, first.error) == ("Answer from m2.", "m2", None)
+    assert default_model_router.candidates() == ["m2"]
+
+    # Advance clock by 31s: m1 is back
+    clock.t = 1031.0
+    assert default_model_router.candidates() == ["m1", "m2"]
+
+
+@pytest.mark.asyncio
+async def test_no_switch_after_text_reached_the_client_on_server_error(models):
+    from langchain_google_genai.chat_models import ServerError
+
+    server_err = ServerError(500, {"error": "internal error"})
+    fakes = models({"m1": _Model(["Partial "], error=server_err), "m2": _Model(["Never used."])})
+    sent: list[str] = []
+
+    async def on_token(text: str) -> None:
+        sent.append(text)
+
+    result = await answer_node(_state(), {"configurable": {"on_token": on_token}})
+    assert sent == ["Partial "]
+    assert result.error and result.response == ""
+    assert fakes["m2"].calls == 0

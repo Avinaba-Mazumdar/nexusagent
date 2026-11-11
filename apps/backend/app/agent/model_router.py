@@ -7,7 +7,8 @@ are exhausted and until when, so later requests skip them instead of paying for 
 
 - per-minute limits: cool down for the ``retryDelay`` Google returns (60 s if it sends none);
 - per-day limits: cool down until the quota resets at midnight Pacific time;
-- unknown or inaccessible models (404/403): skip for a day.
+- unknown or inaccessible models (404/403): skip for a day;
+- server errors (5xx) or timeouts: skip for 30 s.
 
 State is per process; the API runs as a single worker (see README).
 """
@@ -25,6 +26,7 @@ logger = logging.getLogger("nexusagent.agent.model_router")
 PACIFIC = ZoneInfo("America/Los_Angeles")
 DEFAULT_COOLDOWN_SECONDS = 60.0
 UNAVAILABLE_COOLDOWN_SECONDS = 24 * 3600.0
+OVERLOADED_COOLDOWN_SECONDS = 30.0
 
 _RETRY_DELAY = re.compile(r"""['"]retryDelay['"]\s*:\s*['"](\d+(?:\.\d+)?)s['"]""")
 _RETRY_IN = re.compile(r"retry in (\d+(?:\.\d+)?)\s*s", re.IGNORECASE)
@@ -82,6 +84,14 @@ class ModelRouter:
     def mark_unavailable(self, model: str) -> None:
         self._cooling_until[model] = self._clock() + UNAVAILABLE_COOLDOWN_SECONDS
         logger.warning("Gemini model %s is not available to this API key; skipping it", model)
+
+    def mark_overloaded(self, model: str) -> None:
+        self._cooling_until[model] = self._clock() + OVERLOADED_COOLDOWN_SECONDS
+        logger.warning(
+            "Gemini model %s returned a server error; skipping it for %.0f s",
+            model,
+            OVERLOADED_COOLDOWN_SECONDS,
+        )
 
     def next_available_at(self) -> float | None:
         """Unix time at which the soonest cooling model becomes usable again."""

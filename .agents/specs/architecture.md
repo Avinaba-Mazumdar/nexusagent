@@ -89,7 +89,7 @@ Dense vector search (`pgvector` cosine similarity) and sparse keyword search (`t
 FastMCP Streamable HTTP server mounted at `/mcp` (e.g. `https://nexusagent.onrender.com/mcp` in production, or `http://localhost:8000/mcp` locally):
 
 - Stateless HTTP mode with JSON response formatting.
-- Rate-limited to 60 requests/minute per client IP via `SlidingWindowCounter`.
+- Rate-limited to 60 requests/minute per client IP via `SlidingWindowCounter`. All MCP clients together are limited to 120 requests per minute.
 - Two tools following ChatGPT / Claude standard connector specifications:
     - `search(query: str) -> dict`: Searches the benchmark knowledge base and returns up to 8 matching passages with `id`, `title`, and `url`.
     - `fetch(id: str) -> dict`: Retrieves the full text and metadata of a specific passage by `document_id:chunk_id`.

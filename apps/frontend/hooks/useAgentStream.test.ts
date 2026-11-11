@@ -240,4 +240,27 @@ describe('useAgentStream Hook', () => {
         });
         expect(logs.map((entry) => entry.message)).toContain('Calling hybrid_rag_search over the selected document (top 5)');
     });
+
+    it('calls onQuota when a done frame carries quotaRemaining', async () => {
+        const onQuotaMock = vi.fn();
+        const encoder = new TextEncoder();
+        const body = [
+            'event: start\ndata: {"sessionId": "s1", "quotaRemaining": 3}\n\n',
+            'event: token\ndata: {"token": "Refused"}\n\n',
+            'event: done\ndata: {"sessionId": "s1", "quotaRemaining": 4, "grounding": "none", "isComplete": true}\n\n'
+        ].join('');
+        const mockStream = new ReadableStream({
+            pull(controller) {
+                controller.enqueue(encoder.encode(body));
+                controller.close();
+            }
+        });
+        global.fetch = vi.fn().mockResolvedValue({ ok: true, body: mockStream, status: 200 } as unknown as Response);
+
+        const { result } = renderHook(() => useAgentStream({ onQuota: onQuotaMock }));
+        await act(async () => {
+            await result.current.startStream({ query: 'refuse me' });
+        });
+        expect(onQuotaMock).toHaveBeenCalledWith(4);
+    });
 });

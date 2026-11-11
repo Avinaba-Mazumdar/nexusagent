@@ -24,6 +24,7 @@ from langchain_google_genai.chat_models import (
     GoogleModelNotFoundError,
     GooglePermissionDeniedError,
     GoogleRateLimitError,
+    ServerError,
 )
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel
@@ -114,7 +115,14 @@ default_model_router = ModelRouter(settings.GEMINI_MODELS)
 @functools.lru_cache(maxsize=32)
 def _get_llm(api_key: str, model: str):
     # One attempt per model: on a 429 the router moves on instead of backing off on the same model.
-    return ChatGoogleGenerativeAI(model=model, temperature=0.1, api_key=api_key, max_retries=1)
+    return ChatGoogleGenerativeAI(
+        model=model,
+        temperature=0.1,
+        api_key=api_key,
+        max_retries=1,
+        timeout=settings.LLM_TIMEOUT_SECONDS,
+        max_output_tokens=settings.LLM_MAX_OUTPUT_TOKENS,
+    )
 
 
 class AllModelsRateLimited(Exception):
@@ -185,6 +193,10 @@ async def call_with_routing(
             if forwarded:
                 raise
             router.mark_unavailable(model)
+        except ServerError, TimeoutError:
+            if forwarded:
+                raise
+            router.mark_overloaded(model)
     raise AllModelsRateLimited(router.next_available_at())
 
 
@@ -358,6 +370,8 @@ async def chat_node(state: AgentState, config: RunnableConfig | None = None) -> 
             duration_ms = max(int((time.perf_counter() - started) * 1000), 1)
             return merged
         except GoogleRateLimitError:
+            raise
+        except ServerError:
             raise
         except Exception as exc:
             if forwarded_here:

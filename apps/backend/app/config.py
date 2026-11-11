@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     GUEST_QUOTA_DEFAULT: int = 5
     USER_QUOTA_DEFAULT: int = 25
     CHAT_HISTORY_MESSAGES: int = 6
+    LLM_TIMEOUT_SECONDS: float = 45.0
+    # Includes "thinking" tokens on models that think. Too low truncates answers; raise it if answers are cut off.
+    LLM_MAX_OUTPUT_TOKENS: int = 2048
     MAX_CHUNKS_PER_DOCUMENT: int = 400
     # Request-body caps enforced before parsing/auth: 5 MB file + multipart overhead, and a small cap elsewhere.
     MAX_UPLOAD_REQUEST_BYTES: int = 5 * 1024 * 1024 + 16 * 1024

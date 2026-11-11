@@ -153,3 +153,29 @@ def test_production_refuses_zero_trusted_proxy_hops():
             GOOGLE_CLIENT_ID="client",
             TRUSTED_PROXY_HOPS=0,
         )
+
+
+@pytest.mark.asyncio
+async def test_security_headers_middleware_hsts():
+    from starlette.applications import Starlette
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+
+    from app.core.security_headers import SecurityHeadersMiddleware
+
+    async def endpoint(request):
+        return PlainTextResponse("ok")
+
+    raw_app = Starlette(routes=[Route("/", endpoint)])
+    app_with_hsts = SecurityHeadersMiddleware(raw_app, hsts=True)
+    app_without_hsts = SecurityHeadersMiddleware(raw_app, hsts=False)
+
+    async with AsyncClient(transport=ASGITransport(app=app_with_hsts), base_url="http://test") as c:
+        res = await c.get("/")
+        assert res.headers["strict-transport-security"] == "max-age=31536000"
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app_without_hsts), base_url="http://test"
+    ) as c:
+        res = await c.get("/")
+        assert "strict-transport-security" not in res.headers

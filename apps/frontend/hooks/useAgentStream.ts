@@ -249,6 +249,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
                                     break;
 
                                 case 'done': {
+                                    if (typeof data.quotaRemaining === 'number') options?.onQuota?.(data.quotaRemaining);
                                     finalDonePayload = data as AgentInvokeResponse;
                                     if (data.plan !== undefined) setPlan(data.plan);
                                     if (data.citations !== undefined) setCitations(data.citations);

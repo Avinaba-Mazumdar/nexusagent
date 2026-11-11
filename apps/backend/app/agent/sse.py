@@ -98,7 +98,13 @@ def usage_frames(session_id: str, state: AgentState, already_sent: int = 0) -> l
     return frames
 
 
-def done_frame(session_id: str, conversation_id: str | None, query: str, state: AgentState) -> str:
+def done_frame(
+    session_id: str,
+    conversation_id: str | None,
+    query: str,
+    state: AgentState,
+    quota_remaining: int | None = None,
+) -> str:
     return format_sse(
         "done",
         AgentDoneEventWire(
@@ -114,6 +120,7 @@ def done_frame(session_id: str, conversation_id: str | None, query: str, state: 
             webSources=[WebSourceWire(title=s.title, url=s.url) for s in state.web_sources],
             grounding=state.grounding,
             model=state.model,
+            quotaRemaining=quota_remaining,
             isComplete=True,
             completedAt=state.completed_at.isoformat() if state.completed_at else None,
         ),

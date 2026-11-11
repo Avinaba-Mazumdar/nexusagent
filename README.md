@@ -27,7 +27,7 @@ NexusAgent brings together modern agentic and information retrieval libraries in
 
 - **Guest Users**: 5 chats per rolling 24-hour window, enforced atomically across guest UUID, local device hash, machine hash, and client IP address.
 - **Google Users**: 25 chats per rolling 24-hour window, keyed by user account, with persistent cross-device conversation history.
-- **Unmetered Refusals**: Queries over 60 words, containing code, or outside scope (news, tutorials, code generation) are refused instantly without consuming user quota.
+- **Unmetered Refusals**: Queries over 60 words, containing code, or outside scope (news, tutorials, code generation) are refused instantly without consuming user quota. Refunds for out-of-scope questions are limited to 10 per user per hour.
 
 ### Administrator Privileges
 

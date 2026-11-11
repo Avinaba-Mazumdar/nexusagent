@@ -333,6 +333,7 @@ class AgentDoneEventWire(BaseModel):
     webSources: list[WebSourceWire] = []
     grounding: Literal["grounded", "weak", "none"]
     model: str | None = None
+    quotaRemaining: int | None = None
     isComplete: bool
     completedAt: str | None = None
 

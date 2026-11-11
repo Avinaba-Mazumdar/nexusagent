@@ -70,13 +70,16 @@ app = FastAPI(
 
 MCP_PATH = "/mcp"
 mcp_rate_limiter = SlidingWindowCounter(limit=60, window=timedelta(minutes=1))
+# One ceiling for all MCP clients together, so the public endpoint cannot use up the embedding quota.
+MCP_GLOBAL_PER_MINUTE = 120
+mcp_global_limiter = SlidingWindowCounter(limit=MCP_GLOBAL_PER_MINUTE, window=timedelta(minutes=1))
 
 
 @app.middleware("http")
 async def mcp_rate_limit_middleware(request: Request, call_next):
     if request.url.path.rstrip("/") == MCP_PATH:
         client_ip = get_client_ip(request)
-        if not mcp_rate_limiter.hit(client_ip):
+        if not mcp_rate_limiter.hit(client_ip) or not mcp_global_limiter.hit("all"):
             return JSONResponse(
                 status_code=429,
                 content={"detail": "MCP rate limit exceeded."},
@@ -92,7 +95,7 @@ app.add_middleware(
     default_limit=settings.MAX_JSON_REQUEST_BYTES,
 )
 
-app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(SecurityHeadersMiddleware, hsts=not settings.is_dev)
 
 # Hardened CORS configuration: explicit origins from settings, restrictive methods and headers
 app.add_middleware(

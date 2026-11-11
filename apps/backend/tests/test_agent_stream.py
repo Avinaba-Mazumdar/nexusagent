@@ -181,8 +181,8 @@ async def test_router_benchmark_runs_retriever_grounding_answer(stream_client, f
 
 
 @pytest.mark.asyncio
-async def test_router_refuse_meters_quota_and_streams_refusal(stream_client, fake_llm):
-    """Router refusing an off-topic query (e.g. news) still meters quota and streams REFUSAL."""
+async def test_router_refusal_is_refunded_and_streams_refusal(stream_client, fake_llm):
+    """Router refusing an off-topic query (e.g. news) refunds quota and streams REFUSAL."""
     fake_llm(structured_route="refuse")
     client, _user, db = stream_client
 
@@ -192,7 +192,25 @@ async def test_router_refuse_meters_quota_and_streams_refusal(stream_client, fak
     events = _parse_sse(res.text)
     tokens = [d["token"] for n, d in events if n == "token"]
     assert "".join(tokens) == REFUSAL
-    assert len(db.rows) == 1  # metered
+    assert len(db.rows) == 0  # refunded
+    done = next(d for n, d in events if n == "done")
+    assert done["quotaRemaining"] == 5
+
+
+@pytest.mark.asyncio
+async def test_router_refusal_refund_is_capped(stream_client, fake_llm, monkeypatch):
+    """Refunds for router refusals are capped at FREE_REFUSALS_PER_USER_PER_HOUR (10)."""
+    fake_llm(structured_route="refuse")
+    client, _user, db = stream_client
+    monkeypatch.setattr("app.routes.agent.settings.GUEST_QUOTA_DEFAULT", 50)
+
+    async with client:
+        for _ in range(11):
+            res = await client.post("/api/agent/stream", json={"query": "latest breaking news"})
+            assert res.status_code == 200
+
+    # 10 were refunded, the 11th was not
+    assert len(db.rows) == 1
 
 
 @pytest.mark.asyncio

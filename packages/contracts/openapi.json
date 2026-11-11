@@ -83,6 +83,18 @@
                         "title": "Query",
                         "type": "string"
                     },
+                    "quotaRemaining": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": null,
+                        "title": "Quotaremaining"
+                    },
                     "sessionId": {
                         "title": "Sessionid",
                         "type": "string"

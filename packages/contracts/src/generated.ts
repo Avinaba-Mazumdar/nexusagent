@@ -376,6 +376,11 @@ export interface components {
             plan: components['schemas']['PlanStepWire'][];
             /** Query */
             query: string;
+            /**
+             * Quotaremaining
+             * @default null
+             */
+            quotaRemaining: number | null;
             /** Sessionid */
             sessionId: string;
             /**

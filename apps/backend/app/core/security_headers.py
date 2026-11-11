@@ -7,10 +7,11 @@ AUTH_PATH_PREFIX = "/api/auth/"
 
 
 class SecurityHeadersMiddleware:
-    """Pure-ASGI middleware: ``nosniff`` and ``no-referrer`` everywhere, ``no-store`` on auth responses."""
+    """Pure-ASGI middleware: ``nosniff`` and ``no-referrer`` everywhere, ``no-store`` on auth responses, optional HSTS."""
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, hsts: bool = False) -> None:
         self.app = app
+        self.hsts = hsts
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -24,6 +25,8 @@ class SecurityHeadersMiddleware:
                 headers = MutableHeaders(scope=message)
                 headers["X-Content-Type-Options"] = "nosniff"
                 headers["Referrer-Policy"] = "no-referrer"
+                if self.hsts:
+                    headers["Strict-Transport-Security"] = "max-age=31536000"
                 if no_store:
                     headers["Cache-Control"] = "no-store"
             await send(message)

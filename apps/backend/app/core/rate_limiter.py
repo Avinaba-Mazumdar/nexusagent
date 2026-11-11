@@ -54,6 +54,9 @@ class SlidingWindowCounter:
 guest_signup_limiter = SlidingWindowCounter(limit=settings.GUEST_SIGNUPS_PER_IP_PER_HOUR)
 google_auth_limiter = SlidingWindowCounter(limit=settings.GOOGLE_AUTH_PER_IP_PER_HOUR)
 refresh_limiter = SlidingWindowCounter(limit=settings.REFRESH_PER_IP_PER_HOUR)
+# A refused question is refunded, but only this many times per user per hour.
+FREE_REFUSALS_PER_USER_PER_HOUR = 10
+refusal_refund_limiter = SlidingWindowCounter(limit=FREE_REFUSALS_PER_USER_PER_HOUR)
 
 
 def enforce_ip_limit(counter: SlidingWindowCounter, client_ip: str) -> None:
@@ -128,6 +131,7 @@ class ChatQuota:
         guest_signup_limiter.reset_for_test()
         google_auth_limiter.reset_for_test()
         refresh_limiter.reset_for_test()
+        refusal_refund_limiter.reset_for_test()
 
 
 default_chat_quota = ChatQuota(db=neon_db)

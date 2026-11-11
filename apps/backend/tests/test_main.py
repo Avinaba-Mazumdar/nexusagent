@@ -163,3 +163,23 @@ def test_mcp_rate_limiter_window_and_limit():
         assert mcp_rate_limiter.hit(ip) is False
     finally:
         mcp_rate_limiter.reset_for_test()
+
+
+def test_mcp_global_rate_limiter():
+    from app.main import mcp_global_limiter, mcp_rate_limiter
+
+    mcp_rate_limiter.reset_for_test()
+    mcp_global_limiter.reset_for_test()
+    try:
+
+        def check_allowed(ip: str) -> bool:
+            return mcp_rate_limiter.hit(ip) and mcp_global_limiter.hit("all")
+
+        for i in range(120):
+            ip = f"198.51.100.{i}"
+            assert check_allowed(ip) is True
+
+        assert check_allowed("203.0.113.254") is False
+    finally:
+        mcp_rate_limiter.reset_for_test()
+        mcp_global_limiter.reset_for_test()
