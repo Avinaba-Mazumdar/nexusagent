@@ -70,15 +70,17 @@
 - [x] Disclosed machine ID hashing and IP quota tracking in Privacy Policy
 - [x] System Architecture and Active Board updated
 
-### Phase 9: Bounded Tool-Calling Agent [Done]
+### Phase 9: Bounded Tool-Calling Agent [Partial]
 
-- [x] Refactored LangGraph agent DAG to bounded tool-calling loop: `router -> refuse | chat | preload -> agent <-> tools`
-- [x] Initial benchmark passages preloaded in `preload_node`, self-healing in direct `agent_node` calls
-- [x] Extracted LLM routing & streaming to `apps/backend/app/agent/llm.py` and tools to `apps/backend/app/agent/tools.py`
-- [x] Bounded loop safeguards: maximum 2 tool rounds, maximum 2 tool calls per round
-- [x] Untrusted tool output wrapping in `<untrusted_tool_output>` XML boundaries with tag stripping
-- [x] Citation validation: reports missing labels in `invalid_citations` and sets `uncited: true` when model cites no sources
-- [x] Frontend observability panel and stream hook updated with `preload`, `agent`, and `tools` nodes, web search badges, and uncited warnings
+Open until: R1 to R8 in roadmap.md are done, the database tests pass on the Neon test branch, and H8 is done.
+
+- [ ] Refactored LangGraph agent DAG to bounded tool-calling loop: `router -> refuse | chat | preload -> agent <-> tools`
+- [ ] Initial benchmark passages preloaded in `preload_node`
+- [ ] Extracted LLM routing & streaming to `apps/backend/app/agent/llm.py` and tools to `apps/backend/app/agent/tools.py`
+- [ ] Bounded loop safeguards: maximum 2 tool rounds, maximum 2 tool calls per round
+- [ ] Untrusted tool output wrapping in `<untrusted_tool_output>` XML boundaries with tag stripping
+- [ ] Citation validation: reports missing labels in `invalid_citations` and sets `uncited: true` when the model cites no sources and used no web sources
+- [ ] Frontend observability panel and stream hook updated with `preload`, `agent`, and `tools` nodes, web search badges, and uncited warnings
 
 ### Phase 10: Security Audit
 

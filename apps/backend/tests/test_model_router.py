@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from langchain_google_genai.chat_models import GoogleModelNotFoundError, GoogleRateLimitError
 
-from app.agent.graph import answer_node, default_model_router
+from app.agent.graph import answer_node, build_agent_messages, default_model_router
 from app.agent.model_router import PACIFIC, ModelRouter, rate_limit_cooldown
 from app.agent.state import AgentState
 
@@ -117,7 +117,9 @@ def models(monkeypatch):
 
 
 def _state() -> AgentState:
-    return AgentState(query="Explain Raft quorum", user_id=uuid4(), intent="benchmark")
+    state = AgentState(query="Explain Raft quorum", user_id=uuid4(), intent="benchmark")
+    build_agent_messages(state, "")
+    return state
 
 
 @pytest.mark.asyncio
@@ -162,6 +164,21 @@ async def test_server_error_model_hands_over_and_stays_skipped(models):
     from langchain_google_genai.chat_models import ServerError
 
     fakes = models({"m1": _Model(error=ServerError(500, {})), "m2": _Model(["Answer from m2."])})
+    first = await answer_node(_state())
+    assert (first.response, first.model, first.error) == ("Answer from m2.", "m2", None)
+
+    second = await answer_node(_state())
+    assert second.model == "m2"
+    assert fakes["m1"].calls == 1
+
+
+@pytest.mark.asyncio
+async def test_timed_out_model_hands_over_and_stays_skipped(models):
+    import httpx
+
+    fakes = models(
+        {"m1": _Model(error=httpx.ReadTimeout("timed out")), "m2": _Model(["Answer from m2."])}
+    )
     first = await answer_node(_state())
     assert (first.response, first.model, first.error) == ("Answer from m2.", "m2", None)
 

@@ -97,8 +97,16 @@ async def test_code_fence_prefilter_is_free(stream_client):
 
 
 @pytest.mark.asyncio
-async def test_router_smalltalk_runs_chat_and_emits_web_sources(stream_client, fake_llm):
+async def test_router_smalltalk_runs_chat_and_emits_web_sources(
+    stream_client, fake_llm, monkeypatch
+):
     """Router smalltalk route runs chat node, skips retrieval, and yields web sources."""
+    audit_calls = []
+
+    async def fake_log_tool_audit(**kwargs):
+        audit_calls.append(kwargs)
+
+    monkeypatch.setattr("app.agent.graph.default_audit_logger.log_tool_audit", fake_log_tool_audit)
     fake_llm(
         ["It's sunny in Bengaluru right now."],
         structured_route="smalltalk",
@@ -138,6 +146,8 @@ async def test_router_smalltalk_runs_chat_and_emits_web_sources(stream_client, f
     # Done frame has webSources
     done = events[-1][1]
     assert len(done["webSources"]) == 1
+
+    assert [c["tool_name"] for c in audit_calls] == ["google_search"]
     assert done["webSources"][0]["url"] == "https://weather.com/blr"
     assert len(db.rows) == 1  # 1 chat quota used
 

@@ -35,6 +35,8 @@ export interface ChatCanvasProps {
 }
 
 const NODE_STATUS: Record<string, string> = {
+    router: 'Understanding the question…',
+    chat: 'Writing answer…',
     preload: 'Searching sources…',
     agent: 'Writing answer…',
     tools: 'Using tools…'
@@ -188,7 +190,7 @@ export function ChatCanvas({
                                             ) : (
                                                 <div className="flex items-center gap-1.5 text-muted-foreground">
                                                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                                                    <span>{NODE_STATUS[currentNode ?? 'preload'] ?? 'Working…'}</span>
+                                                    <span>{NODE_STATUS[currentNode ?? 'router'] ?? 'Working…'}</span>
                                                 </div>
                                             )
                                         ) : msg.error ? (

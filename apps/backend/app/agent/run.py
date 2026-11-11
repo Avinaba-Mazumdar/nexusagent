@@ -5,7 +5,7 @@ import logging
 from collections.abc import AsyncIterator
 from uuid import UUID
 
-from app.agent.graph import AgentGraph, next_node
+from app.agent.graph import MAX_TOOL_CALLS_PER_ROUND, AgentGraph, next_node
 from app.agent.sse import (
     done_frame,
     error_frame,
@@ -154,7 +154,7 @@ class AgentRun:
                 )
             )
         elif upcoming == "tools":
-            for call in state.pending_tool_calls:
+            for call in state.pending_tool_calls[:MAX_TOOL_CALLS_PER_ROUND]:
                 name = call.get("name", "")
                 if name in TOOL_ARGS:
                     self._send(tool_call_frame(self.session_id, name, call.get("args") or {}))

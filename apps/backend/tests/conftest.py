@@ -178,6 +178,22 @@ class FakeChunk(AIMessageChunk):
         )
 
 
+def _check_tool_replies(messages) -> None:
+    """Gemini rejects a request whose function responses do not match its function calls."""
+    msgs = list(messages or [])
+    for i, msg in enumerate(msgs):
+        calls = getattr(msg, "tool_calls", None) or []
+        if getattr(msg, "type", "") != "ai" or not calls:
+            continue
+        replies = set()
+        for follower in msgs[i + 1 :]:
+            if getattr(follower, "type", "") != "tool":
+                break
+            replies.add(follower.tool_call_id)
+        if replies != {c.get("id") for c in calls}:
+            raise ValueError("function responses do not match function calls")
+
+
 class FakeChain:
     """Stand-in for the Gemini chain: ``astream`` yields the given text pieces or scripted turns as chunks,
     and supports ``with_structured_output`` and ``bind_tools``."""
@@ -237,6 +253,7 @@ class FakeChain:
         return StructuredOutputWrapper()
 
     async def ainvoke(self, messages):
+        _check_tool_replies(messages)
         self.calls.append(messages)
         return FakeChunk(
             content="".join(self.pieces),
@@ -245,6 +262,7 @@ class FakeChain:
         )
 
     async def astream(self, messages):
+        _check_tool_replies(messages)
         self.calls.append(messages)
         if self.script is not None:
             if not self.script:

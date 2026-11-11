@@ -449,6 +449,23 @@ def update_grounding(state: AgentState) -> None:
         state.grounding_feedback = f"{count} sources retrieved, but none is a close semantic match."
 
 
+def build_agent_messages(state: AgentState, context: str) -> None:
+    """Build the agent's opening prompt: system prompt, history, query and wrapped passages."""
+    system = AGENT_PROMPT + (NO_SOURCES_NOTE if state.grounding == "none" else "")
+    messages: list[BaseMessage] = [SystemMessage(content=system)]
+    for turn in state.chat_history:
+        role = turn.get("role")
+        content = turn.get("content", "").strip()
+        if not content:
+            continue
+        if role in {"assistant", "model"}:
+            messages.append(AIMessage(content=content))
+        else:
+            messages.append(HumanMessage(content=content))
+    messages.append(HumanMessage(content=f"{state.query}\n\nPassages:\n{context}"))
+    state.agent_messages = messages
+
+
 async def preload_node(
     state: AgentState, search_engine: HybridSearchEngine | None = None
 ) -> AgentState:
@@ -483,19 +500,7 @@ async def preload_node(
         conversation_id=state.conversation_id,
     )
 
-    system = AGENT_PROMPT + (NO_SOURCES_NOTE if state.grounding == "none" else "")
-    messages: list[BaseMessage] = [SystemMessage(content=system)]
-    for turn in state.chat_history:
-        role = turn.get("role")
-        content = turn.get("content", "").strip()
-        if not content:
-            continue
-        if role in {"assistant", "model"}:
-            messages.append(AIMessage(content=content))
-        else:
-            messages.append(HumanMessage(content=content))
-    messages.append(HumanMessage(content=f"{state.query}\n\nPassages:\n{context}"))
-    state.agent_messages = messages
+    build_agent_messages(state, context)
 
     if state.plan:
         state.plan[0].status = "completed"
@@ -514,32 +519,8 @@ async def agent_node(
     state.node_history.append("agent")
     state.current_node = "agent"
 
-    # Self-heal messages if agent_node was called directly without preload
     if not state.agent_messages:
-        context_parts = [
-            wrap_untrusted_context(
-                content=c.content.strip()[:MAX_CHUNK_CHARS_IN_PROMPT],
-                filename=c.filename,
-                page=c.page,
-                doc_id=c.document_id,
-                label=source_label(i),
-            )
-            for i, c in enumerate(state.retrieved_chunks, start=1)
-        ]
-        context = "\n\n".join(context_parts)
-        system = AGENT_PROMPT + (NO_SOURCES_NOTE if state.grounding == "none" else "")
-        messages: list[BaseMessage] = [SystemMessage(content=system)]
-        for turn in state.chat_history:
-            role = turn.get("role")
-            content = turn.get("content", "").strip()
-            if not content:
-                continue
-            if role in {"assistant", "model"}:
-                messages.append(AIMessage(content=content))
-            else:
-                messages.append(HumanMessage(content=content))
-        messages.append(HumanMessage(content=f"{state.query}\n\nPassages:\n{context}"))
-        state.agent_messages = messages
+        raise RuntimeError("agent_node requires preload_node to run first")
 
     allow_tools = state.tool_rounds < MAX_TOOL_ROUNDS
     token_sink = (config.get("configurable", {}) if config else {}).get("token_sink") or (
@@ -593,7 +574,7 @@ async def agent_node(
     calls = list(getattr(merged, "tool_calls", None) or [])
 
     if calls and allow_tools:
-        state.pending_tool_calls = calls[:MAX_TOOL_CALLS_PER_ROUND]
+        state.pending_tool_calls = calls
         state.tool_rounds += 1
         return state
 
@@ -603,7 +584,7 @@ async def agent_node(
     # Citation checking (C4)
     if state.response and state.citations:
         state.invalid_citations, has_valid = citation_report(state.response, state.citations)
-        state.uncited = not has_valid
+        state.uncited = not has_valid and not state.web_sources
         if state.invalid_citations or state.uncited:
             logger.warning(
                 "Citation check for session %s: invalid=%s uncited=%s",
@@ -688,7 +669,17 @@ async def tools_node(
     state.current_node = "tools"
     engine = search_engine or default_hybrid_search_engine
 
-    for call in state.pending_tool_calls:
+    for index, call in enumerate(state.pending_tool_calls):
+        if index >= MAX_TOOL_CALLS_PER_ROUND:
+            # Over the cap: not executed, but Gemini still needs one reply per call.
+            state.agent_messages.append(
+                ToolMessage(
+                    content="Skipped: at most 2 tool calls per round.",
+                    tool_call_id=call.get("id") or "",
+                    name=call.get("name") or "unknown",
+                )
+            )
+            continue
         name, call_id = call.get("name", ""), call.get("id") or ""
         args_model = TOOL_ARGS.get(name)
         started = time.perf_counter()
@@ -841,6 +832,7 @@ __all__ = [
     "_get_llm",
     "agent_node",
     "answer_node",
+    "build_agent_messages",
     "chat_node",
     "default_agent_graph",
     "default_model_router",

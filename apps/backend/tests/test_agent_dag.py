@@ -278,6 +278,8 @@ async def test_scenario_3_web_search_tool_call_then_answers(fake_llm, monkeypatc
     assert final_state.is_complete is True
     assert len(final_state.web_sources) == 1
     assert final_state.web_sources[0].url == "https://cursorbench.com/lead"
+    # Answer cites no [S<n>] label but rests on web sources: not flagged as uncited.
+    assert final_state.uncited is False
 
     tool_msgs = [m for m in final_state.agent_messages if getattr(m, "type", "") == "tool"]
     assert len(tool_msgs) == 1
@@ -346,7 +348,7 @@ async def test_scenario_4_tool_rounds_bounded_at_two(fake_llm):
 
 @pytest.mark.asyncio
 async def test_scenario_5_max_tools_per_round_capped(fake_llm):
-    """When model yields 3 tools in one round, only the first 2 are executed."""
+    """When model yields 3 tools in one round, only the first 2 run; the third gets a skip reply."""
     fake_llm(
         structured_route="benchmark",
         script=[
@@ -368,8 +370,9 @@ async def test_scenario_5_max_tools_per_round_capped(fake_llm):
     assert final_state.is_complete is True
     assert len(final_state.tool_events) == 3  # 1 preload + 2 executed tool calls
     tool_msgs = [m for m in final_state.agent_messages if getattr(m, "type", "") == "tool"]
-    assert len(tool_msgs) == 2
-    assert [m.tool_call_id for m in tool_msgs] == ["c1", "c2"]
+    assert len(tool_msgs) == 3
+    assert tool_msgs[2].content == "Skipped: at most 2 tool calls per round."
+    assert {m.tool_call_id for m in tool_msgs} == {"c1", "c2", "c3"}
 
 
 # ---------------------------------------------------------------------------

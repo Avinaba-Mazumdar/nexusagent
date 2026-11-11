@@ -155,6 +155,7 @@ async def test_persist_turn_saves_web_sources():
         reflection = messages[1]["reflectionSummary"]
         assert reflection is not None
         assert "webSources" in reflection
+        assert "uncited" in reflection
         assert len(reflection["webSources"]) == 1
         assert reflection["webSources"][0]["url"] == "https://weather.example/tokyo"
         assert reflection["webSources"][0]["title"] == "Tokyo Weather"

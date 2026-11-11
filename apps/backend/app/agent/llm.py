@@ -6,6 +6,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+import httpx
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_genai.chat_models import (
@@ -104,7 +105,7 @@ async def call_with_routing(
             if forwarded:
                 raise
             router.mark_unavailable(model)
-        except ServerError, TimeoutError:
+        except ServerError, TimeoutError, httpx.TimeoutException:
             if forwarded:
                 raise
             router.mark_overloaded(model)

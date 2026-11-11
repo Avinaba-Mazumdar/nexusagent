@@ -20,15 +20,17 @@ vi.mock('@/hooks/useAgentStream', () => ({
     })
 }));
 
-function doneResult(sessionId: string | null) {
+function doneResult(conversationId: string | null) {
     return {
+        sessionId: 'session-1',
+        conversationId,
         response: 'Raft consensus answer',
         plan: [],
         citations: [],
         webSources: [],
+        injectionWarnings: [],
         grounding: 'grounded' as const,
-        nodeHistory: [],
-        sessionId
+        nodeHistory: []
     };
 }
 
@@ -68,6 +70,7 @@ describe('Home page - saving a Google user turn (R2-LOG-07)', () => {
         startStream.mockResolvedValue(doneResult('session-1'));
         await ask();
 
+        await screen.findByText('Raft consensus answer');
         expect(screen.queryByText(/could not be saved to your history/i)).not.toBeInTheDocument();
     });
 });

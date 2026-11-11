@@ -25,7 +25,7 @@ from tests.conftest import FakeUsageDb
 
 @pytest.mark.asyncio
 async def test_answer_prompt_wraps_untrusted_context(fake_llm):
-    from app.agent.graph import answer_node
+    from app.agent.graph import add_chunks, answer_node, build_agent_messages
     from app.agent.state import AgentState
     from app.rag.hybrid_search import HybridSearchResult
 
@@ -39,9 +39,8 @@ async def test_answer_prompt_wraps_untrusted_context(fake_llm):
         page=1,
     )
     chain = fake_llm(["Verified response."])
-    state = AgentState(
-        query="benchmark query for models", intent="benchmark", retrieved_chunks=[chunk]
-    )
+    state = AgentState(query="benchmark query for models", intent="benchmark")
+    build_agent_messages(state, add_chunks(state, [chunk]))
 
     res_state = await answer_node(state)
 

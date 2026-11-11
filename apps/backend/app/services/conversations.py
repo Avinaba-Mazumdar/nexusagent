@@ -38,6 +38,7 @@ async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentS
                 "webSources": [
                     WebSourceWire(title=s.title, url=s.url).model_dump() for s in state.web_sources
                 ],
+                "uncited": state.uncited,
             },
         )
         return str(conv["id"])
