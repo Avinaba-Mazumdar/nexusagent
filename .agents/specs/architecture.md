@@ -24,13 +24,13 @@ Browser (Next.js 16)                         FastAPI backend                    
 
 ## 2. Stack
 
-| Layer    | Technology                                                                                                                                                      |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Frontend | Next.js 16 (App Router, React 19, React Compiler), TypeScript, Tailwind CSS v4, shadcn/ui primitives, Zustand, react-markdown                                   |
-| Backend  | Python 3.14, FastAPI, asyncpg, LangGraph, LangChain Google GenAI, LlamaIndex, official `mcp` Python SDK (`MCPServer`)                                           |
-| Data     | Neon PostgreSQL 18: `pgvector` (HNSW, cosine distance) and `tsvector` (GIN)                                                                                     |
-| Models   | Chat: `GEMINI_MODELS` (free-tier text models, `gemini-3.8-flash` first; failover on 429). Embeddings: `EMBEDDING_MODEL` (default `gemini-embedding-001`, 768-d) |
-| Monorepo | pnpm workspaces + Vite+ (`vp`: oxlint, oxfmt, task runner); `uv` for Python                                                                                     |
+| Layer    | Technology                                                                                                                                                           |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend | Next.js 16 (App Router, React 19, React Compiler), TypeScript, Tailwind CSS v4, shadcn/ui primitives, Zustand, react-markdown                                        |
+| Backend  | Python 3.14, FastAPI, asyncpg, LangGraph, LangChain Google GenAI, LlamaIndex, official `mcp` Python SDK (`MCPServer`)                                                |
+| Data     | Neon PostgreSQL 18: `pgvector` (HNSW, cosine distance) and `tsvector` (GIN)                                                                                          |
+| Models   | Chat: `TEXT_MODELS` (`GEMINI_MODELS` best-first, then hosted `GEMMA_MODELS`; failover on 429). Embeddings: `EMBEDDING_MODEL` (default `gemini-embedding-001`, 768-d) |
+| Monorepo | pnpm workspaces + Vite+ (`vp`: oxlint, oxfmt, task runner); `uv` for Python                                                                                          |
 
 ---
 
@@ -128,15 +128,15 @@ Official `mcp` Python SDK (`MCPServer`) Streamable HTTP server mounted at `/mcp`
 
 ### 6.2 OWASP Top 10 for Agentic Applications
 
-| ID    | Risk                                 | Control in this project                                                                                                                                                                           |
-| :---- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| ASI01 | Agent Goal Hijack                    | The router pre-determines intent before reference passages are read, prompt-data boundaries are strictly enforced, and tool execution is bounded to a maximum of 2 rounds.                        |
-| ASI02 | Tool Misuse and Exploitation         | All tools are read-only, arguments are strictly validated against Pydantic schemas, and every invocation writes an immutable record to `tool_audit_logs`.                                         |
-| ASI03 | Identity and Privilege Abuse         | The agent possesses no privileged runtime credentials, admin status is enforced in the database, and user sessions are cryptographically signed.                                                  |
-| ASI04 | Agentic Supply Chain Vulnerabilities | NexusAgent operates solely as an MCP server with internal tool registries and loads no remote or third-party MCP tools.                                                                           |
-| ASI05 | Unexpected Code Execution            | The application executes no user- or model-supplied code via `exec`, `eval`, or subprocesses.                                                                                                     |
-| ASI06 | Memory and Context Poisoning         | The knowledge base is admin-managed, guest chats maintain no cross-session state, and persistent chat history is accessible only by the owning authenticated user.                                |
-| ASI07 | Insecure Inter-Agent Communication   | The public MCP server is strictly read-only, provides stateless HTTP responses, and is rate-limited per IP with total capacity ceilings.                                                          |
-| ASI08 | Cascading Failures                   | Automatic failover rotates across free-tier Gemini models on rate limits, keyword search acts as a fallback when embeddings fail, and tool errors degrade gracefully without aborting the answer. |
-| ASI09 | Human-Agent Trust Exploitation       | Inline source citations, live grounding status badges, token counts, and web search source attribution are displayed transparently in the user interface.                                         |
-| ASI10 | Rogue Agents                         | The LangGraph workflow has no self-modification or spawning capability, runs in a bounded deterministic loop, and audits every tool call to an append-only ledger.                                |
+| ID    | Risk                                 | Control in this project                                                                                                                                                                                     |
+| :---- | :----------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ASI01 | Agent Goal Hijack                    | The router pre-determines intent before reference passages are read, prompt-data boundaries are strictly enforced, and tool execution is bounded to a maximum of 2 rounds.                                  |
+| ASI02 | Tool Misuse and Exploitation         | All tools are read-only, arguments are strictly validated against Pydantic schemas, and every invocation writes an immutable record to `tool_audit_logs`.                                                   |
+| ASI03 | Identity and Privilege Abuse         | The agent possesses no privileged runtime credentials, admin status is enforced in the database, and user sessions are cryptographically signed.                                                            |
+| ASI04 | Agentic Supply Chain Vulnerabilities | NexusAgent operates solely as an MCP server with internal tool registries and loads no remote or third-party MCP tools.                                                                                     |
+| ASI05 | Unexpected Code Execution            | The application executes no user- or model-supplied code via `exec`, `eval`, or subprocesses.                                                                                                               |
+| ASI06 | Memory and Context Poisoning         | The knowledge base is admin-managed, guest chats maintain no cross-session state, and persistent chat history is accessible only by the owning authenticated user.                                          |
+| ASI07 | Insecure Inter-Agent Communication   | The public MCP server is strictly read-only, provides stateless HTTP responses, and is rate-limited per IP with total capacity ceilings.                                                                    |
+| ASI08 | Cascading Failures                   | Automatic failover rotates across free-tier Gemini and Gemma models on rate limits, keyword search acts as a fallback when embeddings fail, and tool errors degrade gracefully without aborting the answer. |
+| ASI09 | Human-Agent Trust Exploitation       | Inline source citations, live grounding status badges, token counts, and web search source attribution are displayed transparently in the user interface.                                                   |
+| ASI10 | Rogue Agents                         | The LangGraph workflow has no self-modification or spawning capability, runs in a bounded deterministic loop, and audits every tool call to an append-only ledger.                                          |

@@ -16,6 +16,7 @@ from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+import httpx
 from google.genai.errors import ServerError
 from langchain_core.messages import (
     AIMessage,
@@ -27,11 +28,15 @@ from langchain_core.messages import (
 )
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
-from langchain_google_genai.chat_models import GoogleRateLimitError
+from langchain_google_genai.chat_models import (
+    GoogleModelNotFoundError,
+    GooglePermissionDeniedError,
+)
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, ValidationError
 
 from app.agent.llm import (
+    ALL_MODELS_LIMITED_MESSAGE,
     AllModelsRateLimited,
     TokenSink,
     _chunk_text,
@@ -238,10 +243,8 @@ async def router_node(state: AgentState) -> AgentState:
             )
         )
     except AllModelsRateLimited as exc:
-        logger.warning("All Gemini models are rate-limited (session %s)", state.session_id)
-        state.error = "Every free-tier Gemini model has reached its usage limit. " + _retry_hint(
-            exc.retry_at
-        )
+        logger.warning("All configured models are rate-limited (session %s)", state.session_id)
+        state.error = ALL_MODELS_LIMITED_MESSAGE + _retry_hint(exc.retry_at)
         state.response = ""
         state.is_complete = True
         return state
@@ -331,9 +334,16 @@ async def chat_node(state: AgentState, config: RunnableConfig | None = None) -> 
             merged = await _stream_llm(tool_llm, messages, tracked)
             duration_ms = max(int((time.perf_counter() - started) * 1000), 1)
             return merged
-        except GoogleRateLimitError:
-            raise
-        except ServerError:
+        except (
+            GoogleModelNotFoundError,
+            GooglePermissionDeniedError,
+            ServerError,
+            TimeoutError,
+            httpx.TimeoutException,
+        ):
+            # Let call_with_routing move to the next model: retrying the same overloaded or
+            # hanging model without tools fails the same way and doubles the latency.
+            # A 429 still falls through, since it may only be the Google Search quota.
             raise
         except Exception as exc:
             if forwarded_here:
@@ -383,10 +393,8 @@ async def chat_node(state: AgentState, config: RunnableConfig | None = None) -> 
             )
         )
     except AllModelsRateLimited as exc:
-        logger.warning("All Gemini models are rate-limited (session %s)", state.session_id)
-        state.error = "Every free-tier Gemini model has reached its usage limit. " + _retry_hint(
-            exc.retry_at
-        )
+        logger.warning("All configured models are rate-limited (session %s)", state.session_id)
+        state.error = ALL_MODELS_LIMITED_MESSAGE + _retry_hint(exc.retry_at)
         state.response = ""
     except Exception:
         logger.exception("LLM chat generation failed for session %s", state.session_id)
@@ -546,10 +554,8 @@ async def agent_node(
             run=_execute,
         )
     except AllModelsRateLimited as exc:
-        logger.warning("All Gemini models are rate-limited (session %s)", state.session_id)
-        state.error = "Every free-tier Gemini model has reached its usage limit. " + _retry_hint(
-            exc.retry_at
-        )
+        logger.warning("All configured models are rate-limited (session %s)", state.session_id)
+        state.error = ALL_MODELS_LIMITED_MESSAGE + _retry_hint(exc.retry_at)
         state.is_complete = True
         return state
     except Exception:

@@ -40,7 +40,7 @@
 - [x] Structured routing node using Gemini: `smalltalk`, `benchmark`, or `refuse`
 - [x] Smalltalk / live facts handled via `google_search` tool binding with deduplicated web sources
 - [x] Benchmark questions routed to hybrid RAG retriever → grounding check → answer synthesis
-- [x] Rate limit failover across free-tier Gemini models
+- [x] Rate limit failover across free-tier Gemini and Gemma models
 
 ### Phase 5: Observability & Telemetry [Done]
 

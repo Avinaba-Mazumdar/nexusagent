@@ -1,4 +1,4 @@
-"""Check configured Gemini models against Google's live list of available models."""
+"""Check configured Gemini and Gemma models against Google's live list of available models."""
 
 import sys
 from pathlib import Path
@@ -18,8 +18,8 @@ def main() -> int:
         print("ERROR: GEMINI_API_KEY is not set.")
         return 1
 
-    configured_models = settings.GEMINI_MODELS
-    print(f"Checking {len(configured_models)} configured Gemini models...")
+    configured_models = settings.TEXT_MODELS
+    print(f"Checking {len(configured_models)} configured Gemini and Gemma models...")
 
     url = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
     headers = {"x-goog-api-key": api_key}
@@ -53,10 +53,13 @@ def main() -> int:
     unconfigured = sorted(
         m
         for m in available_models
-        if m not in configured_models and "gemini" in m.lower()
+        if m not in configured_models
+        and ("gemini" in m.lower() or "gemma" in m.lower())
     )
     if unconfigured:
-        print(f"\n--- Available Gemini Models Not Configured ({len(unconfigured)}) ---")
+        print(
+            f"\n--- Available Gemini and Gemma Models Not Configured ({len(unconfigured)}) ---"
+        )
         for m in unconfigured:
             print(f"  {m}")
 

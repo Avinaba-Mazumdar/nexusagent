@@ -121,7 +121,7 @@ class AgentState(BaseModel):
 
     # Final response
     response: str = ""
-    model: str | None = None  # the Gemini model that produced ``response``
+    model: str | None = None  # the Gemini or Gemma model that produced ``response``
     error: str | None = None
     is_complete: bool = False
     created_at: datetime = Field(default_factory=utc_now)

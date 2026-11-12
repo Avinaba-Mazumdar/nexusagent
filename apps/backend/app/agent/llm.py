@@ -1,5 +1,7 @@
 """LLM creation, streaming, and model routing."""
 
+import asyncio
+import contextlib
 import functools
 import inspect
 import time
@@ -16,12 +18,15 @@ from langchain_google_genai.chat_models import (
     GoogleRateLimitError,
 )
 
+from app.agent.model_health import persist_cooldown
 from app.agent.model_router import ModelRouter
 from app.config import settings
 
 TokenSink = Callable[[str], Awaitable[None]]
 
-default_model_router = ModelRouter(settings.GEMINI_MODELS)
+default_model_router = ModelRouter(settings.TEXT_MODELS, scope="chat", on_cooldown=persist_cooldown)
+
+ALL_MODELS_LIMITED_MESSAGE = "Every free-tier Gemini and Gemma model has reached its usage limit. "
 
 
 @functools.lru_cache(maxsize=32)
@@ -65,14 +70,41 @@ async def _stream_llm(
     messages: Sequence[BaseMessage],
     on_token: TokenSink | None = None,
 ) -> Any:
-    """Stream model output, forwarding text tokens to ``on_token`` and returning the merged chunk."""
+    """Stream model output, forwarding text tokens to ``on_token`` and returning the merged chunk.
+
+    Raises ``TimeoutError`` if the first chunk takes longer than
+    ``settings.LLM_FIRST_TOKEN_TIMEOUT_SECONDS``, so ``call_with_routing`` moves on to the next
+    model instead of waiting out the full request timeout on a stalled one.
+    """
+    stream = llm_chain.astream(messages)
+    deadline = settings.LLM_FIRST_TOKEN_TIMEOUT_SECONDS
     merged = None
-    async for chunk in llm_chain.astream(messages):
-        merged = chunk if merged is None else merged + chunk
-        text = _chunk_text(chunk)
-        if text and on_token:
-            await on_token(text)
+    try:
+        try:
+            first = await asyncio.wait_for(anext(stream), deadline) if deadline > 0 else None
+        except StopAsyncIteration:
+            return AIMessage(content="")
+        except TimeoutError as exc:
+            raise TimeoutError(f"no response within {deadline:g} s (first-token deadline)") from exc
+        pending = [first] if deadline > 0 else []
+        async for chunk in _chain(pending, stream):
+            merged = chunk if merged is None else merged + chunk
+            text = _chunk_text(chunk)
+            if text and on_token:
+                await on_token(text)
+    finally:
+        aclose = getattr(stream, "aclose", None)
+        if aclose is not None:
+            with contextlib.suppress(Exception):
+                await aclose()
     return merged or AIMessage(content="")
+
+
+async def _chain(head: list[Any], rest: Any) -> Any:
+    for item in head:
+        yield item
+    async for item in rest:
+        yield item
 
 
 async def call_with_routing(
@@ -101,12 +133,16 @@ async def call_with_routing(
             if forwarded:
                 raise
             router.mark_rate_limited(model, exc)
-        except GoogleModelNotFoundError, GooglePermissionDeniedError:
+        except (GoogleModelNotFoundError, GooglePermissionDeniedError) as exc:
             if forwarded:
                 raise
-            router.mark_unavailable(model)
-        except ServerError, TimeoutError, httpx.TimeoutException:
+            router.mark_unavailable(model, exc)
+        except (TimeoutError, httpx.TimeoutException) as exc:
             if forwarded:
                 raise
-            router.mark_overloaded(model)
+            router.mark_timed_out(model, exc)
+        except ServerError as exc:
+            if forwarded:
+                raise
+            router.mark_overloaded(model, exc)
     raise AllModelsRateLimited(router.next_available_at())

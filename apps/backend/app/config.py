@@ -14,17 +14,28 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "production"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
-    # Free-tier text models, best first (ai.google.dev/gemini-api/docs/pricing, 2026-10-28). Each has
+    # Free-tier text models, best first (ai.google.dev/gemini-api/docs/pricing). Each has
     # its own free quota; ModelRouter moves to the next one when a model returns 429.
+    # Routing order is not this list's order: see TEXT_MODELS (lite first, then Gemma, then flash).
     GEMINI_MODELS: list[str] = [
         "gemini-3.8-flash",
+        "gemini-3.7-flash",
         "gemini-3.6-flash",
+        "gemini-3.5-flash",
         "gemini-3-flash-preview",
-        "gemini-2.5-flash",
-        "gemini-2.5-pro",
         "gemini-3.5-flash-lite",
         "gemini-3.1-flash-lite",
+        "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
+        "gemini-flash-lite-latest",
+    ]
+    # Hosted Gemma 4 instruction models (gemma.ai/deployment/gemini-api). Free on the Gemini
+    # Developer API, each with its own quota. They support generateContent, function calling,
+    # system instructions, and Google Search. Smaller Gemma sizes are not hosted.
+    # Stronger model first; TEXT_MODELS tries them after the flash-lite models and before full flash.
+    GEMMA_MODELS: list[str] = [
+        "gemma-4-31b-it",
+        "gemma-4-26b-a4b-it",
     ]
     EMBEDDING_MODEL: str = "gemini-embedding-001"
 
@@ -60,6 +71,9 @@ class Settings(BaseSettings):
     USER_QUOTA_DEFAULT: int = 25
     CHAT_HISTORY_MESSAGES: int = 6
     LLM_TIMEOUT_SECONDS: float = 45.0
+    # A streamed call that sends nothing for this long is abandoned and the next model is tried.
+    # Covers thinking and search grounding, which happen before the first chunk. 0 disables it.
+    LLM_FIRST_TOKEN_TIMEOUT_SECONDS: float = 10.0
     # Includes "thinking" tokens on models that think. Too low truncates answers; raise it if answers are cut off.
     LLM_MAX_OUTPUT_TOKENS: int = 2048
     MAX_CHUNKS_PER_DOCUMENT: int = 400
@@ -76,6 +90,18 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: str = ""
     GOOGLE_CLIENT_ID: str = ""
+
+    @property
+    def TEXT_MODELS(self) -> list[str]:
+        """Free-tier chat models in routing order: Gemini flash-lite, then Gemma, then full Gemini flash.
+
+        Lite and Gemma models answer quickly and have far larger daily quotas (500 vs 20 requests on
+        the free tier), while the full flash models are often slow or overloaded, so they are the
+        fallback. Each group keeps its configured order.
+        """
+        lite = [m for m in self.GEMINI_MODELS if "lite" in m.lower()]
+        full = [m for m in self.GEMINI_MODELS if "lite" not in m.lower()]
+        return [*lite, *self.GEMMA_MODELS, *full]
 
     @property
     def is_dev(self) -> bool:

@@ -151,3 +151,19 @@ CREATE TRIGGER tool_audit_logs_guard
     BEFORE UPDATE OR DELETE ON tool_audit_logs
     FOR EACH ROW EXECUTE FUNCTION tool_audit_logs_guard();
 
+-- 8. Gemini model cooldowns
+-- One row per (router scope, model). A model whose retry_after is in the future is skipped until then.
+-- scope: 'chat' (answers) or 'web_search' (search grounding, which has its own quota).
+-- reason: rate_limited | unavailable | overloaded | timed_out. failure_count counts every recorded failure.
+CREATE TABLE IF NOT EXISTS model_cooldowns (
+    scope VARCHAR(32) NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    reason VARCHAR(32) NOT NULL,
+    error TEXT NOT NULL DEFAULT '',
+    failure_count INT NOT NULL DEFAULT 1,
+    failed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    retry_after TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (scope, model)
+);
+
+CREATE INDEX IF NOT EXISTS idx_model_cooldowns_retry_after ON model_cooldowns(retry_after);

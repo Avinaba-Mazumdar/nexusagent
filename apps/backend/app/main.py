@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -8,6 +10,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.agent.llm import default_model_router
+from app.agent.model_health import flush_pending_writes, sync_cooldowns, sync_cooldowns_forever
+from app.agent.tools import web_search_model_router
 from app.config import settings
 from app.core.auth import get_client_ip
 from app.core.body_limit import BodySizeLimitMiddleware
@@ -53,8 +58,16 @@ async def lifespan(app: FastAPI):
     if not connected and not settings.is_dev:
         raise RuntimeError("Database connection failed; refusing to start in production.")
 
+    routers = [default_model_router, web_search_model_router]
+    await sync_cooldowns(routers)
+    sync_task = asyncio.create_task(sync_cooldowns_forever(routers))
+
     async with mcp.session_manager.run():
         yield
+    sync_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await sync_task
+    await flush_pending_writes()
     await default_embedding_service.aclose()
     await neon_db.disconnect()
 

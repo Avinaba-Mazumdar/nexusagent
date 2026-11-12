@@ -1,5 +1,5 @@
 """
-Route answer generation across the configured Gemini models (``settings.GEMINI_MODELS``).
+Route answer generation across the configured Gemini and Gemma models (``settings.TEXT_MODELS``).
 
 The free tier gives each model its own requests-per-minute and requests-per-day quota, so when
 one model returns 429 the next one usually still has capacity. The router remembers which models
@@ -8,9 +8,11 @@ are exhausted and until when, so later requests skip them instead of paying for 
 - per-minute limits: cool down for the ``retryDelay`` Google returns (60 s if it sends none);
 - per-day limits: cool down until the quota resets at midnight Pacific time;
 - unknown or inaccessible models (404/403): skip for a day;
-- server errors (5xx) or timeouts: skip for 30 s.
+- server errors (5xx): skip for 30 s;
+- timeouts: skip for 5 minutes (a hanging model would otherwise cost a full timeout every request).
 
-State is per process; the API runs as a single worker (see README).
+Routing decisions read in-memory state only. Cooldowns are also saved to the ``model_cooldowns``
+table through ``on_cooldown`` and loaded back by ``app.agent.model_health``, so they survive restarts.
 """
 
 import json
@@ -27,6 +29,7 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 DEFAULT_COOLDOWN_SECONDS = 60.0
 UNAVAILABLE_COOLDOWN_SECONDS = 24 * 3600.0
 OVERLOADED_COOLDOWN_SECONDS = 30.0
+TIMEOUT_COOLDOWN_SECONDS = 300.0
 
 _RETRY_DELAY = re.compile(r"""['"]retryDelay['"]\s*:\s*['"](\d+(?:\.\d+)?)s['"]""")
 _RETRY_IN = re.compile(r"retry in (\d+(?:\.\d+)?)\s*s", re.IGNORECASE)
@@ -62,9 +65,22 @@ def rate_limit_cooldown(exc: BaseException, now: float) -> float:
     return float(match.group(1)) if match else DEFAULT_COOLDOWN_SECONDS
 
 
+CooldownListener = Callable[[str, str, str, float, str], None]
+"""``(scope, model, reason, retry_at_unix, error_text)``: called after a model is put on cooldown."""
+
+
 class ModelRouter:
-    def __init__(self, models: list[str], clock: Callable[[], float] = time.time):
+    def __init__(
+        self,
+        models: list[str],
+        clock: Callable[[], float] = time.time,
+        *,
+        scope: str = "chat",
+        on_cooldown: CooldownListener | None = None,
+    ):
         self.models = list(models)
+        self.scope = scope
+        self.on_cooldown = on_cooldown
         self._clock = clock
         self._cooling_until: dict[str, float] = {}
 
@@ -76,22 +92,46 @@ class ModelRouter:
             return sorted(available, key=lambda m: 0 if "lite" in m.lower() else 1)
         return available
 
+    def _cool(self, model: str, seconds: float, reason: str, exc: BaseException | None) -> None:
+        until = self._clock() + seconds
+        self._cooling_until[model] = until
+        if self.on_cooldown is not None:
+            error = _error_text(exc)[:2000] if exc is not None else ""
+            try:
+                self.on_cooldown(self.scope, model, reason, until, error)
+            except Exception:  # persistence must never break routing
+                logger.exception("Could not record the cooldown for %s", model)
+
     def mark_rate_limited(self, model: str, exc: BaseException) -> None:
         seconds = rate_limit_cooldown(exc, self._clock())
-        self._cooling_until[model] = self._clock() + seconds
-        logger.warning("Gemini model %s is rate-limited; skipping it for %.0f s", model, seconds)
+        self._cool(model, seconds, "rate_limited", exc)
+        logger.warning("Model %s is rate-limited; skipping it for %.0f s", model, seconds)
 
-    def mark_unavailable(self, model: str) -> None:
-        self._cooling_until[model] = self._clock() + UNAVAILABLE_COOLDOWN_SECONDS
-        logger.warning("Gemini model %s is not available to this API key; skipping it", model)
+    def mark_unavailable(self, model: str, exc: BaseException | None = None) -> None:
+        self._cool(model, UNAVAILABLE_COOLDOWN_SECONDS, "unavailable", exc)
+        logger.warning("Model %s is not available to this API key; skipping it", model)
 
-    def mark_overloaded(self, model: str) -> None:
-        self._cooling_until[model] = self._clock() + OVERLOADED_COOLDOWN_SECONDS
+    def mark_overloaded(self, model: str, exc: BaseException | None = None) -> None:
+        self._cool(model, OVERLOADED_COOLDOWN_SECONDS, "overloaded", exc)
         logger.warning(
-            "Gemini model %s returned a server error; skipping it for %.0f s",
+            "Model %s returned a server error; skipping it for %.0f s",
             model,
             OVERLOADED_COOLDOWN_SECONDS,
         )
+
+    def mark_timed_out(self, model: str, exc: BaseException | None = None) -> None:
+        self._cool(model, TIMEOUT_COOLDOWN_SECONDS, "timed_out", exc)
+        logger.warning(
+            "Model %s timed out; skipping it for %.0f s",
+            model,
+            TIMEOUT_COOLDOWN_SECONDS,
+        )
+
+    def load_cooldowns(self, cooling_until: dict[str, float]) -> None:
+        """Merge cooldowns recorded elsewhere (the database). Never shortens a local cooldown."""
+        for model, until in cooling_until.items():
+            if until > self._cooling_until.get(model, 0.0):
+                self._cooling_until[model] = until
 
     def next_available_at(self) -> float | None:
         """Unix time at which the soonest cooling model becomes usable again."""

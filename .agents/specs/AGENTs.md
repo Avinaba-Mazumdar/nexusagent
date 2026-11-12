@@ -56,7 +56,7 @@ When writing code or proposing changes for NexusAgent, you MUST strictly follow 
 
 1. **Monorepo Directory Invariants**:
     - `apps/frontend`: Next.js 16 App Router (`^16.0.0`) + React 19 + TypeScript + shadcn/ui + Tailwind CSS v4 + Zustand + Lucide React. Three themes: Light, Dark, Black. _Never reintroduce Nuxt or ad-hoc CSS frameworks._
-    - `apps/backend`: FastAPI (`>=0.115`) + Python 3.14 + LangGraph (`>=1.2.12`) + LangChain Google GenAI (`GEMINI_MODELS`: every free-tier text model, routed by `app/agent/model_router.py` when one hits its quota) + the official `mcp` Python SDK (`MCPServer`) + Neon PostgreSQL 18 (`asyncpg`) + `pgvector`. Versions are authoritative in `pyproject.toml` / `package.json`.
+    - `apps/backend`: FastAPI (`>=0.115`) + Python 3.14 + LangGraph (`>=1.2.12`) + LangChain Google GenAI (`TEXT_MODELS`: every free-tier Gemini text model, then hosted Gemma 4, routed by `app/agent/model_router.py` when one hits its quota) + the official `mcp` Python SDK (`MCPServer`) + Neon PostgreSQL 18 (`asyncpg`) + `pgvector`. Versions are authoritative in `pyproject.toml` / `package.json`.
     - `packages/contracts`: Shared TypeScript schemas and JSON-RPC 2.0 wire definitions.
 2. **Neon PostgreSQL 18 Data Tier & Python Backend Auth Guarantee**:
     - Single Unified Data Tier: Neon Serverless PostgreSQL 18 with `pgvector` (HNSW indexing), full-text `tsvector` (`ts_rank_cd`) search, connection pooling, and FastAPI-managed authentication (Guest JWTs + Google sign-in) is used across local development and production. Locally, no separate database is maintained.

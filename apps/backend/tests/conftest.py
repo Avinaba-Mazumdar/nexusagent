@@ -363,17 +363,20 @@ def fake_rate_db(monkeypatch):
 def reset_rate_limiters():
     """Reset chat quotas and sliding-window counters between tests."""
     from app.agent.llm import _get_llm, default_model_router
+    from app.agent.tools import web_search_model_router
     from app.core.rate_limiter import default_chat_quota
     from app.main import mcp_global_limiter, mcp_rate_limiter
 
     _get_llm.cache_clear()
     default_model_router.reset()
+    web_search_model_router.reset()
     default_chat_quota.reset_for_test()
     mcp_rate_limiter.reset_for_test()
     mcp_global_limiter.reset_for_test()
     yield
     _get_llm.cache_clear()
     default_model_router.reset()
+    web_search_model_router.reset()
     default_chat_quota.reset_for_test()
     mcp_rate_limiter.reset_for_test()
     mcp_global_limiter.reset_for_test()

@@ -404,6 +404,34 @@ class NeonDatabase:
         logger.info("Pruned %d audit row(s) older than %d days.", count, retention_days)
         return count
 
+    async def upsert_model_cooldown(
+        self, *, scope: str, model: str, reason: str, error: str, retry_after: datetime
+    ) -> None:
+        """Mark a model as failed until ``retry_after``. Never shortens an existing cooldown."""
+        await self.get_pool().execute(
+            """
+            INSERT INTO model_cooldowns (scope, model, reason, error, failure_count, failed_at, retry_after)
+            VALUES ($1, $2, $3, $4, 1, NOW(), $5)
+            ON CONFLICT (scope, model) DO UPDATE SET
+                reason = EXCLUDED.reason,
+                error = EXCLUDED.error,
+                failure_count = model_cooldowns.failure_count + 1,
+                failed_at = EXCLUDED.failed_at,
+                retry_after = GREATEST(model_cooldowns.retry_after, EXCLUDED.retry_after);
+            """,
+            scope,
+            model,
+            reason,
+            error,
+            retry_after,
+        )
+
+    async def list_active_model_cooldowns(self) -> list[asyncpg.Record]:
+        """Models that are still cooling down (``retry_after`` in the future)."""
+        return await self.get_pool().fetch(
+            "SELECT scope, model, retry_after FROM model_cooldowns WHERE retry_after > NOW();"
+        )
+
     @staticmethod
     def _chunk_records(chunks: list[DocumentChunk]) -> list[tuple]:
         return [
