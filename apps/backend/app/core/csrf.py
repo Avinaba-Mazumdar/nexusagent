@@ -2,9 +2,12 @@
 
 import json
 
+from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import settings
+from app.core.auth import get_client_ip
+from app.core.security_events import security_event
 
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _BLOCKED_RESPONSE = json.dumps({"detail": "Cross-site request blocked"}).encode("utf-8")
@@ -44,13 +47,19 @@ class CsrfProtectionMiddleware:
 
         if origin is not None:
             if origin not in settings.CORS_ORIGINS:
+                self._alert(scope)
                 await self._reject(send)
                 return
         elif session_cookie_prefix in cookie:
+            self._alert(scope)
             await self._reject(send)
             return
 
         await self.app(scope, receive, send)
+
+    @staticmethod
+    def _alert(scope: Scope) -> None:
+        security_event("auth.failure", reason="csrf", ip=get_client_ip(Request(scope)))
 
     @staticmethod
     async def _reject(send: Send) -> None:

@@ -93,8 +93,8 @@ export default function PrivacyPolicyPage() {
               </div>
               <h3 className="font-heading font-bold text-xs text-foreground">Zero Third-Party Trackers</h3>
               <p className="text-xs text-muted-foreground leading-snug">
-                We run no third-party analytics or behavioral tracking. A hashed browser identifier is used only to enforce guest quotas (see
-                section 2).
+                We run no third-party analytics or behavioral tracking. Guest quotas use a server-issued HttpOnly device cookie and a hashed
+                browser identifier (see section 2).
               </p>
             </CardContent>
           </Card>
@@ -118,8 +118,9 @@ export default function PrivacyPolicyPage() {
                 <div>
                   <strong className="text-foreground">Ephemeral Guest Pass Data:</strong> When launching an instant guest session, we create a
                   random guest account ID. To enforce the 5 chats per rolling 24 hours allowance and prevent abuse, we store your client IP
-                  address, a SHA-256 hash of a local random device identifier, and a SHA-256 hash of a browser-derived machine identifier
-                  (neither raw identifier is ever stored or transmitted in plain text). Each query creates an entry in our chat usage ledger
+                  address, a SHA-256 hash of a server-issued device cookie, and a SHA-256 hash of a browser-derived machine identifier. The
+                  raw device value stays in an HttpOnly cookie that scripts cannot read, and it is not stored. The machine identifier is
+                  hashed in the browser before it is sent, and that raw value is not stored. Each query creates an entry in our chat usage ledger
                   containing these hashes and timestamp to compute your rolling 24-hour quota. No name, email, or physical identifier is
                   collected for guests.
                 </div>
@@ -158,8 +159,8 @@ export default function PrivacyPolicyPage() {
             <div className="p-4 rounded-xl border border-border bg-card/60 space-y-2">
               <p className="font-semibold text-foreground text-xs">Host-Only Token Scoping:</p>
               <p className="text-xs">
-                Your session is kept in an httpOnly cookie that scripts cannot read. Your browser&apos;s local storage holds only your display
-                profile, your theme and a random device identifier.
+                Your session is kept in an httpOnly cookie that scripts cannot read. A second HttpOnly cookie holds the guest device identifier.
+                Your browser&apos;s local storage holds only your display profile and your theme.
               </p>
             </div>
           </section>

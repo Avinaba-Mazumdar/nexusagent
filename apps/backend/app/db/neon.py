@@ -230,6 +230,21 @@ class NeonDatabase:
             row = await conn.fetchrow(query, device_hash)
             return User(**dict(row)) if row else None
 
+    async def count_guest_signups(self, client_ip: str) -> int:
+        """Guests created from this IP in the last hour. Survives a process restart."""
+        if not self.pool or not client_ip:
+            return 0
+        async with self.pool.acquire() as conn:
+            count = await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM users
+                WHERE is_guest = TRUE AND client_ip = $1
+                  AND created_at > NOW() - INTERVAL '1 hour';
+                """,
+                client_ip,
+            )
+        return int(count or 0)
+
     async def update_user_last_seen(
         self,
         user_id: UUID,

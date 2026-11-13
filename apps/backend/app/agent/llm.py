@@ -42,11 +42,23 @@ def _get_llm(api_key: str, model: str):
     )
 
 
-class AllModelsRateLimited(Exception):
-    """Every configured model is cooling down after hitting its quota."""
+class FirstTokenTimeout(Exception):
+    """No token arrived before the first-token deadline. The socket itself did not time out."""
 
-    def __init__(self, retry_at: float | None):
+
+class AllModelsRateLimited(Exception):
+    """Every configured model failed. ``quota`` is false when none of the failures was a 429."""
+
+    def __init__(self, retry_at: float | None, *, quota: bool = True):
         self.retry_at = retry_at
+        self.quota = quota
+
+
+def failure_message(exc: AllModelsRateLimited) -> str:
+    """User-facing text. A slow model is not an exhausted quota."""
+    if not exc.quota:
+        return "The language model is taking too long to respond. Please try again shortly."
+    return ALL_MODELS_LIMITED_MESSAGE + _retry_hint(exc.retry_at)
 
 
 def _retry_hint(retry_at: float | None) -> str:
@@ -72,9 +84,9 @@ async def _stream_llm(
 ) -> Any:
     """Stream model output, forwarding text tokens to ``on_token`` and returning the merged chunk.
 
-    Raises ``TimeoutError`` if the first chunk takes longer than
-    ``settings.LLM_FIRST_TOKEN_TIMEOUT_SECONDS``, so ``call_with_routing`` moves on to the next
-    model instead of waiting out the full request timeout on a stalled one.
+    Raises ``FirstTokenTimeout`` if the first chunk takes longer than
+    ``settings.LLM_FIRST_TOKEN_TIMEOUT_SECONDS``. That is a slow start, not a stalled socket, so
+    ``call_with_routing`` tries the next model without recording a shared outage.
     """
     stream = llm_chain.astream(messages)
     deadline = settings.LLM_FIRST_TOKEN_TIMEOUT_SECONDS
@@ -85,7 +97,9 @@ async def _stream_llm(
         except StopAsyncIteration:
             return AIMessage(content="")
         except TimeoutError as exc:
-            raise TimeoutError(f"no response within {deadline:g} s (first-token deadline)") from exc
+            raise FirstTokenTimeout(
+                f"no response within {deadline:g} s (first-token deadline)"
+            ) from exc
         pending = [first] if deadline > 0 else []
         async for chunk in _chain(pending, stream):
             merged = chunk if merged is None else merged + chunk
@@ -116,6 +130,7 @@ async def call_with_routing(
     """`run(llm)` performs one call and returns its result. Moves to the next model on 429/404/403/5xx/timeout
     if nothing was streamed yet. Returns (result, model)."""
     forwarded = False
+    saw_quota = False
 
     def mark_forwarded() -> None:
         nonlocal forwarded
@@ -132,11 +147,16 @@ async def call_with_routing(
         except GoogleRateLimitError as exc:
             if forwarded:
                 raise
+            saw_quota = True
             router.mark_rate_limited(model, exc)
         except (GoogleModelNotFoundError, GooglePermissionDeniedError) as exc:
             if forwarded:
                 raise
             router.mark_unavailable(model, exc)
+        except FirstTokenTimeout:
+            if forwarded:
+                raise
+            router.mark_slow(model)
         except (TimeoutError, httpx.TimeoutException) as exc:
             if forwarded:
                 raise
@@ -145,4 +165,4 @@ async def call_with_routing(
             if forwarded:
                 raise
             router.mark_overloaded(model, exc)
-    raise AllModelsRateLimited(router.next_available_at())
+    raise AllModelsRateLimited(router.next_available_at(), quota=saw_quota)

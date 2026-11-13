@@ -12,6 +12,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 
 from app.config import settings
+from app.core.security_events import security_event
 from app.db.models import User
 from app.db.neon import NeonDatabase, neon_db
 
@@ -62,6 +63,7 @@ refusal_refund_limiter = SlidingWindowCounter(limit=FREE_REFUSALS_PER_USER_PER_H
 def enforce_ip_limit(counter: SlidingWindowCounter, client_ip: str) -> None:
     """Raise 429 when ``client_ip`` has exceeded ``counter``'s hourly allowance."""
     if not counter.hit(client_ip):
+        security_event("quota.exceeded", ip=client_ip, kind="ip")
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many requests from this network. Try again later.",
@@ -94,6 +96,7 @@ class ChatQuota:
             limit=limit,
         )
         if usage_id is None:
+            security_event("quota.exceeded", ip=client_ip or "unknown", kind="chat")
             now = datetime.now(UTC)
             resets_at = (oldest + timedelta(hours=24)) if oldest else (now + timedelta(hours=24))
             retry_after = max(1, int((resets_at - now).total_seconds()))

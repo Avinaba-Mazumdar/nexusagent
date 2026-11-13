@@ -7,6 +7,8 @@ import re
 from collections.abc import Sequence
 from typing import Any
 
+from app.core.security_events import security_event
+
 # Prompt injection signatures (case-insensitive)
 INJECTION_PATTERNS = [
     re.compile(
@@ -137,9 +139,10 @@ def wrap_untrusted_context(
 
 
 def detect_prompt_injection(text: str) -> tuple[bool, str | None]:
-    """
-    Scan query or text for known adversarial prompt injection indicators.
-    Returns (is_injected, matched_reason).
+    """Flag known injection phrasing. This is a warning signal, not an access control.
+
+    Callers must not allow or deny a request based on the result. A retrieved chunk that matches
+    stays in the result and is only reported. Returns ``(is_injected, matched_reason)``.
     """
     if not text:
         return False, None
@@ -170,5 +173,7 @@ def sanitize_retrieved_chunks(
         chunk.content = scrub_sensitive_information(sanitize_untrusted_text(chunk.content))
         injected, reason = detect_prompt_injection(chunk.content)
         if injected:
-            flagged.append({"filename": chunk.filename, "reason": reason or "injection pattern"})
+            short_reason = reason or "injection pattern"
+            flagged.append({"filename": chunk.filename, "reason": short_reason})
+            security_event("injection.flagged", filename=chunk.filename, reason=short_reason)
     return list(chunks), flagged

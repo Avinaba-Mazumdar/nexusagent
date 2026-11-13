@@ -12,7 +12,9 @@ from app.core.auth import (
     resolve_session,
     session_claims,
     session_token,
+    set_device_cookie,
     set_session_cookie,
+    valid_device_id,
     verify_google_token,
 )
 from app.core.rate_limiter import (
@@ -21,6 +23,7 @@ from app.core.rate_limiter import (
     google_auth_limiter,
     refresh_limiter,
 )
+from app.core.security_events import security_event
 from app.db.models import (
     GoogleAuthRequest,
     GuestPassRequest,
@@ -46,10 +49,15 @@ async def create_guest_pass(
 ):
     """Issue 1-Click Ephemeral Guest Pass token pre-loaded with quota."""
     client_ip = get_client_ip(request)
-    device_id = payload.deviceId if payload else None
+    # Identity is the HttpOnly cookie. A deviceId in the body cannot open or mint an account.
+    cookie_device = request.cookies.get(settings.DEVICE_COOKIE_NAME)
+    device_id = cookie_device if valid_device_id(cookie_device) else None
     machine_id = payload.machineId if payload else None
-    pass_resp, token_str, expires_in = await issue_guest_pass(db, client_ip, device_id, machine_id)
+    pass_resp, token_str, expires_in, raw_device = await issue_guest_pass(
+        db, client_ip, device_id, machine_id
+    )
     set_session_cookie(response, token_str, expires_in)
+    set_device_cookie(response, raw_device)
     return pass_resp
 
 
@@ -63,7 +71,11 @@ async def google_auth(
     """Authenticate or register user via verified Google ID token."""
     client_ip = get_client_ip(request)
     enforce_ip_limit(google_auth_limiter, client_ip)
-    google_profile = await verify_google_token(payload.credential)
+    try:
+        google_profile = await verify_google_token(payload.credential)
+    except HTTPException:
+        security_event("auth.failure", reason="google", ip=client_ip)
+        raise
 
     user = await db.upsert_google_user(
         google_sub=google_profile["sub"],
@@ -131,14 +143,19 @@ async def refresh_token(
     db: NeonDatabase = Depends(get_db),
 ):
     """Refresh JWT access token for currently authenticated session."""
-    enforce_ip_limit(refresh_limiter, get_client_ip(request))
+    client_ip = get_client_ip(request)
+    enforce_ip_limit(refresh_limiter, client_ip)
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication credentials were not provided",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    current_user, claims = await resolve_session(token, db)
+    try:
+        current_user, claims = await resolve_session(token, db)
+    except HTTPException:
+        security_event("auth.failure", reason="session", ip=client_ip)
+        raise
 
     auth_time = int(claims.get("auth_time", claims.get("iat", 0)))
     session_age = datetime.now(UTC) - datetime.fromtimestamp(auth_time, UTC)

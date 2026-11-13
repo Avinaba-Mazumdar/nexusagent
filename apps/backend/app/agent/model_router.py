@@ -30,6 +30,8 @@ DEFAULT_COOLDOWN_SECONDS = 60.0
 UNAVAILABLE_COOLDOWN_SECONDS = 24 * 3600.0
 OVERLOADED_COOLDOWN_SECONDS = 30.0
 TIMEOUT_COOLDOWN_SECONDS = 300.0
+# A slow first token is not a dead socket. Skip the model briefly, in this process only.
+SLOW_START_COOLDOWN_SECONDS = 30.0
 
 _RETRY_DELAY = re.compile(r"""['"]retryDelay['"]\s*:\s*['"](\d+(?:\.\d+)?)s['"]""")
 _RETRY_IN = re.compile(r"retry in (\d+(?:\.\d+)?)\s*s", re.IGNORECASE)
@@ -125,6 +127,15 @@ class ModelRouter:
             "Model %s timed out; skipping it for %.0f s",
             model,
             TIMEOUT_COOLDOWN_SECONDS,
+        )
+
+    def mark_slow(self, model: str) -> None:
+        """Skip a model that missed the first-token deadline. Not written to the shared database."""
+        self._cooling_until[model] = self._clock() + SLOW_START_COOLDOWN_SECONDS
+        logger.warning(
+            "Model %s sent nothing before the first-token deadline; skipping it for %.0f s",
+            model,
+            SLOW_START_COOLDOWN_SECONDS,
         )
 
     def load_cooldowns(self, cooling_until: dict[str, float]) -> None:

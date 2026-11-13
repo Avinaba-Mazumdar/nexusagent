@@ -39,7 +39,7 @@ NexusAgent brings together modern agentic and information retrieval libraries in
 
 ### Shared Database Architecture
 
-Local development and production share a single Neon database (`apps/backend/.env.local`). This ensures local testing mirrors production quotas and user chat histories. Schema migrations are consolidated into a single idempotent file (`db/schema.sql`) applied manually in the Neon SQL Editor.
+Local development and production share a single Neon database (`apps/backend/.env.local`). This keeps local quotas and chat history the same as production. Schema changes live in one idempotent file (`db/schema.sql`) applied by hand in the Neon SQL Editor.
 
 ---
 
@@ -122,7 +122,7 @@ Backend configuration (`apps/backend/.env.local`):
 - `ENVIRONMENT`: default is `production`. Set `ENVIRONMENT=development` for local work.
 - `JWT_SECRET_KEY`: required outside development/test (≥ 32 characters).
 - `GOOGLE_CLIENT_ID`: required for Google OAuth.
-- `NEON_DATABASE_URL`: database connection string. Paste your production Neon URL here (shared with local dev).
+- `NEON_DATABASE_URL`: database connection string. Paste the production Neon URL here. Local development uses the same database.
 - `GEMINI_API_KEY`: required. Generates answers and vector embeddings (`gemini-embedding-001`).
 - `TRUSTED_PROXY_HOPS`: number of proxies in front of the API. Required in production. Render = 1.
 - `PUBLIC_SITE_HOST`: public hostname (default: `nexusagent.avinaba.com`).

@@ -1,6 +1,8 @@
 import asyncio
 import hashlib
+import ipaddress
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -10,6 +12,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
 from app.core.rate_limiter import default_chat_quota, guest_signup_limiter
+from app.core.security_events import security_event
 from app.db.models import GuestPassResponse, User, UserSession
 from app.db.neon import NeonDatabase, get_db
 
@@ -32,9 +35,18 @@ def get_client_ip(request: Request, hops: int | None = None) -> str:
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
             parts = [p.strip() for p in forwarded.split(",") if p.strip()]
-            if len(parts) >= n:
+            if len(parts) >= n and _valid_ip(parts[-n]):
                 return parts[-n]
-    return request.client.host if request.client else "127.0.0.1"
+    socket_ip = request.client.host if request.client else "127.0.0.1"
+    return socket_ip if _valid_ip(socket_ip) else "127.0.0.1"
+
+
+def _valid_ip(value: str) -> bool:
+    try:
+        ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return True
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> tuple[str, int]:
@@ -127,6 +139,34 @@ def clear_session_cookie(response: Response) -> None:
     )
 
 
+# The raw id lives only in this cookie. The database stores its SHA-256 hash.
+DEVICE_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
+_DEVICE_ID_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+
+
+def new_device_id() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def valid_device_id(value: str | None) -> bool:
+    """True when the cookie value is long enough to be unguessable and safe to hash."""
+    if value is None or not 32 <= len(value) <= 128:
+        return False
+    return set(value) <= _DEVICE_ID_CHARS
+
+
+def set_device_cookie(response: Response, device_id: str) -> None:
+    response.set_cookie(
+        settings.DEVICE_COOKIE_NAME,
+        device_id,
+        max_age=DEVICE_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=not settings.is_dev,
+        samesite="lax",
+        path="/",
+    )
+
+
 async def session_token(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Security(security_bearer),
@@ -157,13 +197,18 @@ async def resolve_session(token: str, db: NeonDatabase) -> tuple[User, dict]:
 
 
 async def get_current_user(
+    request: Request,
     token: str | None = Depends(session_token),
     db: NeonDatabase = Depends(get_db),
 ) -> User:
     """FastAPI dependency to extract and verify authenticated user."""
     if not token:
         raise _unauthorized("Authentication credentials were not provided")
-    user, _claims = await resolve_session(token, db)
+    try:
+        user, _claims = await resolve_session(token, db)
+    except HTTPException:
+        security_event("auth.failure", reason="session", ip=get_client_ip(request))
+        raise
     await db.touch_user(user.id)
     return user
 
@@ -175,6 +220,7 @@ async def require_admin(current_user: User = Depends(get_current_user)) -> User:
 
 
 async def get_current_user_optional(
+    request: Request,
     token: str | None = Depends(session_token),
     db: NeonDatabase = Depends(get_db),
 ) -> User | None:
@@ -184,6 +230,7 @@ async def get_current_user_optional(
     try:
         return (await resolve_session(token, db))[0]
     except HTTPException:
+        security_event("auth.failure", reason="session", ip=get_client_ip(request))
         return None
 
 
@@ -192,18 +239,20 @@ async def issue_guest_pass(
     client_ip: str,
     device_id: str | None = None,
     machine_id: str | None = None,
-) -> tuple[GuestPassResponse, str, int]:
-    """Issue or retrieve 1-Click Guest Pass token bound to client IP & device ID & machine ID."""
+) -> tuple[GuestPassResponse, str, int, str]:
+    """Issue or retrieve a guest pass.
+
+    ``device_id`` is the raw HttpOnly cookie value, never a client-supplied body field.
+    Returns the response, session token, token lifetime, and the raw device id to set.
+    """
     now = datetime.now(UTC)
-    clean_device_id = device_id.strip() if device_id and device_id.strip() else None
-    hashed_device_id = hash_device_id(clean_device_id) if clean_device_id else None
+    raw_device_id = device_id if valid_device_id(device_id) else new_device_id()
+    hashed_device_id = hash_device_id(raw_device_id)
 
     clean_machine_id = machine_id.strip() if machine_id and machine_id.strip() else None
     hashed_machine_id = hash_device_id(clean_machine_id) if clean_machine_id else None
 
-    target_user: User | None = None
-    if hashed_device_id:
-        target_user = await db.get_guest_by_device(hashed_device_id)
+    target_user: User | None = await db.get_guest_by_device(hashed_device_id)
 
     if target_user:
         await db.update_user_last_seen(
@@ -217,13 +266,23 @@ async def issue_guest_pass(
             target_user.machine_hash = hashed_machine_id
         target_user.last_seen_at = now
     else:
+        if db.pool is not None:
+            recent = await db.count_guest_signups(client_ip)
+            if recent >= settings.GUEST_SIGNUPS_PER_IP_PER_HOUR:
+                security_event("quota.exceeded", ip=client_ip, kind="guest_signup")
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Too many guest sessions from this network. Try again later.",
+                    headers={"Retry-After": "3600"},
+                )
         if not guest_signup_limiter.hit(client_ip):
+            security_event("quota.exceeded", ip=client_ip, kind="guest_signup")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Too many guest sessions from this network. Try again later.",
                 headers={"Retry-After": "3600"},
             )
-        assigned_device_id = hashed_device_id or hash_device_id(uuid4().hex)
+        assigned_device_id = hashed_device_id
         guest_uuid = uuid4()
         guest_name = f"Guest User #{str(guest_uuid)[:6]}"
         user = User(
@@ -253,7 +312,7 @@ async def issue_guest_pass(
         quotaRemaining=tokens_remaining,
         bucketCapacity=settings.GUEST_QUOTA_DEFAULT,
     )
-    return response, token_str, expires_in
+    return response, token_str, expires_in, raw_device_id
 
 
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"

@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -18,6 +17,7 @@ from app.core.auth import get_client_ip
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfProtectionMiddleware
 from app.core.rate_limiter import SlidingWindowCounter
+from app.core.security_events import security_event
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.db.neon import DatabaseUnavailable, neon_db
 from app.mcp.server import mcp, mcp_http_app
@@ -50,6 +50,31 @@ def ensure_single_worker() -> None:
         )
 
 
+async def stop_background(sync_task: asyncio.Task[None] | None) -> None:
+    """Stop the cooldown sync and always release the database, even if that task already failed."""
+    if sync_task is not None:
+        if not sync_task.done():
+            sync_task.cancel()
+        try:
+            await sync_task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Cooldown sync stopped with an error")
+    try:
+        await flush_pending_writes()
+    except Exception:
+        logger.exception("Could not flush model cooldowns during shutdown")
+    try:
+        await default_embedding_service.aclose()
+    except Exception:
+        logger.exception("Could not close the embedding client during shutdown")
+    try:
+        await neon_db.disconnect()
+    except Exception:
+        logger.exception("Could not close the database pool during shutdown")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for Neon PostgreSQL 18 connection pool and MCP session manager."""
@@ -62,14 +87,11 @@ async def lifespan(app: FastAPI):
     await sync_cooldowns(routers)
     sync_task = asyncio.create_task(sync_cooldowns_forever(routers))
 
-    async with mcp.session_manager.run():
-        yield
-    sync_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await sync_task
-    await flush_pending_writes()
-    await default_embedding_service.aclose()
-    await neon_db.disconnect()
+    try:
+        async with mcp.session_manager.run():
+            yield
+    finally:
+        await stop_background(sync_task)
 
 
 app = FastAPI(
@@ -94,6 +116,7 @@ async def mcp_rate_limit_middleware(request: Request, call_next):
     if request.url.path.rstrip("/") == MCP_PATH:
         client_ip = get_client_ip(request)
         if not mcp_rate_limiter.hit(client_ip) or not mcp_global_limiter.hit("all"):
+            security_event("quota.exceeded", ip=client_ip, kind="mcp")
             return JSONResponse(
                 status_code=429,
                 content={"detail": "MCP rate limit exceeded."},

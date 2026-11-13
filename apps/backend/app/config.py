@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = BACKEND_DIR.parent.parent
 KNOWLEDGE_BASE_DIR: Path = REPO_ROOT / "knowledge_base" / "benchmarks"
+# Render = 1 hop, Cloudflare in front of Render = 2. More than that trusts client-supplied forwarding.
+MAX_TRUSTED_PROXY_HOPS = 2
 
 
 class Settings(BaseSettings):
@@ -86,6 +88,8 @@ class Settings(BaseSettings):
     # Number of trusted reverse proxies in front of the API (Render alone = 1; Cloudflare in front
     # of Render = 2). 0 keys per-IP limits on the socket address, which behind a proxy is the
     # proxy's address, so every user shares one limit. Never set it higher than the real hop count.
+    # The ceiling is the larger of those two deployments: a higher value would trust client-supplied
+    # X-Forwarded-For entries.
     TRUSTED_PROXY_HOPS: int = 0
 
     GEMINI_API_KEY: str = ""
@@ -111,8 +115,17 @@ class Settings(BaseSettings):
     def SESSION_COOKIE_NAME(self) -> str:
         return "nexus_session" if self.is_dev else "__Host-nexus_session"
 
+    @property
+    def DEVICE_COOKIE_NAME(self) -> str:
+        return "nexus_device" if self.is_dev else "__Host-nexus_device"
+
     @model_validator(mode="after")
     def validate_production_secrets(self) -> Settings:
+        if self.TRUSTED_PROXY_HOPS < 0 or self.TRUSTED_PROXY_HOPS > MAX_TRUSTED_PROXY_HOPS:
+            raise ValueError(
+                f"TRUSTED_PROXY_HOPS must be between 0 and {MAX_TRUSTED_PROXY_HOPS} "
+                "(Render = 1, Cloudflare in front of Render = 2)."
+            )
         if self.is_dev:
             local_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
             self.CORS_ORIGINS = [

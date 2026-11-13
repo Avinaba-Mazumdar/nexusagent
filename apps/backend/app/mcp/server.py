@@ -103,14 +103,45 @@ async def fetch(id: str) -> dict:
     return result_data
 
 
+def mcp_transport_security() -> TransportSecuritySettings:
+    """DNS rebinding allowlist for the public MCP endpoint.
+
+    Host must be this site, the API host, or localhost. Origin may be absent: Claude, ChatGPT,
+    and Cursor connectors call the server without a browser Origin. A present Origin must be one
+    we already allow for the web app, or a localhost port.
+    """
+    site = settings.PUBLIC_SITE_HOST
+    api = f"api.{site}"
+    hosts = [
+        site,
+        f"{site}:*",
+        api,
+        f"{api}:*",
+        "localhost",
+        "localhost:*",
+        "127.0.0.1",
+        "127.0.0.1:*",
+    ]
+    if settings.is_dev:
+        hosts.extend(["testserver", "testserver:*"])
+    configured = settings.CORS_ORIGINS
+    origins = list(configured) if isinstance(configured, list) else [str(configured)]
+    for extra in ("http://localhost:*", "http://127.0.0.1:*"):
+        if extra not in origins:
+            origins.append(extra)
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=hosts,
+        allowed_origins=origins,
+    )
+
+
 def create_streamable_http_app():
     return mcp.streamable_http_app(
         streamable_http_path="/mcp",
         stateless_http=True,
         json_response=True,
-        # Rebinding protection is off because every tool here is public and read-only (no auth, no cookies).
-        # Turn it on, with allowed_hosts and allowed_origins, before adding any tool that returns private data.
-        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+        transport_security=mcp_transport_security(),
     )
 
 

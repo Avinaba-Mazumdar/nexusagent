@@ -94,7 +94,7 @@ Official `mcp` Python SDK (`MCPServer`) Streamable HTTP server mounted at `/mcp`
 - Two tools following ChatGPT / Claude standard connector specifications:
     - `search(query: str) -> dict`: Searches the benchmark knowledge base and returns up to 8 matching passages with `id`, `title`, and `url`.
     - `fetch(id: str) -> dict`: Retrieves the full text and metadata of a specific passage by `document_id:chunk_id`.
-- DNS rebinding protection is disabled because every tool on the public MCP server is read-only and unauthenticated (no private data or cookies); if tools returning private data are added, rebinding protection must be enabled with explicit `allowed_hosts` and `allowed_origins` friction.
+- DNS rebinding protection is on. `Host` must be the public site, `api.` plus that host, or localhost (and `testserver` in development and test). An absent `Origin` is allowed, so server-side connectors still work. A present `Origin` must be a configured CORS origin or a localhost port.
 
 ---
 
@@ -106,10 +106,26 @@ Official `mcp` Python SDK (`MCPServer`) Streamable HTTP server mounted at `/mcp`
     - Google accounts: 25 chats / 24h, keyed by user ID.
 - **Single-worker deployment**: In-memory rate limiters (`SlidingWindowCounter`) and MCP session lifecycle require running one API worker (`uvicorn app.main:app --workers 1`).
 - **Request size caps**: 5 MB + 16 KB on `/api/documents/upload` (`config.py:64`), 64 KB elsewhere (`MAX_UPLOAD_REQUEST_BYTES`, `MAX_JSON_REQUEST_BYTES`).
+- **Guest signups**: 5 new guest accounts per IP per hour. The count is recent guest rows in `users`, so a process restart does not clear it. An in-memory limiter is checked as well.
 
 ---
 
 ## 6. Security
+
+### OWASP Top 10:2025
+
+| ID  | Risk                                   | Control in this project                                                                                                                                                                                                                                      |
+| :-- | :------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A01 | Broken Access Control                  | Admin routes require `is_admin`. Guest identity is the HttpOnly device cookie. Mutating `/api/` requests that carry the session cookie must send an allowed `Origin`.                                                                                        |
+| A02 | Security Misconfiguration              | `TRUSTED_PROXY_HOPS` is 0–2, and production requires at least 1. A forwarded value is used only when it parses as an IP. Local development and production share one Neon database. MCP DNS rebinding protection allows the public hosts and localhost.       |
+| A03 | Software Supply Chain Failures         | Dependencies and GitHub Actions are pinned, and vulnerability audits run in CI.                                                                                                                                                                              |
+| A04 | Cryptographic Failures                 | Session and device cookies are HttpOnly, Secure outside development, and SameSite=Lax. The database stores the SHA-256 of the device id. Production requires a JWT secret of at least 32 characters.                                                         |
+| A05 | Injection                              | SQL uses bound parameters. Retrieved text has delimiter breakouts escaped before it is wrapped as untrusted context.                                                                                                                                         |
+| A06 | Insecure Design                        | A guest account is keyed by the server-issued device cookie. A `deviceId` in the JSON body cannot open an account. Signup limits count recent `users` rows. The injection pattern list only flags chunks. It does not grant or deny access.                  |
+| A07 | Authentication Failures                | Google ID tokens are verified. Sessions carry issuer, audience, and a token version that logout bumps.                                                                                                                                                       |
+| A08 | Software or Data Integrity Failures    | Schema changes are applied by hand from `db/schema.sql`. Clients do not write model cooldown rows.                                                                                                                                                           |
+| A09 | Security Logging and Alerting Failures | `nexusagent.security` logs presented-credential failures, CSRF rejects, quota 429s, and injection flags. A repeated burst from one IP is logged once at ERROR as `security_event=alert`. A missing credential on `/api/auth/me` is not logged.               |
+| A10 | Mishandling of Exceptional Conditions  | A first-token deadline skips that model for 30 seconds in memory and does not tell the user the quota is exhausted. A real socket timeout still records a shared cooldown. Shutdown still flushes and disconnects if the cooldown sync task already crashed. |
 
 ### 6.1 OWASP Top 10 for LLM Applications 2025
 

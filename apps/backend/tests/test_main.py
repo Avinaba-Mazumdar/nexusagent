@@ -183,3 +183,31 @@ def test_mcp_global_rate_limiter():
     finally:
         mcp_rate_limiter.reset_for_test()
         mcp_global_limiter.reset_for_test()
+
+
+@pytest.mark.asyncio
+async def test_stop_background_cleans_up_after_a_crashed_sync_task(monkeypatch):
+    import asyncio
+
+    from app.main import stop_background
+
+    calls: list[str] = []
+
+    async def flush():
+        calls.append("flush")
+
+    async def aclose():
+        calls.append("aclose")
+
+    async def disconnect():
+        calls.append("disconnect")
+
+    monkeypatch.setattr("app.main.flush_pending_writes", flush)
+    monkeypatch.setattr("app.main.default_embedding_service.aclose", aclose)
+    monkeypatch.setattr("app.main.neon_db.disconnect", disconnect)
+
+    async def boom():
+        raise RuntimeError("sync crashed")
+
+    await stop_background(asyncio.create_task(boom()))
+    assert calls == ["flush", "aclose", "disconnect"]

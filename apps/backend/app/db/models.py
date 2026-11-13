@@ -107,8 +107,9 @@ class UserSession(WireModel):
 
 
 class GuestPassRequest(BaseModel):
-    # The device id re-opens a guest account, so it must be long enough to be unguessable.
-    deviceId: str | None = Field(default=None, min_length=16, max_length=128)
+    # Ignored. Guest identity is the HttpOnly device cookie, not this field. The max length
+    # still rejects a huge body; a short or missing value is not an error.
+    deviceId: str | None = Field(default=None, max_length=128)
     machineId: str | None = Field(default=None, max_length=128)
 
 

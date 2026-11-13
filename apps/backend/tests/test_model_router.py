@@ -288,8 +288,32 @@ async def test_model_silent_past_first_token_deadline_is_skipped(models, monkeyp
     assert (result.response, result.model, result.error) == ("Hi!", "fast", None)
 
     # The stalled model is benched, so the next request goes straight to the fast one.
+    # The tool bind and the tool-less retry each miss the deadline, so the slow model is called twice.
     assert default_model_router.candidates() == ["fast"]
-    assert fakes["slow"].calls == 1
+    assert fakes["slow"].calls == 2
+
+
+@pytest.mark.asyncio
+async def test_first_token_timeout_is_not_reported_as_a_quota_limit(models, monkeypatch):
+    """A slow start is a 30s in-memory skip. It is not a shared outage and not an exhausted quota."""
+    monkeypatch.setattr("app.agent.llm.settings.LLM_FIRST_TOKEN_TIMEOUT_SECONDS", 0.05)
+    default_model_router.reset()
+    recorded: list[tuple] = []
+    monkeypatch.setattr(default_model_router, "on_cooldown", lambda *args: recorded.append(args))
+    models(
+        {
+            "slow": _SlowModel(["Too late."], delay=5),
+            "also": _SlowModel(["Also late."], delay=5),
+        }
+    )
+
+    result = await chat_node(AgentState(query="hello", user_id=uuid4(), intent="smalltalk"))
+
+    assert result.error is not None
+    assert "usage limit" not in result.error
+    assert "taking too long" in result.error
+    assert recorded == []
+    default_model_router.reset()
 
 
 @pytest.mark.asyncio

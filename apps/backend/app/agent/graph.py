@@ -36,15 +36,14 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, ValidationError
 
 from app.agent.llm import (
-    ALL_MODELS_LIMITED_MESSAGE,
     AllModelsRateLimited,
     TokenSink,
     _chunk_text,
     _get_llm,
-    _retry_hint,
     _stream_llm,
     call_with_routing,
     default_model_router,
+    failure_message,
 )
 from app.agent.state import (
     AgentState,
@@ -244,7 +243,7 @@ async def router_node(state: AgentState) -> AgentState:
         )
     except AllModelsRateLimited as exc:
         logger.warning("All configured models are rate-limited (session %s)", state.session_id)
-        state.error = ALL_MODELS_LIMITED_MESSAGE + _retry_hint(exc.retry_at)
+        state.error = failure_message(exc)
         state.response = ""
         state.is_complete = True
         return state
@@ -394,7 +393,7 @@ async def chat_node(state: AgentState, config: RunnableConfig | None = None) -> 
         )
     except AllModelsRateLimited as exc:
         logger.warning("All configured models are rate-limited (session %s)", state.session_id)
-        state.error = ALL_MODELS_LIMITED_MESSAGE + _retry_hint(exc.retry_at)
+        state.error = failure_message(exc)
         state.response = ""
     except Exception:
         logger.exception("LLM chat generation failed for session %s", state.session_id)
@@ -555,7 +554,7 @@ async def agent_node(
         )
     except AllModelsRateLimited as exc:
         logger.warning("All configured models are rate-limited (session %s)", state.session_id)
-        state.error = ALL_MODELS_LIMITED_MESSAGE + _retry_hint(exc.retry_at)
+        state.error = failure_message(exc)
         state.is_complete = True
         return state
     except Exception:

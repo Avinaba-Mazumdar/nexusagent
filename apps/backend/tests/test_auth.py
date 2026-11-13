@@ -56,17 +56,16 @@ async def test_guest_pass_endpoint():
         assert me_data["user"]["id"] == data["user"]["id"]
         assert me_data["quota"]["tokensRemaining"] == 5
 
-        # Reusing same deviceId should return the same guest user
-        dev_id = f"test-device-{uuid4().hex[:8]}"
-        res1 = await client.post("/api/auth/guest", json={"deviceId": dev_id})
+        # The device cookie, not a body field, reopens this guest.
+        res1 = await client.post("/api/auth/guest", json={"deviceId": "not-the-account-key"})
         assert res1.status_code == 200
         user1 = res1.json()["user"]
 
-        res2 = await client.post("/api/auth/guest", json={"deviceId": dev_id})
+        res2 = await client.post("/api/auth/guest")
         assert res2.status_code == 200
         user2 = res2.json()["user"]
 
-        assert user1["id"] == user2["id"]
+        assert user1["id"] == user2["id"] == data["user"]["id"]
         assert user1["name"] == user2["name"]
         assert "deviceId" not in user2
         assert "clientIp" not in user2
@@ -77,22 +76,36 @@ async def test_guest_pass_endpoint():
 async def test_guests_with_same_machine_hash_get_distinct_accounts():
     """B1: machineId collision must never hand Guest B the account of Guest A."""
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        res_a = await client.post(
-            "/api/auth/guest",
-            json={"deviceId": "a" * 32, "machineId": "same-machine"},
-        )
+    async with (
+        AsyncClient(transport=transport, base_url="http://test") as client_a,
+        AsyncClient(transport=transport, base_url="http://test") as client_b,
+    ):
+        res_a = await client_a.post("/api/auth/guest", json={"machineId": "same-machine"})
         assert res_a.status_code == 200
         user_a = res_a.json()["user"]
 
-        res_b = await client.post(
-            "/api/auth/guest",
-            json={"deviceId": "b" * 32, "machineId": "same-machine"},
-        )
+        res_b = await client_b.post("/api/auth/guest", json={"machineId": "same-machine"})
         assert res_b.status_code == 200
         user_b = res_b.json()["user"]
 
         assert user_a["id"] != user_b["id"]
+
+
+@pytest.mark.db
+@pytest.mark.asyncio
+async def test_body_device_id_cannot_reopen_another_guest():
+    """A client that knows another guest's raw device id still gets its own account."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client_a:
+        res_a = await client_a.post("/api/auth/guest")
+        assert res_a.status_code == 200
+        stolen = res_a.cookies["nexus_device"]
+        user_a = res_a.json()["user"]["id"]
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client_b:
+        res_b = await client_b.post("/api/auth/guest", json={"deviceId": stolen})
+        assert res_b.status_code == 200
+        assert res_b.json()["user"]["id"] != user_a
 
 
 @pytest.mark.asyncio
@@ -308,6 +321,13 @@ async def test_offline_prune_guests_safe_fallback():
 # ---------------------------------------------------------------------------
 
 
+def _auth_request():
+    """Direct dependency calls need a request so a rejected credential can be logged."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(headers={}, client=SimpleNamespace(host="127.0.0.1"))
+
+
 def _user(token_version: int = 0, is_guest: bool = False) -> User:
     return User(
         id=uuid4(), name="T", email="t@example.com", is_guest=is_guest, token_version=token_version
@@ -326,11 +346,11 @@ async def test_token_from_before_logout_is_rejected():
     db = AsyncMock()
     db.get_user_by_id.return_value = user
 
-    assert (await get_current_user(token, db)).id == user.id
+    assert (await get_current_user(_auth_request(), token, db)).id == user.id
 
     user.token_version = 1  # user logged out
     with pytest.raises(HTTPException) as exc:
-        await get_current_user(token, db)
+        await get_current_user(_auth_request(), token, db)
     assert exc.value.status_code == 401
 
 
@@ -421,12 +441,12 @@ async def test_optional_user_ignores_a_signed_out_token_r2_sec_04():
     db = AsyncMock()
     db.get_user_by_id.return_value = user
 
-    resolved = await get_current_user_optional(token, db)
+    resolved = await get_current_user_optional(_auth_request(), token, db)
     assert resolved is not None and resolved.id == user.id
 
     user.token_version = 1  # user logged out
-    assert await get_current_user_optional(token, db) is None
-    assert await get_current_user_optional(None, db) is None
+    assert await get_current_user_optional(_auth_request(), token, db) is None
+    assert await get_current_user_optional(_auth_request(), None, db) is None
 
 
 @pytest.mark.asyncio
@@ -439,7 +459,7 @@ async def test_authenticated_requests_use_the_throttled_last_seen_write_r2_log_0
     token, _ = create_access_token(session_claims(user))
     db = AsyncMock()
     db.get_user_by_id.return_value = user
-    await get_current_user(token, db)
+    await get_current_user(_auth_request(), token, db)
 
     db.touch_user.assert_awaited_once_with(user.id)
     db.update_user_last_seen.assert_not_called()
@@ -484,12 +504,11 @@ async def test_refresh_limit_applies_before_any_database_work_r2_log_11(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_guest_device_id_must_be_a_reasonable_length_r2_sec_11():
+async def test_guest_body_device_id_cannot_be_huge():
+    """The body field is ignored, but a huge value is still rejected before the handler runs."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         too_long = await client.post("/api/auth/guest", json={"deviceId": "a" * 10_000})
-        too_short = await client.post("/api/auth/guest", json={"deviceId": "abc"})
     assert too_long.status_code == 422
-    assert too_short.status_code == 422
 
 
 # ---------------------------------------------------------------------------
@@ -503,13 +522,15 @@ async def test_cookie_attributes_guest_pass():
     """(a) guest sign-in sets a cookie with HttpOnly and SameSite=lax."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        res = await client.post("/api/auth/guest")
+        res = await client.post("/api/auth/guest", json={"deviceId": "abc"})
         assert res.status_code == 200
-        set_cookie = res.headers.get("set-cookie", "").lower()
-        assert "nexus_session=" in set_cookie
-        assert "httponly" in set_cookie
-        assert "samesite=lax" in set_cookie
-        assert "path=/" in set_cookie
+        cookies = [value.lower() for value in res.headers.get_list("set-cookie")]
+        session = next(value for value in cookies if "nexus_session=" in value)
+        device = next(value for value in cookies if "nexus_device=" in value)
+        for value in (session, device):
+            assert "httponly" in value
+            assert "samesite=lax" in value
+            assert "path=/" in value
 
 
 @pytest.mark.db
