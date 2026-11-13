@@ -66,8 +66,11 @@ from app.agent.tools import (
 )
 from app.config import settings
 from app.core.audit_log import default_audit_logger
+from app.core.security_events import security_event
 from app.core.security_guardrails import (
+    detect_prompt_injection,
     sanitize_retrieved_chunks,
+    scrub_sensitive_information,
     wrap_untrusted_context,
     wrap_untrusted_tool_output,
 )
@@ -90,6 +93,9 @@ REFUSAL = (
     "I only handle quick chats (greetings, weather, quick facts) and questions about LLM "
     "benchmarks: Artificial Analysis, BenchLM, CursorBench and OpenRouter metrics. "
     "I don't do news, coding, tutorials or long write-ups."
+)
+INJECTION_REFUSAL = (
+    "That request was refused because it tries to override the assistant's instructions."
 )
 
 ROUTER_PROMPT = """Classify the user's latest message for a small LLM-benchmark assistant.
@@ -131,10 +137,158 @@ def citation_report(response: str, citations: list[Citation]) -> tuple[list[str]
     return sorted(cited - known), bool(cited & known)
 
 
+_CONTENT_TOKEN = re.compile(r"[a-z0-9]{3,}")
+_STOPWORDS = frozenset(
+    {
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "are",
+        "was",
+        "were",
+        "has",
+        "have",
+        "had",
+        "not",
+        "but",
+        "its",
+        "into",
+        "about",
+        "than",
+        "then",
+        "them",
+        "they",
+        "their",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "how",
+        "can",
+        "could",
+        "would",
+        "should",
+        "will",
+        "just",
+        "also",
+        "more",
+        "most",
+        "some",
+        "any",
+        "all",
+        "our",
+        "you",
+        "your",
+    }
+)
+
+
+def _content_tokens(text: str) -> set[str]:
+    return {tok for tok in _CONTENT_TOKEN.findall(text.lower()) if tok not in _STOPWORDS}
+
+
+def _cited_sentences(response: str) -> list[tuple[str, list[str]]]:
+    """Sentences that name a source, paired with the labels they cite."""
+    cited: list[tuple[str, list[str]]] = []
+    for sentence in re.split(r"(?<=[.!?])\s+", response.strip()):
+        labels = _CITED_LABEL.findall(sentence)
+        if labels:
+            cited.append((sentence, labels))
+    return cited
+
+
+def _sentence_supported(sentence: str, source_text: str) -> bool:
+    """A short sentence is not judged. Otherwise two content words must appear in the passage."""
+    words = _content_tokens(_CITED_LABEL.sub(" ", sentence))
+    if len(words) < 3:
+        return True
+    shown = _content_tokens(source_text[:MAX_CHUNK_CHARS_IN_PROMPT])
+    return len(words & shown) >= 2
+
+
+def _answer_has_unsupported_citation(state: AgentState) -> bool:
+    """True when a cited sentence does not share wording with the passage that label names."""
+    if not state.response:
+        return False
+    sources = {
+        source_label(index): chunk.content
+        for index, chunk in enumerate(state.retrieved_chunks, start=1)
+    }
+    for sentence, labels in _cited_sentences(state.response):
+        for label in labels:
+            source = sources.get(label)
+            if source is not None and not _sentence_supported(sentence, source):
+                return True
+    return False
+
+
+def review_grounding(state: AgentState) -> None:
+    """Record missing labels, then downgrade a grounded badge the answer does not earn.
+
+    ``invalid_citations`` is only labels the model was not given. A label that exists,
+    but whose sentence does not overlap that passage, lowers grounding to weak instead.
+    Weak is never raised to grounded, and ``none`` is left unchanged.
+    """
+    if state.response and state.citations:
+        state.invalid_citations, has_valid = citation_report(state.response, state.citations)
+        state.uncited = not has_valid and not state.web_sources
+        if state.invalid_citations or state.uncited:
+            logger.warning(
+                "Citation check for session %s: invalid=%s uncited=%s",
+                state.session_id,
+                state.invalid_citations,
+                state.uncited,
+            )
+
+    if state.grounding != "grounded":
+        return
+    unsupported = _answer_has_unsupported_citation(state)
+    cites_nothing = state.uncited and bool(state.retrieved_chunks) and not state.web_sources
+    if not unsupported and not cites_nothing:
+        return
+    state.grounding = "weak"
+    if unsupported:
+        state.grounding_feedback = (
+            "A cited sentence does not share wording with the passage it names."
+        )
+    else:
+        state.grounding_feedback = "The answer does not cite the retrieved passages."
+
+
 def prefilter(query: str) -> bool:
     """Free, deterministic refusal (not metered): too long, or contains code."""
     q = query.strip()
     return len(q.split()) > MAX_WORDS or "```" in q
+
+
+def query_tries_to_override(query: str) -> bool:
+    """True when the query matches a known injection pattern.
+
+    A rephrased attack does not match. Callers refuse a match before any model call.
+    """
+    injected, _reason = detect_prompt_injection(query)
+    return injected
+
+
+def _refuse(state: AgentState, response: str, description: str) -> AgentState:
+    state.intent = "refuse"
+    state.response = response
+    state.is_complete = True
+    state.completed_at = datetime.now(UTC)
+    state.plan = [
+        PlanStep(
+            step_number=1,
+            description=description,
+            status="completed",
+            tool="scope_guardrail",
+        )
+    ]
+    return state
 
 
 class RouteDecision(BaseModel):
@@ -146,34 +300,22 @@ async def router_node(state: AgentState) -> AgentState:
     state.node_history.append("router")
     state.current_node = "router"
 
+    # Known phrasing is refused before the model, including when the route already
+    # marked the query off-topic. Anything that does not match still reaches the router.
+    injected, reason = detect_prompt_injection(state.query)
+    if injected:
+        security_event(
+            "injection.flagged", filename="user_query", reason=reason or "injection pattern"
+        )
+        return _refuse(
+            state, INJECTION_REFUSAL, "Refuse a query that tries to override instructions"
+        )
+
     if state.intent == "refuse":
-        state.response = REFUSAL
-        state.is_complete = True
-        state.completed_at = datetime.now(UTC)
-        state.plan = [
-            PlanStep(
-                step_number=1,
-                description="Refuse off-topic query",
-                status="completed",
-                tool="scope_guardrail",
-            )
-        ]
-        return state
+        return _refuse(state, REFUSAL, "Refuse off-topic query")
 
     if prefilter(state.query):
-        state.intent = "refuse"
-        state.response = REFUSAL
-        state.is_complete = True
-        state.completed_at = datetime.now(UTC)
-        state.plan = [
-            PlanStep(
-                step_number=1,
-                description="Refuse off-topic query (prefilter)",
-                status="completed",
-                tool="scope_guardrail",
-            )
-        ]
-        return state
+        return _refuse(state, REFUSAL, "Refuse off-topic query (prefilter)")
 
     if state.intent in ("smalltalk", "benchmark"):
         if state.intent == "smalltalk":
@@ -252,18 +394,8 @@ async def router_node(state: AgentState) -> AgentState:
         state.intent = "benchmark"
 
     if state.intent == "refuse":
-        state.response = REFUSAL
-        state.is_complete = True
-        state.completed_at = datetime.now(UTC)
-        state.plan = [
-            PlanStep(
-                step_number=1,
-                description="Refuse off-topic query",
-                status="completed",
-                tool="scope_guardrail",
-            )
-        ]
-    elif state.intent == "smalltalk":
+        return _refuse(state, REFUSAL, "Refuse off-topic query")
+    if state.intent == "smalltalk":
         state.plan = [
             PlanStep(
                 step_number=1,
@@ -363,7 +495,7 @@ async def chat_node(state: AgentState, config: RunnableConfig | None = None) -> 
             prefer_lite=False,
             run=_execute_chat,
         )
-        state.response = _chunk_text(merged)
+        state.response = scrub_sensitive_information(_chunk_text(merged))
         state.model = model
 
         queries, sources = web_sources_from(merged)
@@ -582,20 +714,9 @@ async def agent_node(
         state.tool_rounds += 1
         return state
 
-    state.response = _chunk_text(merged)
+    state.response = scrub_sensitive_information(_chunk_text(merged))
     state.model = model
-
-    # Citation checking (C4)
-    if state.response and state.citations:
-        state.invalid_citations, has_valid = citation_report(state.response, state.citations)
-        state.uncited = not has_valid and not state.web_sources
-        if state.invalid_citations or state.uncited:
-            logger.warning(
-                "Citation check for session %s: invalid=%s uncited=%s",
-                state.session_id,
-                state.invalid_citations,
-                state.uncited,
-            )
+    review_grounding(state)
 
     state.is_complete = True
     state.completed_at = datetime.now(UTC)
@@ -829,6 +950,7 @@ answer_node = agent_node
 retriever_node = preload_node
 
 __all__ = [
+    "INJECTION_REFUSAL",
     "REFUSAL",
     "ROUTER_PROMPT",
     "AgentGraph",

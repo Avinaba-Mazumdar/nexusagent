@@ -234,7 +234,7 @@ class CitationWire(WireModel):
 
 
 class InjectionWarningWire(WireModel):
-    """Retrieved text that looks like instructions (kept inside untrusted delimiters, but reported)."""
+    """A retrieved passage that matched an injection pattern. It is withheld from the model."""
 
     filename: str
     reason: str

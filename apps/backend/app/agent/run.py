@@ -18,6 +18,7 @@ from app.agent.sse import (
 from app.agent.state import AgentState, Intent
 from app.agent.tools import RAG_TOOL_NAME, RETRIEVAL_LIMIT, TOOL_ARGS
 from app.core.rate_limiter import default_chat_quota, refusal_refund_limiter
+from app.core.security_guardrails import StreamingScrubber
 from app.services.conversations import persist_turn
 
 logger = logging.getLogger("nexusagent.agent.run")
@@ -68,6 +69,7 @@ class AgentRun:
         )
         self._frames: asyncio.Queue[str | None] = asyncio.Queue()
         self._tokens_sent = False
+        self._scrubber = StreamingScrubber()
         self._usage_sent = 0
         self._events_sent = 0
 
@@ -115,6 +117,7 @@ class AgentRun:
 
             if final_state.error:
                 # Failures such as "no model configured" happen before any output and stay refundable.
+                await self._emit_held_tokens()
                 await self._refund_unless_streamed()
                 self._send(error_frame(self.session_id, final_state.error))
                 return
@@ -126,6 +129,7 @@ class AgentRun:
             raise
         except Exception:
             logger.exception("Error during agent SSE streaming")
+            await self._emit_held_tokens()
             await self._refund_unless_streamed()
             masked_error = "Internal error. Reference: " + self.session_id[:8]
             self._send(error_frame(self.session_id, masked_error))
@@ -133,8 +137,19 @@ class AgentRun:
             self._frames.put_nowait(None)
 
     async def _on_token(self, text: str) -> None:
+        ready = self._scrubber.push(text)
+        if not ready:
+            return
         self._tokens_sent = True
-        self._send(token_frame(self.session_id, text))
+        self._send(token_frame(self.session_id, ready))
+
+    async def _emit_held_tokens(self) -> None:
+        """Send the scrubbed tail. A key split across tokens stays buffered until this runs."""
+        ready = self._scrubber.flush()
+        if not ready:
+            return
+        self._tokens_sent = True
+        self._send(token_frame(self.session_id, ready))
 
     def _announce_next(self, finished: str, state: AgentState) -> None:
         upcoming = next_node(finished, state)
@@ -172,7 +187,9 @@ class AgentRun:
 
     async def _finish(self, final_state: AgentState) -> None:
         await self._refund_router_refusal(final_state)
+        await self._emit_held_tokens()
         # Planner refusals are fixed text, not model output: send them as one chunk.
+        # Once any scrubbed token was sent, the stored response is not sent again.
         if not self._tokens_sent and final_state.response:
             self._send(token_frame(self.session_id, final_state.response))
 

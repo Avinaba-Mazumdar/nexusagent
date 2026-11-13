@@ -59,6 +59,8 @@ SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
         re.compile(r"\b(sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{22,})\b"),
         "[REDACTED_API_KEY]",
     ),
+    # Google API keys (Gemini and other Google APIs). The body is exactly 35 characters.
+    (re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b"), "[REDACTED_GOOGLE_API_KEY]"),
     # Database URIs with credentials
     (
         re.compile(
@@ -109,10 +111,35 @@ def sanitize_untrusted_text(text: str) -> str:
     return sanitized
 
 
+# Stored and shown in place of a passage that matches the injection patterns.
+WITHHELD_PASSAGE = "[withheld: this passage matched a prompt-injection pattern and was not indexed]"
+_SECRET_HOLD = 256
+
+
+def screen_passage(text: str) -> tuple[str | None, str | None]:
+    """Return scrubbed passage text, or ``(None, reason)`` when it matches an injection pattern.
+
+    The pattern list is a warning signal. A match is withheld from the model and from clients.
+    Text that does not match is still only ever shown inside untrusted delimiters.
+    """
+    safe = scrub_sensitive_information(sanitize_untrusted_text(text))
+    injected, reason = detect_prompt_injection(safe)
+    if injected:
+        return None, reason or "injection pattern"
+    return safe, None
+
+
 def wrap_untrusted_tool_output(content: str, tool: str) -> str:
     """Wrap text that came from a tool (for example web search) so the model treats it as data."""
-    safe = scrub_sensitive_information(sanitize_untrusted_text(content))
-    return f'<untrusted_tool_output tool="{html.escape(tool)}">\n{safe.strip()}\n</untrusted_tool_output>'
+    safe, reason = screen_passage(content)
+    if safe is None:
+        safe = "This tool result was withheld because it matched a prompt-injection pattern."
+        security_event("injection.flagged", filename=tool, reason=reason or "injection pattern")
+    return (
+        f'<untrusted_tool_output tool="{html.escape(tool)}">\n'
+        f"{safe.strip()}\n"
+        "</untrusted_tool_output>"
+    )
 
 
 def wrap_untrusted_context(
@@ -139,10 +166,10 @@ def wrap_untrusted_context(
 
 
 def detect_prompt_injection(text: str) -> tuple[bool, str | None]:
-    """Flag known injection phrasing. This is a warning signal, not an access control.
+    """Flag known injection phrasing. Returns ``(is_injected, matched_reason)``.
 
-    Callers must not allow or deny a request based on the result. A retrieved chunk that matches
-    stays in the result and is only reported. Returns ``(is_injected, matched_reason)``.
+    This is not a complete filter: a rephrased attack does not match. Callers withhold a match
+    from the model and from clients, and keep every other passage inside untrusted delimiters.
     """
     if not text:
         return False, None
@@ -161,19 +188,54 @@ def sanitize_retrieved_chunks(
     """
     Defense-in-depth for indirect prompt injection arriving inside retrieved documents.
 
-    Each chunk has delimiter-breakout attempts escaped and credentials scrubbed. Chunks that
-    look like instructions are kept (they are only ever shown inside
-    ``<untrusted_document_context>`` boundaries) but reported, so the UI can warn the user.
+    Each kept chunk has delimiter-breakout attempts escaped and credentials scrubbed. A chunk
+    that matches the injection patterns is omitted and reported, so it is not given to the model.
 
-    Returns ``(sanitized_chunks, flagged)`` where ``flagged`` entries carry the filename and
-    the matched reason.
+    Returns ``(kept_chunks, flagged)`` where ``flagged`` entries carry the filename and the reason.
     """
     flagged: list[dict[str, str]] = []
+    kept: list[Any] = []
     for chunk in chunks:
-        chunk.content = scrub_sensitive_information(sanitize_untrusted_text(chunk.content))
-        injected, reason = detect_prompt_injection(chunk.content)
-        if injected:
-            short_reason = reason or "injection pattern"
-            flagged.append({"filename": chunk.filename, "reason": short_reason})
-            security_event("injection.flagged", filename=chunk.filename, reason=short_reason)
-    return list(chunks), flagged
+        safe, reason = screen_passage(chunk.content)
+        if safe is None:
+            flagged.append({"filename": chunk.filename, "reason": reason or "injection pattern"})
+            security_event(
+                "injection.flagged", filename=chunk.filename, reason=reason or "injection pattern"
+            )
+            continue
+        chunk.content = safe
+        kept.append(chunk)
+    return kept, flagged
+
+
+class StreamingScrubber:
+    """Scrub secrets out of a token stream before a client sees them.
+
+    The last 256 characters stay buffered so a key that arrives split across tokens is complete
+    before it is emitted. ``flush`` sends the remainder.
+    """
+
+    def __init__(self, hold: int = _SECRET_HOLD):
+        self.hold = hold
+        self._buf = ""
+
+    def push(self, text: str) -> str:
+        self._buf += text
+        if len(self._buf) <= self.hold:
+            return ""
+        head, tail = self._buf[: -self.hold], self._buf[-self.hold :]
+        combined = scrub_sensitive_information(head + tail)
+        scrubbed_tail = scrub_sensitive_information(tail)
+        if scrubbed_tail and combined.endswith(scrubbed_tail):
+            ready = combined[: -len(scrubbed_tail)]
+            self._buf = tail
+        else:
+            # A secret crossed the cut. The combined scrub already removed it, so send that.
+            ready = combined
+            self._buf = ""
+        return ready
+
+    def flush(self) -> str:
+        ready = scrub_sensitive_information(self._buf)
+        self._buf = ""
+        return ready

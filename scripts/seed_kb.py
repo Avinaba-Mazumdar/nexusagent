@@ -25,9 +25,11 @@ from app.config import settings
 from app.db.models import Document, DocumentChunk
 from app.db.neon import neon_db
 from app.rag.embeddings import default_embedding_service
-from app.rag.ingest import build_chunks
+from app.rag.ingest import build_chunks, chunks_to_embed
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 logger = logging.getLogger("seed_kb")
 
 KB_DIR = BASE_DIR / "knowledge_base" / "benchmarks"
@@ -35,7 +37,9 @@ KB_DIR = BASE_DIR / "knowledge_base" / "benchmarks"
 
 async def seed_knowledge_base():
     if not settings.GEMINI_API_KEY:
-        logger.error("GEMINI_API_KEY is not set. Cannot generate embeddings without API key.")
+        logger.error(
+            "GEMINI_API_KEY is not set. Cannot generate embeddings without API key."
+        )
         sys.exit(1)
 
     if not KB_DIR.exists():
@@ -50,7 +54,9 @@ async def seed_knowledge_base():
     logger.info("Connecting to Neon database pool...")
     connected = await neon_db.connect()
     if not connected or not neon_db.pool:
-        logger.error("Failed to connect to Neon database. Please check NEON_DATABASE_URL.")
+        logger.error(
+            "Failed to connect to Neon database. Please check NEON_DATABASE_URL."
+        )
         sys.exit(1)
 
     items: list[tuple[Document, list[DocumentChunk]]] = []
@@ -71,12 +77,23 @@ async def seed_knowledge_base():
         if not chunks:
             continue
 
-        logger.info(f"Embedding '{doc_path.name}' ({len(chunks)} chunks)...")
-        embeddings = await default_embedding_service.get_embeddings([c.content for c in chunks])
-        for chunk, embedding in zip(chunks, embeddings):
-            chunk.embedding = embedding
+        indexable = chunks_to_embed(chunks)
+        logger.info(
+            "Embedding '%s' (%s chunks, %s withheld)...",
+            doc_path.name,
+            len(indexable),
+            len(chunks) - len(indexable),
+        )
+        if indexable:
+            embeddings = await default_embedding_service.get_embeddings(
+                [c.content for c in indexable]
+            )
+            for chunk, embedding in zip(indexable, embeddings):
+                chunk.embedding = embedding
 
-        mime_type = "application/pdf" if doc_path.suffix.lower() == ".pdf" else "text/markdown"
+        mime_type = (
+            "application/pdf" if doc_path.suffix.lower() == ".pdf" else "text/markdown"
+        )
         doc = Document(
             id=doc_id,
             uploaded_by=None,
@@ -90,7 +107,9 @@ async def seed_knowledge_base():
         items.append((doc, chunks))
 
     if not items:
-        logger.error("No seedable documents were produced; refusing to delete the existing corpus.")
+        logger.error(
+            "No seedable documents were produced; refusing to delete the existing corpus."
+        )
         sys.exit(1)
 
     logger.info("Executing atomic upsert transaction...")

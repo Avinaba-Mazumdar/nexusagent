@@ -154,9 +154,13 @@ class HybridSearchEngine:
         sparse_weight: float = DEFAULT_SPARSE_WEIGHT,
         rrf_k: int = DEFAULT_RRF_K,
         candidate_pool_multiplier: int = 3,
+        use_embeddings: bool = True,
     ) -> list[HybridSearchResult]:
         """
         Execute parallel hybrid search across dense embeddings and lexical tsvector indexes.
+
+        ``use_embeddings`` is false when the caller has spent its embedding budget. Retrieval
+        then uses the lexical index only.
         """
         clean_query = query.strip()
         if not clean_query:
@@ -168,6 +172,8 @@ class HybridSearchEngine:
         candidate_limit = max(limit * candidate_pool_multiplier, 15)
 
         async def dense() -> list[dict]:
+            if not use_embeddings:
+                return []
             try:
                 embedding = await self.embedding_service.get_embedding(clean_query)
             except RuntimeError as exc:

@@ -10,6 +10,7 @@ from app.core.access import require_document_access
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_client_ip, get_current_user
 from app.core.rate_limiter import default_chat_quota
+from app.core.security_guardrails import sanitize_retrieved_chunks
 from app.db.models import User, WireModel
 from app.db.neon import NeonDatabase, get_db
 from app.rag.hybrid_search import (
@@ -105,19 +106,21 @@ async def hybrid_search_documents(
 
     engine = HybridSearchEngine(db=db)
     start_time = time.perf_counter()
-    results = await engine.search(
-        query=payload.query,
-        document_id=doc_uuid,
-        limit=payload.limit,
-        dense_weight=payload.denseWeight,
-        sparse_weight=payload.sparseWeight,
-        rrf_k=payload.rrfK,
+    results, flagged = sanitize_retrieved_chunks(
+        await engine.search(
+            query=payload.query,
+            document_id=doc_uuid,
+            limit=payload.limit,
+            dense_weight=payload.denseWeight,
+            sparse_weight=payload.sparseWeight,
+            rrf_k=payload.rrfK,
+        )
     )
     duration_ms = max(int((time.perf_counter() - start_time) * 1000), 0)
     await default_audit_logger.log_tool_audit(
         tool_name="hybrid_rag_search",
         input_args={"query": payload.query, "limit": payload.limit},
-        output_summary={"results": len(results)},
+        output_summary={"results": len(results), "withheld": len(flagged)},
         duration_ms=duration_ms,
         user_id=current_user.id,
         mcp_server="http-api",

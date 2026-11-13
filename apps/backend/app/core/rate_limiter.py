@@ -53,6 +53,9 @@ class SlidingWindowCounter:
 
 
 guest_signup_limiter = SlidingWindowCounter(limit=settings.GUEST_SIGNUPS_PER_IP_PER_HOUR)
+mcp_embedding_budget = SlidingWindowCounter(
+    limit=settings.MCP_EMBEDDINGS_PER_DAY, window=timedelta(days=1)
+)
 google_auth_limiter = SlidingWindowCounter(limit=settings.GOOGLE_AUTH_PER_IP_PER_HOUR)
 refresh_limiter = SlidingWindowCounter(limit=settings.REFRESH_PER_IP_PER_HOUR)
 # A refused question is refunded, but only this many times per user per hour.

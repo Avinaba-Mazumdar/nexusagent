@@ -11,10 +11,12 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from app.config import settings
 from app.core.audit_log import default_audit_logger
+from app.core.rate_limiter import mcp_embedding_budget
+from app.core.security_events import security_event
 from app.core.security_guardrails import (
+    WITHHELD_PASSAGE,
     sanitize_retrieved_chunks,
-    sanitize_untrusted_text,
-    scrub_sensitive_information,
+    screen_passage,
 )
 from app.db.neon import neon_db
 from app.rag.hybrid_search import default_hybrid_search_engine
@@ -41,8 +43,15 @@ async def search(query: str) -> dict:
     """Search the LLM benchmark knowledge base. Returns up to 8 matching passages (id, title, url)."""
     started = time.perf_counter()
     await _db()
+    # Chat quota does not cover this public endpoint. After the daily embedding budget, search
+    # stays available on the lexical index and stops calling the embedding API.
+    use_embeddings = mcp_embedding_budget.hit("mcp")
+    if not use_embeddings:
+        security_event("quota.exceeded", ip="mcp", kind="mcp_embedding")
     results, _ = sanitize_retrieved_chunks(
-        await default_hybrid_search_engine.search(query=query[:1000], limit=8)
+        await default_hybrid_search_engine.search(
+            query=query[:1000], limit=8, use_embeddings=use_embeddings
+        )
     )
     result_data = {
         "results": [
@@ -86,10 +95,11 @@ async def fetch(id: str) -> dict:
     doc = await neon_db.get_document_by_id(doc_id)
     filename = doc.filename if doc else "document"
 
+    safe, _reason = screen_passage(chunk.content)
     result_data = {
         "id": id,
         "title": filename,
-        "text": scrub_sensitive_information(sanitize_untrusted_text(chunk.content)),
+        "text": safe if safe is not None else WITHHELD_PASSAGE,
         "url": _url(str(doc_id), str(chunk_id)),
         "metadata": chunk.metadata,
     }

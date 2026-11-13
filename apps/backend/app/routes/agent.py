@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.agent.graph import AgentGraph, default_agent_graph, prefilter
+from app.agent.graph import AgentGraph, default_agent_graph, prefilter, query_tries_to_override
 from app.agent.run import AgentRun
 from app.agent.state import Intent
 from app.config import settings
@@ -108,8 +108,9 @@ async def stream_agent_execution(
                 resumed_conversation = requested
                 chat_history = [{"role": r["role"], "content": r["content"]} for r in rows]
 
-    # Prefilter refusals cost nothing and are not metered; router refusals are metered.
-    if prefilter(payload.query):
+    # Prefilter and known injection phrasing cost nothing and are not metered.
+    # A refusal the router decides after classification is metered, then refunded.
+    if prefilter(payload.query) or query_tries_to_override(payload.query):
         intent: Intent | None = "refuse"
         quota_charged = False
         usage_id: UUID | None = None

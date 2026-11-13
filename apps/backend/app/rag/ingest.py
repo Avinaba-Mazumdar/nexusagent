@@ -7,7 +7,11 @@ from llama_index.core import Document as LIDocument
 from llama_index.core.node_parser import MarkdownNodeParser, SentenceSplitter
 from pypdf import PdfReader
 
-from app.core.security_guardrails import scrub_sensitive_information
+from app.core.security_guardrails import (
+    WITHHELD_PASSAGE,
+    screen_passage,
+    scrub_sensitive_information,
+)
 from app.db.models import DocumentChunk
 
 _splitter = SentenceSplitter(chunk_size=512, chunk_overlap=64)
@@ -43,6 +47,9 @@ def build_chunks(
         content = node.get_content().strip()
         if not content:
             continue
+        safe, _reason = screen_passage(content)
+        # A matching passage is stored as a placeholder and is not embedded by the callers.
+        content = safe if safe is not None else WITHHELD_PASSAGE
         header = node.metadata.get("header_path", "")
         meta = {
             "filename": filename,
@@ -59,3 +66,8 @@ def build_chunks(
             chunk.id = uuid5(chunk_id_namespace, str(chunk.chunk_index))
         chunks.append(chunk)
     return chunks
+
+
+def chunks_to_embed(chunks: list[DocumentChunk]) -> list[DocumentChunk]:
+    """Passages that may be embedded. Withheld injection passages are stored without a vector."""
+    return [chunk for chunk in chunks if chunk.content != WITHHELD_PASSAGE]

@@ -10,6 +10,8 @@ from app.config import settings
 from app.core.access import require_document_access
 from app.core.audit_log import default_audit_logger
 from app.core.auth import get_current_user, get_current_user_optional, require_admin
+from app.core.security_events import security_event
+from app.core.security_guardrails import WITHHELD_PASSAGE, screen_passage
 from app.db.models import (
     Document,
     DocumentChunkWire,
@@ -21,7 +23,7 @@ from app.db.models import (
 )
 from app.db.neon import NeonDatabase, get_db
 from app.rag.embeddings import EmbeddingUnavailable, default_embedding_service
-from app.rag.ingest import build_chunks
+from app.rag.ingest import build_chunks, chunks_to_embed
 
 logger = logging.getLogger("nexusagent.documents")
 
@@ -74,6 +76,8 @@ async def get_document_chunk(
     chunk = await db.get_document_chunk(document_id, chunk_id)
     if not chunk:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found")
+    safe, _reason = screen_passage(chunk.content)
+    chunk.content = safe if safe is not None else WITHHELD_PASSAGE
     return DocumentChunkWire.model_validate(chunk)
 
 
@@ -155,6 +159,9 @@ async def upload_document(
     existing_doc = await db.get_document_by_hash(sha256_hash)
     if existing_doc:
         existing_chunks = await db.get_document_chunks(existing_doc.id, limit=5)
+        for chunk in existing_chunks:
+            safe, _reason = screen_passage(chunk.content)
+            chunk.content = safe if safe is not None else WITHHELD_PASSAGE
         return DocumentUploadResponseWire(
             document=DocumentMetadataWire.model_validate(existing_doc),
             chunks_count=existing_doc.total_chunks,
@@ -171,6 +178,14 @@ async def upload_document(
     # 1. Parse document into hierarchical chunks off the event loop
     new_doc_id = uuid4()
     chunks = await asyncio.to_thread(build_chunks, raw_bytes, filename, new_doc_id)
+    indexable = chunks_to_embed(chunks)
+    if chunks and not indexable:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Every passage matched a prompt-injection pattern. The document was not stored."
+            ),
+        )
 
     if len(chunks) > settings.MAX_CHUNKS_PER_DOCUMENT:
         raise HTTPException(
@@ -180,11 +195,19 @@ async def upload_document(
 
     try:
         # 2. Generate dense vector embeddings for all chunks
-        if chunks:
-            texts = [c.content for c in chunks]
-            embeddings = await default_embedding_service.get_embeddings(texts)
-            for chunk, emb in zip(chunks, embeddings):
+        if indexable:
+            embeddings = await default_embedding_service.get_embeddings(
+                [c.content for c in indexable]
+            )
+            for chunk, emb in zip(indexable, embeddings):
                 chunk.embedding = emb
+        withheld = len(chunks) - len(indexable)
+        if withheld:
+            security_event(
+                "injection.flagged",
+                filename=filename,
+                reason=f"{withheld} passages withheld at upload",
+            )
 
         # 3. Persist Document record and chunks transactionally
         doc_record = Document(
@@ -207,7 +230,11 @@ async def upload_document(
     await default_audit_logger.log_tool_audit(
         tool_name="document_upload",
         input_args={"filename": filename, "bytes": len(raw_bytes)},
-        output_summary={"document_id": str(new_doc_id), "chunks": len(chunks)},
+        output_summary={
+            "document_id": str(new_doc_id),
+            "chunks": len(chunks),
+            "withheld": len(chunks) - len(indexable),
+        },
         duration_ms=max(int((time.perf_counter() - upload_started) * 1000), 1),
         user_id=current_user.id,
         mcp_server="http-api",
