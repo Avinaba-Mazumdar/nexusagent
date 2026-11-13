@@ -390,9 +390,9 @@ def tool_query_stays_on_task(user_query: str, tool_query: str) -> bool:
     return words <= allowed
 
 
-def history_messages(turns: list[dict[str, str]]) -> list[BaseMessage]:
+def history_messages(turns: list[dict[str, str]]) -> list[AIMessage | HumanMessage]:
     """Prior turns to replay. A turn that matches an injection pattern is left out."""
-    messages: list[BaseMessage] = []
+    messages: list[AIMessage | HumanMessage] = []
     for turn in turns:
         content = turn.get("content", "").strip()
         if not content:

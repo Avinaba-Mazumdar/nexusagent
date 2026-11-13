@@ -14,6 +14,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR / "apps" / "backend"))
@@ -21,15 +22,14 @@ sys.path.insert(0, str(BASE_DIR / "apps" / "backend"))
 # The schema does not depend on the environment; pin it so the output is reproducible.
 os.environ.setdefault("ENVIRONMENT", "test")
 
-from pydantic.json_schema import models_json_schema  # noqa: E402
-
 from app.db.models import SSE_WIRE_MODELS  # noqa: E402
 from app.main import app  # noqa: E402
+from pydantic.json_schema import models_json_schema  # noqa: E402
 
 OUTPUT = BASE_DIR / "packages" / "contracts" / "openapi.json"
 
 
-def build_schema() -> dict:
+def build_schema() -> dict[str, Any]:
     schema = app.openapi()
     _, sse_defs = models_json_schema(
         [(m, "serialization") for m in SSE_WIRE_MODELS],
@@ -42,5 +42,7 @@ def build_schema() -> dict:
 
 
 if __name__ == "__main__":
-    OUTPUT.write_text(json.dumps(build_schema(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    OUTPUT.write_text(
+        json.dumps(build_schema(), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(f"Wrote {OUTPUT.relative_to(BASE_DIR)}")
