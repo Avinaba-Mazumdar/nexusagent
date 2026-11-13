@@ -25,558 +25,558 @@ import { applyTheme, readThemeFromDocument, THEME_STORAGE_KEY, type ThemeName } 
 const MAX_LOG_ENTRIES = 200;
 
 function toWorkspaceDoc(doc: DocumentMetadata): WorkspaceDoc {
-    return { id: doc.id, filename: doc.filename, totalChunks: doc.totalChunks, isSeeded: doc.isSeeded };
+  return { id: doc.id, filename: doc.filename, totalChunks: doc.totalChunks, isSeeded: doc.isSeeded };
 }
 
 export default function Home() {
-    const [prompt, setPrompt] = React.useState('');
-    const [dialogOpen, setDialogOpen] = React.useState(false);
-    const [theme, setTheme] = React.useState<ThemeName>('light');
-    const isDarkTheme = theme !== 'light';
-    const [gisLoaded, setGisLoaded] = React.useState(false);
-    const [hireMeModalOpen, setHireMeModalOpen] = React.useState(false);
-    const [docs, setDocs] = React.useState<WorkspaceDoc[]>([]);
-    const [docsError, setDocsError] = React.useState<string | null>(null);
-    const [uploadState, setUploadState] = React.useState<UploadState>({ status: 'idle' });
-    const [streamingMsgId, setStreamingMsgId] = React.useState<string | null>(null);
-    const [liveStatus, setLiveStatus] = React.useState('');
-    const [mobileActiveTab, setMobileActiveTab] = React.useState<'workspace' | 'chat' | 'observability'>('chat');
-    const [activeCitation, setActiveCitation] = React.useState<Citation | null>(null);
-    const [isObservabilityOpen, setIsObservabilityOpen] = React.useState(false);
+  const [prompt, setPrompt] = React.useState('');
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [theme, setTheme] = React.useState<ThemeName>('light');
+  const isDarkTheme = theme !== 'light';
+  const [gisLoaded, setGisLoaded] = React.useState(false);
+  const [hireMeModalOpen, setHireMeModalOpen] = React.useState(false);
+  const [docs, setDocs] = React.useState<WorkspaceDoc[]>([]);
+  const [docsError, setDocsError] = React.useState<string | null>(null);
+  const [uploadState, setUploadState] = React.useState<UploadState>({ status: 'idle' });
+  const [streamingMsgId, setStreamingMsgId] = React.useState<string | null>(null);
+  const [liveStatus, setLiveStatus] = React.useState('');
+  const [mobileActiveTab, setMobileActiveTab] = React.useState<'workspace' | 'chat' | 'observability'>('chat');
+  const [activeCitation, setActiveCitation] = React.useState<Citation | null>(null);
+  const [isObservabilityOpen, setIsObservabilityOpen] = React.useState(false);
 
-    const [openCategories, setOpenCategories] = React.useState<{
-        documents: boolean;
-        chats: boolean;
-        mcp: boolean;
-    }>({
-        documents: false,
-        chats: true,
-        mcp: false
-    });
+  const [openCategories, setOpenCategories] = React.useState<{
+    documents: boolean;
+    chats: boolean;
+    mcp: boolean;
+  }>({
+    documents: false,
+    chats: true,
+    mcp: false
+  });
 
-    const toggleCategory = React.useCallback((category: 'documents' | 'chats' | 'mcp') => {
-        setOpenCategories((prev) => ({
-            ...prev,
-            [category]: !prev[category]
-        }));
-    }, []);
+  const toggleCategory = React.useCallback((category: 'documents' | 'chats' | 'mcp') => {
+    setOpenCategories((prev) => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  }, []);
 
-    const [metrics, setMetrics] = React.useState<TelemetryMetrics>({ firstTokenMs: null, totalLatencyMs: null });
-    const [logs, setLogs] = React.useState<LogEntry[]>([]);
-    const [usage, setUsage] = React.useState<UsageEvent[]>([]);
-    const [sessionTokens, setSessionTokens] = React.useState<{ input: number; output: number; total: number }>({ input: 0, output: 0, total: 0 });
-    const [toolCalls, setToolCalls] = React.useState<ToolCallItem[]>([]);
+  const [metrics, setMetrics] = React.useState<TelemetryMetrics>({ firstTokenMs: null, totalLatencyMs: null });
+  const [logs, setLogs] = React.useState<LogEntry[]>([]);
+  const [usage, setUsage] = React.useState<UsageEvent[]>([]);
+  const [sessionTokens, setSessionTokens] = React.useState<{ input: number; output: number; total: number }>({ input: 0, output: 0, total: 0 });
+  const [toolCalls, setToolCalls] = React.useState<ToolCallItem[]>([]);
 
-    const {
-        user,
-        quotaRemaining,
-        bucketCapacity,
-        quotaResetsAt,
-        isGuestLoading,
-        isGoogleLoading,
-        setIsGoogleLoading,
-        error,
-        sessionNotice,
-        loginGuest,
-        loginGoogle,
-        logout,
-        initAuth,
-        setQuotaRemaining
-    } = useAuthStore();
+  const {
+    user,
+    quotaRemaining,
+    bucketCapacity,
+    quotaResetsAt,
+    isGuestLoading,
+    isGoogleLoading,
+    setIsGoogleLoading,
+    error,
+    sessionNotice,
+    loginGuest,
+    loginGoogle,
+    logout,
+    initAuth,
+    setQuotaRemaining
+  } = useAuthStore();
 
-    const isGoogleUser = Boolean(user && !user.isGuest);
+  const isGoogleUser = Boolean(user && !user.isGuest);
 
-    const {
-        conversations,
-        setConversations,
-        isLoadingConversations,
-        chatSearchQuery,
-        setChatSearchQuery,
-        chatNotice,
-        setChatNotice,
-        messages,
-        setMessages,
-        activeSessionId,
-        setActiveSessionId,
-        handleNewChat,
-        handleSelectConversationItem,
-        handleDeleteConversation,
-        prefetchMessages,
-        persistConversations,
-        invalidateMessages
-    } = useChatHistory(user);
+  const {
+    conversations,
+    setConversations,
+    isLoadingConversations,
+    chatSearchQuery,
+    setChatSearchQuery,
+    chatNotice,
+    setChatNotice,
+    messages,
+    setMessages,
+    activeSessionId,
+    setActiveSessionId,
+    handleNewChat,
+    handleSelectConversationItem,
+    handleDeleteConversation,
+    prefetchMessages,
+    persistConversations,
+    invalidateMessages
+  } = useChatHistory(user);
 
-    const agentStream = useAgentStream({
-        onLog: (entry) => setLogs((prev) => [...prev, entry].slice(-MAX_LOG_ENTRIES)),
-        onMetricUpdate: (updater) => setMetrics(updater),
-        onQuota: (remaining) => setQuotaRemaining(remaining),
-        onUsage: (event) => {
-            setUsage((prev) => [...prev, event]);
-            setSessionTokens((prev) => ({
-                input: prev.input + (event.inputTokens || 0),
-                output: prev.output + (event.outputTokens || 0),
-                total: prev.total + (event.totalTokens || 0)
-            }));
-        },
-        onToolCall: (call) => {
-            setToolCalls((prev) => [...prev, { tool: call.tool, args: call.args }]);
-        },
-        onToolResult: (result) => {
-            setToolCalls((prev) => {
-                const realIdx = prev.findIndex((c) => c.tool === result.tool && c.durationMs === undefined);
-                if (realIdx === -1) return prev;
-                const updated = [...prev];
-                updated[realIdx] = {
-                    ...updated[realIdx],
-                    durationMs: result.durationMs,
-                    resultsCount: result.chunksRetrieved
-                };
-                return updated;
-            });
+  const agentStream = useAgentStream({
+    onLog: (entry) => setLogs((prev) => [...prev, entry].slice(-MAX_LOG_ENTRIES)),
+    onMetricUpdate: (updater) => setMetrics(updater),
+    onQuota: (remaining) => setQuotaRemaining(remaining),
+    onUsage: (event) => {
+      setUsage((prev) => [...prev, event]);
+      setSessionTokens((prev) => ({
+        input: prev.input + (event.inputTokens || 0),
+        output: prev.output + (event.outputTokens || 0),
+        total: prev.total + (event.totalTokens || 0)
+      }));
+    },
+    onToolCall: (call) => {
+      setToolCalls((prev) => [...prev, { tool: call.tool, args: call.args }]);
+    },
+    onToolResult: (result) => {
+      setToolCalls((prev) => {
+        const realIdx = prev.findIndex((c) => c.tool === result.tool && c.durationMs === undefined);
+        if (realIdx === -1) return prev;
+        const updated = [...prev];
+        updated[realIdx] = {
+          ...updated[realIdx],
+          durationMs: result.durationMs,
+          resultsCount: result.chunksRetrieved
+        };
+        return updated;
+      });
+    }
+  });
+
+  const streamedResponseRef = React.useRef('');
+  streamedResponseRef.current = agentStream.streamedResponse;
+
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+
+  React.useEffect(() => {
+    void initAuth();
+    setTheme(readThemeFromDocument());
+    if ((window as unknown as { google?: unknown }).google) {
+      setGisLoaded(true);
+    }
+  }, [initAuth]);
+
+  // The inline script in layout.tsx applied the saved theme before hydration; only write after a user toggle.
+  const themeToggledRef = React.useRef(false);
+
+  const handleThemeChange = React.useCallback((next: ThemeName) => {
+    themeToggledRef.current = true;
+    setTheme(next);
+  }, []);
+
+  React.useEffect(() => {
+    if (!themeToggledRef.current) return;
+    applyTheme(theme);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Storage unavailable (private mode): the theme still applies for this tab.
+    }
+  }, [theme]);
+
+  const fetchDocs = React.useCallback(async () => {
+    try {
+      const data = await apiClient<DocumentListResponse>('/api/documents');
+      setDocs(data.documents.map(toWorkspaceDoc));
+      setDocsError(null);
+    } catch {
+      setDocsError("Couldn't load the document list.");
+    }
+  }, [user]);
+
+  React.useEffect(() => {
+    void fetchDocs();
+  }, [fetchDocs]);
+
+  const handleDeleteDocument = async (id: string) => {
+    try {
+      await apiClient(`/api/documents/${id}`, { method: 'DELETE' });
+      setDocs((prev) => prev.filter((d) => d.id !== id));
+      setDocsError(null);
+    } catch (err) {
+      setDocsError(err instanceof Error ? err.message : "Couldn't delete the document.");
+    }
+  };
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleUploadClick = () => {
+    if (!user) {
+      setDialogOpen(true);
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !user) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setUploadState({ status: 'error', message: `File is larger than the ${MAX_UPLOAD_MB} MB limit.` });
+      return;
+    }
+
+    setUploadState({ status: 'uploading', message: `Indexing ${file.name}…` });
+    const body = new FormData();
+    body.append('file', file);
+    try {
+      const data = await apiClient<DocumentUploadResponse>('/api/documents/upload', { method: 'POST', body, timeoutMs: 120_000 });
+      setUploadState({
+        status: 'success',
+        message: `Indexed ${data.document.filename} (${data.chunksCount} chunks).`
+      });
+      if (typeof data.quotaRemaining === 'number') {
+        setQuotaRemaining(data.quotaRemaining);
+      }
+      void fetchDocs();
+    } catch (err) {
+      setUploadState({ status: 'error', message: err instanceof Error ? err.message : 'Upload failed.' });
+    }
+  };
+
+  const gsiInitializedRef = React.useRef(false);
+  const handleCredentialRef = React.useRef<((credential: string) => Promise<void>) | null>(null);
+
+  handleCredentialRef.current = async (credential: string) => {
+    setIsGoogleLoading(true);
+    const ok = await loginGoogle(credential);
+    setIsGoogleLoading(false);
+    if (ok) setDialogOpen(false);
+  };
+
+  const initGsi = React.useCallback(() => {
+    if (gsiInitializedRef.current || !googleClientId) return;
+    const google = (window as unknown as GoogleWindow).google;
+    if (!google?.accounts?.id) return;
+
+    try {
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: (response: { credential?: string }) => {
+          if (response?.credential && handleCredentialRef.current) {
+            void handleCredentialRef.current(response.credential);
+          }
         }
-    });
+      });
+      gsiInitializedRef.current = true;
+    } catch {
+      // Graceful fallback
+    }
+  }, [googleClientId]);
 
-    const streamedResponseRef = React.useRef('');
-    streamedResponseRef.current = agentStream.streamedResponse;
+  const renderGoogleButton = React.useCallback(
+    (container: HTMLDivElement | null) => {
+      if (!container || !googleClientId || !gisLoaded) return;
+      const google = (window as unknown as GoogleWindow).google;
+      if (!google?.accounts?.id) return;
 
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+      initGsi();
 
-    React.useEffect(() => {
-        void initAuth();
-        setTheme(readThemeFromDocument());
-        if ((window as unknown as { google?: unknown }).google) {
-            setGisLoaded(true);
-        }
-    }, [initAuth]);
+      try {
+        container.innerHTML = '';
+        google.accounts.id.renderButton(container, {
+          theme: isDarkTheme ? 'filled_black' : 'outline',
+          size: 'large',
+          width: Math.round(Math.min(400, Math.max(200, container.offsetWidth || 320))),
+          text: 'continue_with',
+          shape: 'rectangular',
+          logo_alignment: 'center'
+        });
+      } catch {
+        // Graceful fallback
+      }
+    },
+    [googleClientId, gisLoaded, initGsi, isDarkTheme]
+  );
 
-    // The inline script in layout.tsx applied the saved theme before hydration; only write after a user toggle.
-    const themeToggledRef = React.useRef(false);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const stickToBottomRef = React.useRef(true);
 
-    const handleThemeChange = React.useCallback((next: ThemeName) => {
-        themeToggledRef.current = true;
-        setTheme(next);
-    }, []);
+  const handleThreadScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
-    React.useEffect(() => {
-        if (!themeToggledRef.current) return;
-        applyTheme(theme);
-        try {
-            localStorage.setItem(THEME_STORAGE_KEY, theme);
-        } catch {
-            // Storage unavailable (private mode): the theme still applies for this tab.
-        }
-    }, [theme]);
+  React.useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (el && stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages, agentStream.streamedResponse]);
 
-    const fetchDocs = React.useCallback(async () => {
-        try {
-            const data = await apiClient<DocumentListResponse>('/api/documents');
-            setDocs(data.documents.map(toWorkspaceDoc));
-            setDocsError(null);
-        } catch {
-            setDocsError("Couldn't load the document list.");
-        }
-    }, [user]);
+  const updateMessage = React.useCallback(
+    (id: string, patch: Partial<ChatItem>) => {
+      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+    },
+    [setMessages]
+  );
 
-    React.useEffect(() => {
-        void fetchDocs();
-    }, [fetchDocs]);
+  const streamInto = async (query: string, assistantMsgId: string) => {
+    if (!user) return;
 
-    const handleDeleteDocument = async (id: string) => {
-        try {
-            await apiClient(`/api/documents/${id}`, { method: 'DELETE' });
-            setDocs((prev) => prev.filter((d) => d.id !== id));
-            setDocsError(null);
-        } catch (err) {
-            setDocsError(err instanceof Error ? err.message : "Couldn't delete the document.");
-        }
-    };
+    setUsage([]);
+    setToolCalls([]);
+    stickToBottomRef.current = true;
+    setStreamingMsgId(assistantMsgId);
+    setLiveStatus('Generating response…');
 
-    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    try {
+      const result = await agentStream.startStream({
+        query,
+        sessionId: activeSessionId || undefined
+      });
 
-    const handleUploadClick = () => {
-        if (!user) {
-            setDialogOpen(true);
-            return;
-        }
-        fileInputRef.current?.click();
-    };
+      if (!result) {
+        updateMessage(assistantMsgId, { content: streamedResponseRef.current, stopped: true });
+        setLiveStatus('Response stopped.');
+        return;
+      }
 
-    const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        e.target.value = '';
-        if (!file || !user) return;
-        if (file.size > MAX_UPLOAD_BYTES) {
-            setUploadState({ status: 'error', message: `File is larger than the ${MAX_UPLOAD_MB} MB limit.` });
-            return;
-        }
+      const currentSessionId = result.sessionId || activeSessionId;
+      if (result.sessionId && !activeSessionId) {
+        setActiveSessionId(result.sessionId);
+      }
 
-        setUploadState({ status: 'uploading', message: `Indexing ${file.name}…` });
-        const body = new FormData();
-        body.append('file', file);
-        try {
-            const data = await apiClient<DocumentUploadResponse>('/api/documents/upload', { method: 'POST', body, timeoutMs: 120_000 });
-            setUploadState({
-                status: 'success',
-                message: `Indexed ${data.document.filename} (${data.chunksCount} chunks).`
-            });
-            if (typeof data.quotaRemaining === 'number') {
-                setQuotaRemaining(data.quotaRemaining);
+      // The server reports conversationId = null when it could not save the turn.
+      const saved = !isGoogleUser || Boolean(result.conversationId);
+      if (!saved) {
+        setChatNotice('This answer could not be saved to your history.');
+      }
+
+      if (currentSessionId && isGoogleUser && saved) {
+        setConversations((prev) => {
+          const now = new Date().toISOString();
+          const existing = prev.find((c) => c.id === currentSessionId);
+          const updatedItem: ChatConversation = existing
+            ? {
+              ...existing,
+              lastSnippet: query,
+              messageCount: (existing.messageCount || 0) + 2,
+              updatedAt: now
             }
-            void fetchDocs();
-        } catch (err) {
-            setUploadState({ status: 'error', message: err instanceof Error ? err.message : 'Upload failed.' });
-        }
-    };
+            : {
+              id: currentSessionId,
+              userId: user?.id || '',
+              title: query.slice(0, 45) + (query.length > 45 ? '...' : ''),
+              createdAt: now,
+              updatedAt: now,
+              messageCount: 2,
+              lastSnippet: query
+            };
+          const nextList = [updatedItem, ...prev.filter((c) => c.id !== currentSessionId)];
+          persistConversations(nextList);
+          return nextList;
+        });
+      }
 
-    const gsiInitializedRef = React.useRef(false);
-    const handleCredentialRef = React.useRef<((credential: string) => Promise<void>) | null>(null);
-
-    handleCredentialRef.current = async (credential: string) => {
-        setIsGoogleLoading(true);
-        const ok = await loginGoogle(credential);
-        setIsGoogleLoading(false);
-        if (ok) setDialogOpen(false);
-    };
-
-    const initGsi = React.useCallback(() => {
-        if (gsiInitializedRef.current || !googleClientId) return;
-        const google = (window as unknown as GoogleWindow).google;
-        if (!google?.accounts?.id) return;
-
-        try {
-            google.accounts.id.initialize({
-                client_id: googleClientId,
-                callback: (response: { credential?: string }) => {
-                    if (response?.credential && handleCredentialRef.current) {
-                        void handleCredentialRef.current(response.credential);
-                    }
-                }
-            });
-            gsiInitializedRef.current = true;
-        } catch {
-            // Graceful fallback
-        }
-    }, [googleClientId]);
-
-    const renderGoogleButton = React.useCallback(
-        (container: HTMLDivElement | null) => {
-            if (!container || !googleClientId || !gisLoaded) return;
-            const google = (window as unknown as GoogleWindow).google;
-            if (!google?.accounts?.id) return;
-
-            initGsi();
-
-            try {
-                container.innerHTML = '';
-                google.accounts.id.renderButton(container, {
-                    theme: isDarkTheme ? 'filled_black' : 'outline',
-                    size: 'large',
-                    width: Math.round(Math.min(400, Math.max(200, container.offsetWidth || 320))),
-                    text: 'continue_with',
-                    shape: 'rectangular',
-                    logo_alignment: 'center'
-                });
-            } catch {
-                // Graceful fallback
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId
+            ? {
+              ...m,
+              content: result.response,
+              citations: result.citations,
+              warnings: result.injectionWarnings,
+              webSources: result.webSources,
+              uncited: result.uncited,
+              grounding: result.grounding,
+              error: undefined,
+              stopped: false
             }
-        },
-        [googleClientId, gisLoaded, initGsi, isDarkTheme]
-    );
+            : m
+        )
+      );
+      // The server saved the turn: drop the cached transcript so the next open loads the real copy.
+      if (currentSessionId && saved) invalidateMessages(currentSessionId);
+      setLiveStatus('Response ready.');
+    } catch (err: unknown) {
+      const errorText = err instanceof Error ? err.message : 'Failed to execute agent stream.';
+      if (err instanceof AgentStreamError && err.status === 429) {
+        setQuotaRemaining(0, err.retryAfterSeconds ? new Date(Date.now() + err.retryAfterSeconds * 1000).toISOString() : undefined);
+      }
+      updateMessage(assistantMsgId, { content: '', error: errorText });
+      setLiveStatus(`Error: ${errorText}`);
+    } finally {
+      setStreamingMsgId(null);
+    }
+  };
 
-    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
-    const stickToBottomRef = React.useRef(true);
+  const sendQuery = (query: string) => {
+    if (!query || agentStream.isStreaming) return;
 
-    const handleThreadScroll = () => {
-        const el = scrollContainerRef.current;
-        if (!el) return;
-        stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    };
+    if (!user) {
+      setDialogOpen(true);
+      return;
+    }
 
-    React.useEffect(() => {
-        const el = scrollContainerRef.current;
-        if (el && stickToBottomRef.current) {
-            el.scrollTop = el.scrollHeight;
-        }
-    }, [messages, agentStream.streamedResponse]);
+    if (quotaRemaining <= 0) {
+      setLiveStatus('You have used all your free questions for now.');
+      return;
+    }
 
-    const updateMessage = React.useCallback(
-        (id: string, patch: Partial<ChatItem>) => {
-            setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
-        },
-        [setMessages]
-    );
+    const userMsgId = `u-${Date.now()}`;
+    const assistantMsgId = `a-${Date.now()}`;
 
-    const streamInto = async (query: string, assistantMsgId: string) => {
-        if (!user) return;
+    setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: query }, { id: assistantMsgId, role: 'assistant', content: '', query }]);
+    setPrompt('');
+    void streamInto(query, assistantMsgId);
+  };
 
-        setUsage([]);
-        setToolCalls([]);
-        stickToBottomRef.current = true;
-        setStreamingMsgId(assistantMsgId);
-        setLiveStatus('Generating response…');
+  const handleRetry = (msg: ChatItem) => {
+    if (!msg.query || agentStream.isStreaming) return;
+    if (quotaRemaining <= 0) return;
+    updateMessage(msg.id, { content: '', error: undefined, stopped: false });
+    void streamInto(msg.query, msg.id);
+  };
 
-        try {
-            const result = await agentStream.startStream({
-                query,
-                sessionId: activeSessionId || undefined
-            });
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendQuery(prompt.trim());
+  };
 
-            if (!result) {
-                updateMessage(assistantMsgId, { content: streamedResponseRef.current, stopped: true });
-                setLiveStatus('Response stopped.');
-                return;
-            }
+  const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      sendQuery(prompt.trim());
+    }
+  };
 
-            const currentSessionId = result.sessionId || activeSessionId;
-            if (result.sessionId && !activeSessionId) {
-                setActiveSessionId(result.sessionId);
-            }
+  const mobileTabs = [
+    { id: 'workspace' as const, label: 'Workspace', icon: Database },
+    { id: 'chat' as const, label: 'Canvas', icon: MessageSquare },
+    { id: 'observability' as const, label: 'Observe', icon: Activity }
+  ];
 
-            // The server reports conversationId = null when it could not save the turn.
-            const saved = !isGoogleUser || Boolean(result.conversationId);
-            if (!saved) {
-                setChatNotice('This answer could not be saved to your history.');
-            }
+  return (
+    <div className="h-dvh flex flex-col bg-background text-foreground font-sans overflow-hidden">
+      <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setGisLoaded(true)} />
 
-            if (currentSessionId && isGoogleUser && saved) {
-                setConversations((prev) => {
-                    const now = new Date().toISOString();
-                    const existing = prev.find((c) => c.id === currentSessionId);
-                    const updatedItem: ChatConversation = existing
-                        ? {
-                              ...existing,
-                              lastSnippet: query,
-                              messageCount: (existing.messageCount || 0) + 2,
-                              updatedAt: now
-                          }
-                        : {
-                              id: currentSessionId,
-                              userId: user?.id || '',
-                              title: query.slice(0, 45) + (query.length > 45 ? '...' : ''),
-                              createdAt: now,
-                              updatedAt: now,
-                              messageCount: 2,
-                              lastSnippet: query
-                          };
-                    const nextList = [updatedItem, ...prev.filter((c) => c.id !== currentSessionId)];
-                    persistConversations(nextList);
-                    return nextList;
-                });
-            }
+      {/* 1. Header */}
+      <AppHeader
+        user={user}
+        quotaRemaining={quotaRemaining}
+        bucketCapacity={bucketCapacity}
+        theme={theme}
+        onThemeChange={handleThemeChange}
+        isObservabilityOpen={isObservabilityOpen}
+        onToggleObservability={() => setIsObservabilityOpen((prev) => !prev)}
+        isStreaming={agentStream.isStreaming}
+        onOpenSignIn={() => setDialogOpen(true)}
+        onLogout={logout}
+      />
 
-            setMessages((prev) =>
-                prev.map((m) =>
-                    m.id === assistantMsgId
-                        ? {
-                              ...m,
-                              content: result.response,
-                              citations: result.citations,
-                              warnings: result.injectionWarnings,
-                              webSources: result.webSources,
-                              uncited: result.uncited,
-                              error: undefined,
-                              stopped: false
-                          }
-                        : m
-                )
-            );
-            // The server saved the turn: drop the cached transcript so the next open loads the real copy.
-            if (currentSessionId && saved) invalidateMessages(currentSessionId);
-            setLiveStatus('Response ready.');
-        } catch (err: unknown) {
-            const errorText = err instanceof Error ? err.message : 'Failed to execute agent stream.';
-            if (err instanceof AgentStreamError && err.status === 429) {
-                setQuotaRemaining(0, err.retryAfterSeconds ? new Date(Date.now() + err.retryAfterSeconds * 1000).toISOString() : undefined);
-            }
-            updateMessage(assistantMsgId, { content: '', error: errorText });
-            setLiveStatus(`Error: ${errorText}`);
-        } finally {
-            setStreamingMsgId(null);
-        }
-    };
+      {/* 4-Zone Body: Workspace (left) + Synthesis Canvas (center) + Observability (right) */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* 2. Workspace Panel (Left) */}
+        <WorkspaceSidebar
+          isAdmin={Boolean(user?.isAdmin)}
+          mobileActiveTab={mobileActiveTab}
+          openCategories={openCategories}
+          onToggleCategory={toggleCategory}
+          docs={docs}
+          docsError={docsError}
+          uploadState={uploadState}
+          fileInputRef={fileInputRef}
+          onUploadClick={handleUploadClick}
+          onFileSelected={handleFileSelected}
+          onInquireAuthor={() => setHireMeModalOpen(true)}
+          onDeleteDocument={handleDeleteDocument}
+          isGoogleUser={isGoogleUser}
+          activeSessionId={activeSessionId}
+          conversations={conversations}
+          isLoadingConversations={isLoadingConversations}
+          chatSearchQuery={chatSearchQuery}
+          onSearchChange={setChatSearchQuery}
+          onSelectConversation={handleSelectConversationItem}
+          onDeleteConversation={handleDeleteConversation}
+          onPrefetchConversation={prefetchMessages}
+          onOpenSignIn={() => setDialogOpen(true)}
+          chatNotice={chatNotice}
+        />
 
-    const sendQuery = (query: string) => {
-        if (!query || agentStream.isStreaming) return;
+        {/* 3. Active Chat Canvas (Center) */}
+        <ChatCanvas
+          mobileActiveTab={mobileActiveTab}
+          user={user}
+          quotaRemaining={quotaRemaining}
+          quotaResetsAt={quotaResetsAt}
+          messages={messages}
+          isStreaming={agentStream.isStreaming}
+          streamedResponse={agentStream.streamedResponse}
+          citations={agentStream.citations}
+          currentNode={agentStream.currentNode}
+          streamingMsgId={streamingMsgId}
+          liveStatus={liveStatus}
+          sessionNotice={sessionNotice}
+          onSignIn={() => setDialogOpen(true)}
+          scrollContainerRef={scrollContainerRef}
+          onScroll={handleThreadScroll}
+          onNewChat={handleNewChat}
+          onRetry={handleRetry}
+          onCitationClick={setActiveCitation}
+          onHireMeClick={() => setHireMeModalOpen(true)}
+          onSelectPrompt={(text) => setPrompt(text)}
+        >
+          <Composer
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            onSubmit={handleSubmit}
+            onKeyDown={handleComposerKeyDown}
+            isStreaming={agentStream.isStreaming}
+            onStop={agentStream.cancelStream}
+            quotaExhausted={Boolean(user) && quotaRemaining <= 0}
+          />
+        </ChatCanvas>
 
-        if (!user) {
-            setDialogOpen(true);
-            return;
-        }
+        {/* 4. Observability Panel (Right) */}
+        <ObservabilityPanel
+          metrics={metrics}
+          logs={logs}
+          currentNode={agentStream.currentNode}
+          nodeHistory={agentStream.nodeHistory}
+          plan={agentStream.plan}
+          grounding={agentStream.grounding}
+          usage={usage}
+          sessionTokens={sessionTokens}
+          toolCalls={toolCalls}
+          isStreaming={agentStream.isStreaming}
+          onClose={() => setIsObservabilityOpen(false)}
+          className={mobileActiveTab === 'observability' ? 'flex' : isObservabilityOpen ? 'hidden xl:flex' : 'hidden'}
+        />
+      </div>
 
-        if (quotaRemaining <= 0) {
-            setLiveStatus('You have used all your free questions for now.');
-            return;
-        }
+      {/* Mobile Bottom Navigation */}
+      <nav aria-label="Panels" className="xl:hidden flex items-center justify-around bg-card border-t border-border p-2 shrink-0 z-40 pb-safe">
+        {mobileTabs.map(({ id, label, icon: Icon }) => {
+          const isActive = mobileActiveTab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setMobileActiveTab(id)}
+              aria-current={isActive ? 'page' : undefined}
+              className={`flex flex-col items-center p-2 rounded-lg min-w-18 min-h-11 cursor-pointer ${isActive ? 'text-primary bg-primary/10 font-bold' : 'text-muted-foreground hover:bg-secondary/50 font-medium'
+                }`}
+            >
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              <span className="text-xs mt-1">{label}</span>
+            </button>
+          );
+        })}
+      </nav>
 
-        const userMsgId = `u-${Date.now()}`;
-        const assistantMsgId = `a-${Date.now()}`;
-
-        setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: query }, { id: assistantMsgId, role: 'assistant', content: '', query }]);
-        setPrompt('');
-        void streamInto(query, assistantMsgId);
-    };
-
-    const handleRetry = (msg: ChatItem) => {
-        if (!msg.query || agentStream.isStreaming) return;
-        if (quotaRemaining <= 0) return;
-        updateMessage(msg.id, { content: '', error: undefined, stopped: false });
-        void streamInto(msg.query, msg.id);
-    };
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        sendQuery(prompt.trim());
-    };
-
-    const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            sendQuery(prompt.trim());
-        }
-    };
-
-    const mobileTabs = [
-        { id: 'workspace' as const, label: 'Workspace', icon: Database },
-        { id: 'chat' as const, label: 'Canvas', icon: MessageSquare },
-        { id: 'observability' as const, label: 'Observe', icon: Activity }
-    ];
-
-    return (
-        <div className="h-dvh flex flex-col bg-background text-foreground font-sans overflow-hidden">
-            <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setGisLoaded(true)} />
-
-            {/* 1. Header */}
-            <AppHeader
-                user={user}
-                quotaRemaining={quotaRemaining}
-                bucketCapacity={bucketCapacity}
-                theme={theme}
-                onThemeChange={handleThemeChange}
-                isObservabilityOpen={isObservabilityOpen}
-                onToggleObservability={() => setIsObservabilityOpen((prev) => !prev)}
-                isStreaming={agentStream.isStreaming}
-                onOpenSignIn={() => setDialogOpen(true)}
-                onLogout={logout}
-            />
-
-            {/* 4-Zone Body: Workspace (left) + Synthesis Canvas (center) + Observability (right) */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* 2. Workspace Panel (Left) */}
-                <WorkspaceSidebar
-                    isAdmin={Boolean(user?.isAdmin)}
-                    mobileActiveTab={mobileActiveTab}
-                    openCategories={openCategories}
-                    onToggleCategory={toggleCategory}
-                    docs={docs}
-                    docsError={docsError}
-                    uploadState={uploadState}
-                    fileInputRef={fileInputRef}
-                    onUploadClick={handleUploadClick}
-                    onFileSelected={handleFileSelected}
-                    onInquireAuthor={() => setHireMeModalOpen(true)}
-                    onDeleteDocument={handleDeleteDocument}
-                    isGoogleUser={isGoogleUser}
-                    activeSessionId={activeSessionId}
-                    conversations={conversations}
-                    isLoadingConversations={isLoadingConversations}
-                    chatSearchQuery={chatSearchQuery}
-                    onSearchChange={setChatSearchQuery}
-                    onSelectConversation={handleSelectConversationItem}
-                    onDeleteConversation={handleDeleteConversation}
-                    onPrefetchConversation={prefetchMessages}
-                    onOpenSignIn={() => setDialogOpen(true)}
-                    chatNotice={chatNotice}
-                />
-
-                {/* 3. Active Chat Canvas (Center) */}
-                <ChatCanvas
-                    mobileActiveTab={mobileActiveTab}
-                    user={user}
-                    quotaRemaining={quotaRemaining}
-                    quotaResetsAt={quotaResetsAt}
-                    messages={messages}
-                    isStreaming={agentStream.isStreaming}
-                    streamedResponse={agentStream.streamedResponse}
-                    citations={agentStream.citations}
-                    currentNode={agentStream.currentNode}
-                    streamingMsgId={streamingMsgId}
-                    liveStatus={liveStatus}
-                    sessionNotice={sessionNotice}
-                    onSignIn={() => setDialogOpen(true)}
-                    scrollContainerRef={scrollContainerRef}
-                    onScroll={handleThreadScroll}
-                    onNewChat={handleNewChat}
-                    onRetry={handleRetry}
-                    onCitationClick={setActiveCitation}
-                    onHireMeClick={() => setHireMeModalOpen(true)}
-                    onSelectPrompt={(text) => setPrompt(text)}
-                >
-                    <Composer
-                        prompt={prompt}
-                        onPromptChange={setPrompt}
-                        onSubmit={handleSubmit}
-                        onKeyDown={handleComposerKeyDown}
-                        isStreaming={agentStream.isStreaming}
-                        onStop={agentStream.cancelStream}
-                        quotaExhausted={Boolean(user) && quotaRemaining <= 0}
-                    />
-                </ChatCanvas>
-
-                {/* 4. Observability Panel (Right) */}
-                <ObservabilityPanel
-                    metrics={metrics}
-                    logs={logs}
-                    currentNode={agentStream.currentNode}
-                    nodeHistory={agentStream.nodeHistory}
-                    plan={agentStream.plan}
-                    grounding={agentStream.grounding}
-                    usage={usage}
-                    sessionTokens={sessionTokens}
-                    toolCalls={toolCalls}
-                    isStreaming={agentStream.isStreaming}
-                    onClose={() => setIsObservabilityOpen(false)}
-                    className={mobileActiveTab === 'observability' ? 'flex' : isObservabilityOpen ? 'hidden xl:flex' : 'hidden'}
-                />
-            </div>
-
-            {/* Mobile Bottom Navigation */}
-            <nav aria-label="Panels" className="xl:hidden flex items-center justify-around bg-card border-t border-border p-2 shrink-0 z-40 pb-safe">
-                {mobileTabs.map(({ id, label, icon: Icon }) => {
-                    const isActive = mobileActiveTab === id;
-                    return (
-                        <button
-                            key={id}
-                            type="button"
-                            onClick={() => setMobileActiveTab(id)}
-                            aria-current={isActive ? 'page' : undefined}
-                            className={`flex flex-col items-center p-2 rounded-lg min-w-18 min-h-11 cursor-pointer ${
-                                isActive ? 'text-primary bg-primary/10 font-bold' : 'text-muted-foreground hover:bg-secondary/50 font-medium'
-                            }`}
-                        >
-                            <Icon className="h-5 w-5" aria-hidden="true" />
-                            <span className="text-xs mt-1">{label}</span>
-                        </button>
-                    );
-                })}
-            </nav>
-
-            {/* Modals */}
-            <SignInDialog
-                open={dialogOpen}
-                onOpenChange={setDialogOpen}
-                googleClientId={googleClientId}
-                gisLoaded={gisLoaded}
-                isGoogleLoading={isGoogleLoading}
-                isGuestLoading={isGuestLoading}
-                error={error}
-                onGuestLogin={async () => {
-                    const ok = await loginGuest();
-                    if (ok) setDialogOpen(false);
-                }}
-                renderGoogleButton={renderGoogleButton}
-            />
-            <HireMeModal open={hireMeModalOpen} onOpenChange={setHireMeModalOpen} />
-            <SourceDialog citation={activeCitation} onClose={() => setActiveCitation(null)} />
-        </div>
-    );
+      {/* Modals */}
+      <SignInDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        googleClientId={googleClientId}
+        gisLoaded={gisLoaded}
+        isGoogleLoading={isGoogleLoading}
+        isGuestLoading={isGuestLoading}
+        error={error}
+        onGuestLogin={async () => {
+          const ok = await loginGuest();
+          if (ok) setDialogOpen(false);
+        }}
+        renderGoogleButton={renderGoogleButton}
+      />
+      <HireMeModal open={hireMeModalOpen} onOpenChange={setHireMeModalOpen} />
+      <SourceDialog citation={activeCitation} onClose={() => setActiveCitation(null)} />
+    </div>
+  );
 }

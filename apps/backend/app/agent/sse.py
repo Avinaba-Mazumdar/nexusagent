@@ -17,7 +17,6 @@ from app.db.models import (
     InjectionWarningWire,
     PlanStepWire,
     SseErrorEvent,
-    SseGroundingEvent,
     SseNodeStartEvent,
     SsePlanEvent,
     SseStartEvent,
@@ -180,16 +179,7 @@ def _preload_frames(session_id: str, state: AgentState) -> list[str]:
             ),
         )
     )
-    frames.append(
-        format_sse(
-            "grounding",
-            SseGroundingEvent(
-                sessionId=session_id,
-                grounding=state.grounding,
-                feedback=state.grounding_feedback,
-            ),
-        )
-    )
+    # Grounding is sent on the done event, after the answer is checked against its passages.
     return frames
 
 
@@ -220,16 +210,6 @@ def _tools_frames(session_id: str, state: AgentState, events: list[ToolEvent]) -
                 ),
             )
         )
-    frames.append(
-        format_sse(
-            "grounding",
-            SseGroundingEvent(
-                sessionId=session_id,
-                grounding=state.grounding,
-                feedback=state.grounding_feedback,
-            ),
-        )
-    )
     return frames
 
 

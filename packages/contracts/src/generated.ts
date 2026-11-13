@@ -4,888 +4,888 @@
  */
 
 export interface paths {
-    '/': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Root */
-        get: operations['root__get'];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  '/': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/agent/audit-logs': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Tool Audit Logs
-         * @description Retrieve the caller's persisted tool execution audit records (``tool_audit_logs``).
-         */
-        get: operations['get_tool_audit_logs_api_agent_audit_logs_get'];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Root */
+    get: operations['root__get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/agent/audit-logs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/agent/stream': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Stream Agent Execution
-         * @description Server-Sent Events (SSE) streaming endpoint for the agent pipeline.
-         *     Enforces the rolling 24-hour chat quota with automatic 429 and retry headers.
-         */
-        post: operations['stream_agent_execution_api_agent_stream_post'];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Get Tool Audit Logs
+     * @description Retrieve the caller's persisted tool execution audit records (``tool_audit_logs``).
+     */
+    get: operations['get_tool_audit_logs_api_agent_audit_logs_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/agent/stream': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/auth/google': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Google Auth
-         * @description Authenticate or register user via verified Google ID token.
-         */
-        post: operations['google_auth_api_auth_google_post'];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Stream Agent Execution
+     * @description Server-Sent Events (SSE) streaming endpoint for the agent pipeline.
+     *     Enforces the rolling 24-hour chat quota with automatic 429 and retry headers.
+     */
+    post: operations['stream_agent_execution_api_agent_stream_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/auth/google': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/auth/guest': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Guest Pass
-         * @description Issue 1-Click Ephemeral Guest Pass token pre-loaded with quota.
-         */
-        post: operations['create_guest_pass_api_auth_guest_post'];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Google Auth
+     * @description Authenticate or register user via verified Google ID token.
+     */
+    post: operations['google_auth_api_auth_google_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/auth/guest': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/auth/logout': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Logout
-         * @description Revoke every token issued to this user.
-         */
-        post: operations['logout_api_auth_logout_post'];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Create Guest Pass
+     * @description Issue 1-Click Ephemeral Guest Pass token pre-loaded with quota.
+     */
+    post: operations['create_guest_pass_api_auth_guest_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/auth/logout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/auth/me': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Current User Profile
-         * @description Return active user profile and quota bucket status.
-         */
-        get: operations['get_current_user_profile_api_auth_me_get'];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Logout
+     * @description Revoke every token issued to this user.
+     */
+    post: operations['logout_api_auth_logout_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/auth/me': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/auth/refresh': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Refresh Token
-         * @description Refresh JWT access token for currently authenticated session.
-         */
-        post: operations['refresh_token_api_auth_refresh_post'];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Get Current User Profile
+     * @description Return active user profile and quota bucket status.
+     */
+    get: operations['get_current_user_profile_api_auth_me_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/auth/refresh': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/chat/history': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Chat History
-         * @description List persistent conversations for authenticated Google user.
-         */
-        get: operations['list_chat_history_api_chat_history_get'];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Refresh Token
+     * @description Refresh JWT access token for currently authenticated session.
+     */
+    post: operations['refresh_token_api_auth_refresh_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/chat/history': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/chat/history/{conversation_id}': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Chat Conversation
-         * @description Fetch complete message history for a conversation.
-         */
-        get: operations['get_chat_conversation_api_chat_history__conversation_id__get'];
-        put?: never;
-        post?: never;
-        /**
-         * Delete Chat Conversation
-         * @description Delete a conversation and its messages.
-         */
-        delete: operations['delete_chat_conversation_api_chat_history__conversation_id__delete'];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * List Chat History
+     * @description List persistent conversations for authenticated Google user.
+     */
+    get: operations['list_chat_history_api_chat_history_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/chat/history/{conversation_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/documents': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Documents
-         * @description List all documents in the knowledge base.
-         */
-        get: operations['list_documents_api_documents_get'];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Get Chat Conversation
+     * @description Fetch complete message history for a conversation.
+     */
+    get: operations['get_chat_conversation_api_chat_history__conversation_id__get'];
+    put?: never;
+    post?: never;
+    /**
+     * Delete Chat Conversation
+     * @description Delete a conversation and its messages.
+     */
+    delete: operations['delete_chat_conversation_api_chat_history__conversation_id__delete'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/documents': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/documents/upload': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Upload Document
-         * @description Upload and parse PDF or markdown benchmark documents (admin only).
-         *     Enforces file size ceiling (5MB), computes SHA-256 hash, runs LlamaIndex chunking,
-         *     and batch persists document record and chunk rows into Neon PostgreSQL.
-         */
-        post: operations['upload_document_api_documents_upload_post'];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * List Documents
+     * @description List all documents in the knowledge base.
+     */
+    get: operations['list_documents_api_documents_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/documents/upload': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/documents/{document_id}': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Document
-         * @description Delete a document and its chunks (admin only).
-         */
-        delete: operations['delete_document_api_documents__document_id__delete'];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Upload Document
+     * @description Upload and parse PDF or markdown benchmark documents (admin only).
+     *     Enforces file size ceiling (5MB), computes SHA-256 hash, runs LlamaIndex chunking,
+     *     and batch persists document record and chunk rows into Neon PostgreSQL.
+     */
+    post: operations['upload_document_api_documents_upload_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/documents/{document_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/documents/{document_id}/chunks/{chunk_id}': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Document Chunk
-         * @description Fetch one chunk (the passage a citation points at) with its section metadata.
-         */
-        get: operations['get_document_chunk_api_documents__document_id__chunks__chunk_id__get'];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Delete Document
+     * @description Delete a document and its chunks (admin only).
+     */
+    delete: operations['delete_document_api_documents__document_id__delete'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/documents/{document_id}/chunks/{chunk_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/health': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Health
-         * @description Return health check and runtime status information, including Neon DB connectivity.
-         */
-        get: operations['get_health_api_health_get'];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Get Document Chunk
+     * @description Fetch one chunk (the passage a citation points at) with its section metadata.
+     */
+    get: operations['get_document_chunk_api_documents__document_id__chunks__chunk_id__get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/health': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    '/api/rag/search': {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Hybrid Search Documents
-         * @description Execute hybrid dense (pgvector HNSW) and sparse (tsvector GIN) search
-         *     with Reciprocal Rank Fusion (RRF) re-ranking. Each search counts as one chat in the rolling 24-hour quota.
-         */
-        post: operations['hybrid_search_documents_api_rag_search_post'];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Get Health
+     * @description Return health check and runtime status information, including Neon DB connectivity.
+     */
+    get: operations['get_health_api_health_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/rag/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    get?: never;
+    put?: never;
+    /**
+     * Hybrid Search Documents
+     * @description Execute hybrid dense (pgvector HNSW) and sparse (tsvector GIN) search
+     *     with Reciprocal Rank Fusion (RRF) re-ranking. Each search counts as one chat in the rolling 24-hour quota.
+     */
+    post: operations['hybrid_search_documents_api_rag_search_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        /**
-         * AgentDoneEventWire
-         * @description Payload of the final `done` SSE event. The answer text itself arrives as `token` events.
-         */
-        AgentDoneEventWire: {
-            /**
-             * Citations
-             * @default []
-             */
-            citations: components['schemas']['CitationWire'][];
-            /**
-             * Completedat
-             * @default null
-             */
-            completedAt: string | null;
-            /**
-             * Conversationid
-             * @default null
-             */
-            conversationId: string | null;
-            /**
-             * Grounding
-             * @enum {string}
-             */
-            grounding: 'grounded' | 'weak' | 'none';
-            /**
-             * Injectionwarnings
-             * @default []
-             */
-            injectionWarnings: components['schemas']['InjectionWarningWire'][];
-            /**
-             * Invalidcitations
-             * @default []
-             */
-            invalidCitations: string[];
-            /** Iscomplete */
-            isComplete: boolean;
-            /**
-             * Model
-             * @default null
-             */
-            model: string | null;
-            /** Nodehistory */
-            nodeHistory: string[];
-            /** Plan */
-            plan: components['schemas']['PlanStepWire'][];
-            /** Query */
-            query: string;
-            /**
-             * Quotaremaining
-             * @default null
-             */
-            quotaRemaining: number | null;
-            /** Sessionid */
-            sessionId: string;
-            /**
-             * Uncited
-             * @default false
-             */
-            uncited: boolean;
-            /**
-             * Websources
-             * @default []
-             */
-            webSources: components['schemas']['WebSourceWire'][];
-        };
-        /** AgentStreamRequestWire */
-        AgentStreamRequestWire: {
-            /**
-             * Documentid
-             * @description Optional document UUID filter to scope retrieval to a specific document
-             */
-            documentId?: string | null;
-            /**
-             * Query
-             * @description Natural language prompt or benchmark question for autonomous agent
-             */
-            query: string;
-            /**
-             * Sessionid
-             * @description Optional existing session ID for conversation continuity
-             */
-            sessionId?: string | null;
-        };
-        /** Body_upload_document_api_documents_upload_post */
-        Body_upload_document_api_documents_upload_post: {
-            /** File */
-            file: string;
-        };
-        /** ChatConversationDetailWire */
-        ChatConversationDetailWire: {
-            conversation: components['schemas']['ChatConversationWire'];
-            /** Messages */
-            messages: components['schemas']['ChatMessageWire'][];
-        };
-        /** ChatConversationWire */
-        ChatConversationWire: {
-            /** Createdat */
-            createdAt: string;
-            /** Id */
-            id: string;
-            /** Lastsnippet */
-            lastSnippet?: string | null;
-            /** Messagecount */
-            messageCount?: number | null;
-            /** Title */
-            title: string;
-            /** Updatedat */
-            updatedAt?: string | null;
-            /** Userid */
-            userId: string;
-        };
-        /** ChatHistoryResponseWire */
-        ChatHistoryResponseWire: {
-            /** Conversations */
-            conversations: components['schemas']['ChatConversationWire'][];
-        };
-        /** ChatMessageWire */
-        ChatMessageWire: {
-            /** Content */
-            content: string;
-            /** Conversationid */
-            conversationId: string;
-            /** Createdat */
-            createdAt: string;
-            /** Id */
-            id: string;
-            /** Plantrace */
-            planTrace?: unknown;
-            /** Reflectionsummary */
-            reflectionSummary?: unknown;
-            /**
-             * Role
-             * @enum {string}
-             */
-            role: 'user' | 'assistant' | 'system';
-        };
-        /**
-         * CitationWire
-         * @description A source shown to the model. The answer cites it inline as `[label]`, e.g. `[S1]`.
-         */
-        CitationWire: {
-            /** Chunkid */
-            chunkId: string;
-            /** Documentid */
-            documentId: string;
-            /** Filename */
-            filename: string;
-            /** Headerpath */
-            headerPath: string[];
-            /** Id */
-            id: string;
-            /** Label */
-            label: string;
-            /**
-             * Page
-             * @default null
-             */
-            page: number | null;
-            /** Preview */
-            preview: string;
-        };
-        /** DocumentChunkWire */
-        DocumentChunkWire: {
-            /** Chunkindex */
-            chunkIndex: number;
-            /** Content */
-            content: string;
-            /** Createdat */
-            createdAt: string;
-            /** Documentid */
-            documentId: string;
-            /** Id */
-            id: string;
-            /** Metadata */
-            metadata: {
-                [key: string]: unknown;
-            };
-        };
-        /** DocumentListResponseWire */
-        DocumentListResponseWire: {
-            /** Documents */
-            documents: components['schemas']['DocumentMetadataWire'][];
-        };
-        /** DocumentMetadataWire */
-        DocumentMetadataWire: {
-            /** Filename */
-            filename: string;
-            /** Id */
-            id: string;
-            /** Isseeded */
-            isSeeded: boolean;
-            /** Mimetype */
-            mimeType: string;
-            /** Sha256Hash */
-            sha256Hash: string;
-            /** Totalchunks */
-            totalChunks: number;
-            /** Uploadedat */
-            uploadedAt: string;
-            /** Uploadedby */
-            uploadedBy?: string | null;
-        };
-        /** DocumentUploadResponseWire */
-        DocumentUploadResponseWire: {
-            /** Chunkscount */
-            chunksCount: number;
-            document: components['schemas']['DocumentMetadataWire'];
-            /** Previewchunks */
-            previewChunks: components['schemas']['DocumentChunkWire'][];
-            /** Quotaremaining */
-            quotaRemaining?: number | null;
-        };
-        /** GoogleAuthRequest */
-        GoogleAuthRequest: {
-            /** Credential */
-            credential: string;
-        };
-        /** GuestPassRequest */
-        GuestPassRequest: {
-            /** Deviceid */
-            deviceId?: string | null;
-            /** Machineid */
-            machineId?: string | null;
-        };
-        /** GuestPassResponse */
-        GuestPassResponse: {
-            /** Bucketcapacity */
-            bucketCapacity: number;
-            /** Expiresin */
-            expiresIn: number;
-            /** Quotaremaining */
-            quotaRemaining: number;
-            user: components['schemas']['UserSession'];
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components['schemas']['ValidationError'][];
-        };
-        /** HybridSearchRequestWire */
-        HybridSearchRequestWire: {
-            /**
-             * Denseweight
-             * @description Weight for dense vector cosine similarity rankings (0.0 to 1.0)
-             * @default 0.5
-             */
-            denseWeight: number;
-            /**
-             * Documentid
-             * @description Optional document UUID filter to restrict search to a single file
-             */
-            documentId?: string | null;
-            /**
-             * Limit
-             * @description Maximum number of top-K results to return after RRF fusion
-             * @default 5
-             */
-            limit: number;
-            /**
-             * Query
-             * @description Search query string for hybrid vector and lexical retrieval
-             */
-            query: string;
-            /**
-             * Rrfk
-             * @description Reciprocal Rank Fusion smoothing constant k (standard default: 60)
-             * @default 60
-             */
-            rrfK: number;
-            /**
-             * Sparseweight
-             * @description Weight for tsvector lexical rankings (0.0 to 1.0)
-             * @default 0.5
-             */
-            sparseWeight: number;
-        };
-        /** HybridSearchResponseWire */
-        HybridSearchResponseWire: {
-            /** Query */
-            query: string;
-            /** Results */
-            results: components['schemas']['HybridSearchResultWire'][];
-            /** Totalresults */
-            totalResults: number;
-        };
-        /** HybridSearchResultWire */
-        HybridSearchResultWire: {
-            /** Chunkindex */
-            chunkIndex: number;
-            /** Content */
-            content: string;
-            /** Denserank */
-            denseRank?: number | null;
-            /** Densescore */
-            denseScore?: number | null;
-            /** Documentid */
-            documentId: string;
-            /** Filename */
-            filename: string;
-            /** Headerpath */
-            headerPath?: string[];
-            /** Id */
-            id: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Page */
-            page?: number | null;
-            /** Similarityscore */
-            similarityScore: number;
-            /** Sparserank */
-            sparseRank?: number | null;
-            /** Sparsescore */
-            sparseScore?: number | null;
-        };
-        /**
-         * InjectionWarningWire
-         * @description Retrieved text that looks like instructions (kept inside untrusted delimiters, but reported).
-         */
-        InjectionWarningWire: {
-            /** Filename */
-            filename: string;
-            /** Reason */
-            reason: string;
-        };
-        /** MeResponse */
-        MeResponse: {
-            quota: components['schemas']['QuotaStatus'];
-            user: components['schemas']['UserSession'];
-        };
-        /** PlanStepWire */
-        PlanStepWire: {
-            /** Description */
-            description: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: 'pending' | 'in_progress' | 'completed' | 'failed';
-            /** Stepnumber */
-            stepNumber: number;
-            /**
-             * Tool
-             * @default null
-             */
-            tool: string | null;
-        };
-        /** QuotaStatus */
-        QuotaStatus: {
-            /** Bucketcapacity */
-            bucketCapacity: number;
-            /** Resetsat */
-            resetsAt: string;
-            /** Tokensremaining */
-            tokensRemaining: number;
-        };
-        /** SseErrorEvent */
-        SseErrorEvent: {
-            /** Error */
-            error: string;
-            /** Sessionid */
-            sessionId: string;
-        };
-        /** SseGroundingEvent */
-        SseGroundingEvent: {
-            /**
-             * Feedback
-             * @default null
-             */
-            feedback: string | null;
-            /**
-             * Grounding
-             * @enum {string}
-             */
-            grounding: 'grounded' | 'weak' | 'none';
-            /** Sessionid */
-            sessionId: string;
-        };
-        /** SseNodeStartEvent */
-        SseNodeStartEvent: {
-            /** Node */
-            node: string;
-            /** Sessionid */
-            sessionId: string;
-        };
-        /** SsePlanEvent */
-        SsePlanEvent: {
-            /** Plan */
-            plan: components['schemas']['PlanStepWire'][];
-            /** Sessionid */
-            sessionId: string;
-        };
-        /** SseStartEvent */
-        SseStartEvent: {
-            /** Query */
-            query: string;
-            /**
-             * Quotaremaining
-             * @default null
-             */
-            quotaRemaining: number | null;
-            /** Sessionid */
-            sessionId: string;
-            /** Timestamp */
-            timestamp: string;
-        };
-        /**
-         * SseTokenEvent
-         * @description One chunk of model output (or the fixed out-of-scope refusal, sent as a single chunk).
-         */
-        SseTokenEvent: {
-            /** Sessionid */
-            sessionId: string;
-            /** Token */
-            token: string;
-        };
-        /**
-         * SseToolCallEvent
-         * @description Sent just before a tool runs. The matching `tool_result` follows when it finishes.
-         */
-        SseToolCallEvent: {
-            /** Arguments */
-            arguments: {
-                [key: string]: unknown;
-            };
-            /** Sessionid */
-            sessionId: string;
-            /**
-             * Tool
-             * @enum {string}
-             */
-            tool: 'hybrid_rag_search' | 'google_search' | 'web_search';
-        };
-        /** SseToolResultEvent */
-        SseToolResultEvent: {
-            /** Chunksretrieved */
-            chunksRetrieved: number;
-            /**
-             * Citations
-             * @default []
-             */
-            citations: components['schemas']['CitationWire'][];
-            /**
-             * Durationms
-             * @default null
-             */
-            durationMs: number | null;
-            /**
-             * Error
-             * @default null
-             */
-            error: string | null;
-            /**
-             * Injectionwarnings
-             * @default []
-             */
-            injectionWarnings: components['schemas']['InjectionWarningWire'][];
-            /** Tool */
-            tool: string;
-            /**
-             * Websources
-             * @default []
-             */
-            webSources: components['schemas']['WebSourceWire'][];
-        };
-        /** SseUsageEvent */
-        SseUsageEvent: {
-            /** Inputtokens */
-            inputTokens: number;
-            /** Model */
-            model: string;
-            /** Outputtokens */
-            outputTokens: number;
-            /** Sessionid */
-            sessionId: string;
-            /** Step */
-            step: string;
-            /** Totaltokens */
-            totalTokens: number;
-        };
-        /** SuccessResponse */
-        SuccessResponse: {
-            /** Id */
-            id?: string | null;
-            /** Success */
-            success: boolean;
-        };
-        /** TokenResponse */
-        TokenResponse: {
-            /**
-             * Bucketcapacity
-             * @default 25
-             */
-            bucketCapacity: number;
-            /** Expiresin */
-            expiresIn: number;
-            /**
-             * Quotaremaining
-             * @default 25
-             */
-            quotaRemaining: number;
-            user: components['schemas']['UserSession'];
-        };
-        /** UserSession */
-        UserSession: {
-            /** Avatarurl */
-            avatarUrl?: string | null;
-            /** Createdat */
-            createdAt: string;
-            /** Email */
-            email?: string | null;
-            /** Id */
-            id: string;
-            /**
-             * Isadmin
-             * @default false
-             */
-            isAdmin: boolean;
-            /** Isguest */
-            isGuest: boolean;
-            /** Lastseenat */
-            lastSeenAt: string;
-            /** Name */
-            name: string;
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Context */
-            ctx?: Record<string, never>;
-            /** Input */
-            input?: unknown;
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-        };
-        /** WebSourceWire */
-        WebSourceWire: {
-            /** Title */
-            title: string;
-            /** Url */
-            url: string;
-        };
+  schemas: {
+    /**
+     * AgentDoneEventWire
+     * @description Payload of the final `done` SSE event. The answer text itself arrives as `token` events.
+     */
+    AgentDoneEventWire: {
+      /**
+       * Citations
+       * @default []
+       */
+      citations: components['schemas']['CitationWire'][];
+      /**
+       * Completedat
+       * @default null
+       */
+      completedAt: string | null;
+      /**
+       * Conversationid
+       * @default null
+       */
+      conversationId: string | null;
+      /**
+       * Grounding
+       * @enum {string}
+       */
+      grounding: 'grounded' | 'weak' | 'none';
+      /**
+       * Injectionwarnings
+       * @default []
+       */
+      injectionWarnings: components['schemas']['InjectionWarningWire'][];
+      /**
+       * Invalidcitations
+       * @default []
+       */
+      invalidCitations: string[];
+      /** Iscomplete */
+      isComplete: boolean;
+      /**
+       * Model
+       * @default null
+       */
+      model: string | null;
+      /** Nodehistory */
+      nodeHistory: string[];
+      /** Plan */
+      plan: components['schemas']['PlanStepWire'][];
+      /** Query */
+      query: string;
+      /**
+       * Quotaremaining
+       * @default null
+       */
+      quotaRemaining: number | null;
+      /** Sessionid */
+      sessionId: string;
+      /**
+       * Uncited
+       * @default false
+       */
+      uncited: boolean;
+      /**
+       * Websources
+       * @default []
+       */
+      webSources: components['schemas']['WebSourceWire'][];
     };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+    /** AgentStreamRequestWire */
+    AgentStreamRequestWire: {
+      /**
+       * Documentid
+       * @description Optional document UUID filter to scope retrieval to a specific document
+       */
+      documentId?: string | null;
+      /**
+       * Query
+       * @description Natural language prompt or benchmark question for autonomous agent
+       */
+      query: string;
+      /**
+       * Sessionid
+       * @description Optional existing session ID for conversation continuity
+       */
+      sessionId?: string | null;
+    };
+    /** Body_upload_document_api_documents_upload_post */
+    Body_upload_document_api_documents_upload_post: {
+      /** File */
+      file: string;
+    };
+    /** ChatConversationDetailWire */
+    ChatConversationDetailWire: {
+      conversation: components['schemas']['ChatConversationWire'];
+      /** Messages */
+      messages: components['schemas']['ChatMessageWire'][];
+    };
+    /** ChatConversationWire */
+    ChatConversationWire: {
+      /** Createdat */
+      createdAt: string;
+      /** Id */
+      id: string;
+      /** Lastsnippet */
+      lastSnippet?: string | null;
+      /** Messagecount */
+      messageCount?: number | null;
+      /** Title */
+      title: string;
+      /** Updatedat */
+      updatedAt?: string | null;
+      /** Userid */
+      userId: string;
+    };
+    /** ChatHistoryResponseWire */
+    ChatHistoryResponseWire: {
+      /** Conversations */
+      conversations: components['schemas']['ChatConversationWire'][];
+    };
+    /** ChatMessageWire */
+    ChatMessageWire: {
+      /** Content */
+      content: string;
+      /** Conversationid */
+      conversationId: string;
+      /** Createdat */
+      createdAt: string;
+      /** Id */
+      id: string;
+      /** Plantrace */
+      planTrace?: unknown;
+      /** Reflectionsummary */
+      reflectionSummary?: unknown;
+      /**
+       * Role
+       * @enum {string}
+       */
+      role: 'user' | 'assistant' | 'system';
+    };
+    /**
+     * CitationWire
+     * @description A source shown to the model. The answer cites it inline as `[label]`, e.g. `[S1]`.
+     */
+    CitationWire: {
+      /** Chunkid */
+      chunkId: string;
+      /** Documentid */
+      documentId: string;
+      /** Filename */
+      filename: string;
+      /** Headerpath */
+      headerPath: string[];
+      /** Id */
+      id: string;
+      /** Label */
+      label: string;
+      /**
+       * Page
+       * @default null
+       */
+      page: number | null;
+      /** Preview */
+      preview: string;
+    };
+    /** DocumentChunkWire */
+    DocumentChunkWire: {
+      /** Chunkindex */
+      chunkIndex: number;
+      /** Content */
+      content: string;
+      /** Createdat */
+      createdAt: string;
+      /** Documentid */
+      documentId: string;
+      /** Id */
+      id: string;
+      /** Metadata */
+      metadata: {
+        [key: string]: unknown;
+      };
+    };
+    /** DocumentListResponseWire */
+    DocumentListResponseWire: {
+      /** Documents */
+      documents: components['schemas']['DocumentMetadataWire'][];
+    };
+    /** DocumentMetadataWire */
+    DocumentMetadataWire: {
+      /** Filename */
+      filename: string;
+      /** Id */
+      id: string;
+      /** Isseeded */
+      isSeeded: boolean;
+      /** Mimetype */
+      mimeType: string;
+      /** Sha256Hash */
+      sha256Hash: string;
+      /** Totalchunks */
+      totalChunks: number;
+      /** Uploadedat */
+      uploadedAt: string;
+      /** Uploadedby */
+      uploadedBy?: string | null;
+    };
+    /** DocumentUploadResponseWire */
+    DocumentUploadResponseWire: {
+      /** Chunkscount */
+      chunksCount: number;
+      document: components['schemas']['DocumentMetadataWire'];
+      /** Previewchunks */
+      previewChunks: components['schemas']['DocumentChunkWire'][];
+      /** Quotaremaining */
+      quotaRemaining?: number | null;
+    };
+    /** GoogleAuthRequest */
+    GoogleAuthRequest: {
+      /** Credential */
+      credential: string;
+    };
+    /** GuestPassRequest */
+    GuestPassRequest: {
+      /** Deviceid */
+      deviceId?: string | null;
+      /** Machineid */
+      machineId?: string | null;
+    };
+    /** GuestPassResponse */
+    GuestPassResponse: {
+      /** Bucketcapacity */
+      bucketCapacity: number;
+      /** Expiresin */
+      expiresIn: number;
+      /** Quotaremaining */
+      quotaRemaining: number;
+      user: components['schemas']['UserSession'];
+    };
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components['schemas']['ValidationError'][];
+    };
+    /** HybridSearchRequestWire */
+    HybridSearchRequestWire: {
+      /**
+       * Denseweight
+       * @description Weight for dense vector cosine similarity rankings (0.0 to 1.0)
+       * @default 0.5
+       */
+      denseWeight: number;
+      /**
+       * Documentid
+       * @description Optional document UUID filter to restrict search to a single file
+       */
+      documentId?: string | null;
+      /**
+       * Limit
+       * @description Maximum number of top-K results to return after RRF fusion
+       * @default 5
+       */
+      limit: number;
+      /**
+       * Query
+       * @description Search query string for hybrid vector and lexical retrieval
+       */
+      query: string;
+      /**
+       * Rrfk
+       * @description Reciprocal Rank Fusion smoothing constant k (standard default: 60)
+       * @default 60
+       */
+      rrfK: number;
+      /**
+       * Sparseweight
+       * @description Weight for tsvector lexical rankings (0.0 to 1.0)
+       * @default 0.5
+       */
+      sparseWeight: number;
+    };
+    /** HybridSearchResponseWire */
+    HybridSearchResponseWire: {
+      /** Query */
+      query: string;
+      /** Results */
+      results: components['schemas']['HybridSearchResultWire'][];
+      /** Totalresults */
+      totalResults: number;
+    };
+    /** HybridSearchResultWire */
+    HybridSearchResultWire: {
+      /** Chunkindex */
+      chunkIndex: number;
+      /** Content */
+      content: string;
+      /** Denserank */
+      denseRank?: number | null;
+      /** Densescore */
+      denseScore?: number | null;
+      /** Documentid */
+      documentId: string;
+      /** Filename */
+      filename: string;
+      /** Headerpath */
+      headerPath?: string[];
+      /** Id */
+      id: string;
+      /** Metadata */
+      metadata?: {
+        [key: string]: unknown;
+      };
+      /** Page */
+      page?: number | null;
+      /** Similarityscore */
+      similarityScore: number;
+      /** Sparserank */
+      sparseRank?: number | null;
+      /** Sparsescore */
+      sparseScore?: number | null;
+    };
+    /**
+     * InjectionWarningWire
+     * @description A retrieved passage that matched an injection pattern. It is withheld from the model.
+     */
+    InjectionWarningWire: {
+      /** Filename */
+      filename: string;
+      /** Reason */
+      reason: string;
+    };
+    /** MeResponse */
+    MeResponse: {
+      quota: components['schemas']['QuotaStatus'];
+      user: components['schemas']['UserSession'];
+    };
+    /** PlanStepWire */
+    PlanStepWire: {
+      /** Description */
+      description: string;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'pending' | 'in_progress' | 'completed' | 'failed';
+      /** Stepnumber */
+      stepNumber: number;
+      /**
+       * Tool
+       * @default null
+       */
+      tool: string | null;
+    };
+    /** QuotaStatus */
+    QuotaStatus: {
+      /** Bucketcapacity */
+      bucketCapacity: number;
+      /** Resetsat */
+      resetsAt: string;
+      /** Tokensremaining */
+      tokensRemaining: number;
+    };
+    /** SseErrorEvent */
+    SseErrorEvent: {
+      /** Error */
+      error: string;
+      /** Sessionid */
+      sessionId: string;
+    };
+    /** SseGroundingEvent */
+    SseGroundingEvent: {
+      /**
+       * Feedback
+       * @default null
+       */
+      feedback: string | null;
+      /**
+       * Grounding
+       * @enum {string}
+       */
+      grounding: 'grounded' | 'weak' | 'none';
+      /** Sessionid */
+      sessionId: string;
+    };
+    /** SseNodeStartEvent */
+    SseNodeStartEvent: {
+      /** Node */
+      node: string;
+      /** Sessionid */
+      sessionId: string;
+    };
+    /** SsePlanEvent */
+    SsePlanEvent: {
+      /** Plan */
+      plan: components['schemas']['PlanStepWire'][];
+      /** Sessionid */
+      sessionId: string;
+    };
+    /** SseStartEvent */
+    SseStartEvent: {
+      /** Query */
+      query: string;
+      /**
+       * Quotaremaining
+       * @default null
+       */
+      quotaRemaining: number | null;
+      /** Sessionid */
+      sessionId: string;
+      /** Timestamp */
+      timestamp: string;
+    };
+    /**
+     * SseTokenEvent
+     * @description One chunk of model output (or the fixed out-of-scope refusal, sent as a single chunk).
+     */
+    SseTokenEvent: {
+      /** Sessionid */
+      sessionId: string;
+      /** Token */
+      token: string;
+    };
+    /**
+     * SseToolCallEvent
+     * @description Sent just before a tool runs. The matching `tool_result` follows when it finishes.
+     */
+    SseToolCallEvent: {
+      /** Arguments */
+      arguments: {
+        [key: string]: unknown;
+      };
+      /** Sessionid */
+      sessionId: string;
+      /**
+       * Tool
+       * @enum {string}
+       */
+      tool: 'hybrid_rag_search' | 'google_search' | 'web_search';
+    };
+    /** SseToolResultEvent */
+    SseToolResultEvent: {
+      /** Chunksretrieved */
+      chunksRetrieved: number;
+      /**
+       * Citations
+       * @default []
+       */
+      citations: components['schemas']['CitationWire'][];
+      /**
+       * Durationms
+       * @default null
+       */
+      durationMs: number | null;
+      /**
+       * Error
+       * @default null
+       */
+      error: string | null;
+      /**
+       * Injectionwarnings
+       * @default []
+       */
+      injectionWarnings: components['schemas']['InjectionWarningWire'][];
+      /** Tool */
+      tool: string;
+      /**
+       * Websources
+       * @default []
+       */
+      webSources: components['schemas']['WebSourceWire'][];
+    };
+    /** SseUsageEvent */
+    SseUsageEvent: {
+      /** Inputtokens */
+      inputTokens: number;
+      /** Model */
+      model: string;
+      /** Outputtokens */
+      outputTokens: number;
+      /** Sessionid */
+      sessionId: string;
+      /** Step */
+      step: string;
+      /** Totaltokens */
+      totalTokens: number;
+    };
+    /** SuccessResponse */
+    SuccessResponse: {
+      /** Id */
+      id?: string | null;
+      /** Success */
+      success: boolean;
+    };
+    /** TokenResponse */
+    TokenResponse: {
+      /**
+       * Bucketcapacity
+       * @default 25
+       */
+      bucketCapacity: number;
+      /** Expiresin */
+      expiresIn: number;
+      /**
+       * Quotaremaining
+       * @default 25
+       */
+      quotaRemaining: number;
+      user: components['schemas']['UserSession'];
+    };
+    /** UserSession */
+    UserSession: {
+      /** Avatarurl */
+      avatarUrl?: string | null;
+      /** Createdat */
+      createdAt: string;
+      /** Email */
+      email?: string | null;
+      /** Id */
+      id: string;
+      /**
+       * Isadmin
+       * @default false
+       */
+      isAdmin: boolean;
+      /** Isguest */
+      isGuest: boolean;
+      /** Lastseenat */
+      lastSeenAt: string;
+      /** Name */
+      name: string;
+    };
+    /** ValidationError */
+    ValidationError: {
+      /** Context */
+      ctx?: Record<string, never>;
+      /** Input */
+      input?: unknown;
+      /** Location */
+      loc: (string | number)[];
+      /** Message */
+      msg: string;
+      /** Error Type */
+      type: string;
+    };
+    /** WebSourceWire */
+    WebSourceWire: {
+      /** Title */
+      title: string;
+      /** Url */
+      url: string;
+    };
+  };
+  responses: never;
+  parameters: never;
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
 export type AgentDoneEventWire = components['schemas']['AgentDoneEventWire'];
 export type AgentStreamRequestWire = components['schemas']['AgentStreamRequestWire'];
@@ -926,476 +926,476 @@ export type ValidationError = components['schemas']['ValidationError'];
 export type WebSourceWire = components['schemas']['WebSourceWire'];
 export type $defs = Record<string, never>;
 export interface operations {
-    root__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': unknown;
-                };
-            };
-        };
+  root__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    get_tool_audit_logs_api_agent_audit_logs_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
+        content: {
+          'application/json': unknown;
         };
+      };
     };
-    stream_agent_execution_api_agent_stream_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                'application/json': components['schemas']['AgentStreamRequestWire'];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
-        };
+  };
+  get_tool_audit_logs_api_agent_audit_logs_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    google_auth_api_auth_google_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                'application/json': components['schemas']['GoogleAuthRequest'];
-            };
+        content: {
+          'application/json': unknown;
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['TokenResponse'];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
         };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
     };
-    create_guest_pass_api_auth_guest_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                'application/json': components['schemas']['GuestPassRequest'] | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['GuestPassResponse'];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
-        };
+  };
+  stream_agent_execution_api_agent_stream_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    logout_api_auth_logout_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['SuccessResponse'];
-                };
-            };
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AgentStreamRequestWire'];
+      };
     };
-    get_current_user_profile_api_auth_me_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['MeResponse'];
-                };
-            };
+        content: {
+          'application/json': unknown;
         };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
     };
-    refresh_token_api_auth_refresh_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['TokenResponse'];
-                };
-            };
-        };
+  };
+  google_auth_api_auth_google_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    list_chat_history_api_chat_history_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['ChatHistoryResponseWire'];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['GoogleAuthRequest'];
+      };
     };
-    get_chat_conversation_api_chat_history__conversation_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversation_id: string;
-            };
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['ChatConversationDetailWire'];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
+        content: {
+          'application/json': components['schemas']['TokenResponse'];
         };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
     };
-    delete_chat_conversation_api_chat_history__conversation_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['SuccessResponse'];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
-        };
+  };
+  create_guest_pass_api_auth_guest_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    list_documents_api_documents_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['DocumentListResponseWire'];
-                };
-            };
-        };
+    requestBody?: {
+      content: {
+        'application/json': components['schemas']['GuestPassRequest'] | null;
+      };
     };
-    upload_document_api_documents_upload_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                'multipart/form-data': components['schemas']['Body_upload_document_api_documents_upload_post'];
-            };
+        content: {
+          'application/json': components['schemas']['GuestPassResponse'];
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['DocumentUploadResponseWire'];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
         };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
     };
-    delete_document_api_documents__document_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['SuccessResponse'];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
-        };
+  };
+  logout_api_auth_logout_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    get_document_chunk_api_documents__document_id__chunks__chunk_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                document_id: string;
-                chunk_id: string;
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['DocumentChunkWire'];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
+        content: {
+          'application/json': components['schemas']['SuccessResponse'];
         };
+      };
     };
-    get_health_api_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': unknown;
-                };
-            };
-        };
+  };
+  get_current_user_profile_api_auth_me_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    hybrid_search_documents_api_rag_search_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                'application/json': components['schemas']['HybridSearchRequestWire'];
-            };
+        content: {
+          'application/json': components['schemas']['MeResponse'];
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HybridSearchResponseWire'];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    'application/json': components['schemas']['HTTPValidationError'];
-                };
-            };
-        };
+      };
     };
+  };
+  refresh_token_api_auth_refresh_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TokenResponse'];
+        };
+      };
+    };
+  };
+  list_chat_history_api_chat_history_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChatHistoryResponseWire'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_chat_conversation_api_chat_history__conversation_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        conversation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChatConversationDetailWire'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  delete_chat_conversation_api_chat_history__conversation_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        conversation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SuccessResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  list_documents_api_documents_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DocumentListResponseWire'];
+        };
+      };
+    };
+  };
+  upload_document_api_documents_upload_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_upload_document_api_documents_upload_post'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DocumentUploadResponseWire'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  delete_document_api_documents__document_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        document_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SuccessResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_document_chunk_api_documents__document_id__chunks__chunk_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        document_id: string;
+        chunk_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DocumentChunkWire'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_health_api_health_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+    };
+  };
+  hybrid_search_documents_api_rag_search_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['HybridSearchRequestWire'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HybridSearchResponseWire'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
 }

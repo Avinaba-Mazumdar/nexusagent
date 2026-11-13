@@ -275,6 +275,138 @@ def query_tries_to_override(query: str) -> bool:
     return injected
 
 
+# Words a benchmark search may use even when the user did not type them.
+# A tool query is refused when it contains anything outside this set and the user question.
+_BENCHMARK_WORDS = frozenset(
+    {
+        "accuracy",
+        "agent",
+        "agents",
+        "analysis",
+        "announced",
+        "announcement",
+        "api",
+        "artificial",
+        "benchmark",
+        "benchmarks",
+        "benchlm",
+        "category",
+        "categories",
+        "cheap",
+        "cheaper",
+        "cheapest",
+        "claude",
+        "coding",
+        "compare",
+        "comparison",
+        "context",
+        "cost",
+        "costs",
+        "current",
+        "cursorbench",
+        "date",
+        "dates",
+        "document",
+        "documents",
+        "eval",
+        "evals",
+        "expensive",
+        "fast",
+        "fastest",
+        "gemini",
+        "gemma",
+        "gpt",
+        "haiku",
+        "input",
+        "intelligence",
+        "latency",
+        "latest",
+        "leaderboard",
+        "limit",
+        "limits",
+        "llama",
+        "metric",
+        "metrics",
+        "million",
+        "mistral",
+        "model",
+        "models",
+        "openrouter",
+        "opus",
+        "output",
+        "parameter",
+        "parameters",
+        "passage",
+        "passages",
+        "price",
+        "pricing",
+        "provider",
+        "providers",
+        "quality",
+        "rank",
+        "ranking",
+        "rankings",
+        "ranks",
+        "rate",
+        "rates",
+        "recent",
+        "release",
+        "released",
+        "score",
+        "scores",
+        "sonnet",
+        "source",
+        "sources",
+        "speed",
+        "task",
+        "tasks",
+        "throughput",
+        "token",
+        "tokens",
+        "update",
+        "updated",
+        "version",
+        "versions",
+        "versus",
+        "window",
+        "windows",
+    }
+)
+
+
+def tool_query_stays_on_task(user_query: str, tool_query: str) -> bool:
+    """True when a tool search stays on the user's question or the benchmark topic.
+
+    Known injection phrasing is rejected. Every other content word must appear in the
+    user question or in ``_BENCHMARK_WORDS``. A rephrased hijack that only uses those
+    words is not detected.
+    """
+    if query_tries_to_override(tool_query) or prefilter(tool_query):
+        return False
+    words = _content_tokens(tool_query)
+    if not words:
+        return False
+    allowed = _content_tokens(user_query) | _BENCHMARK_WORDS
+    return words <= allowed
+
+
+def history_messages(turns: list[dict[str, str]]) -> list[BaseMessage]:
+    """Prior turns to replay. A turn that matches an injection pattern is left out."""
+    messages: list[BaseMessage] = []
+    for turn in turns:
+        content = turn.get("content", "").strip()
+        if not content:
+            continue
+        if query_tries_to_override(content):
+            security_event("injection.flagged", filename="chat_history", reason="history pattern")
+            continue
+        if turn.get("role") in {"assistant", "model"}:
+            messages.append(AIMessage(content=content))
+        else:
+            messages.append(HumanMessage(content=content))
+    return messages
+
+
 def _refuse(state: AgentState, response: str, description: str) -> AgentState:
     state.intent = "refuse"
     state.response = response
@@ -344,16 +476,11 @@ async def router_node(state: AgentState) -> AgentState:
             ]
         return state
 
-    messages: list[BaseMessage] = [SystemMessage(content=ROUTER_PROMPT)]
-    for turn in state.chat_history:
-        content = turn.get("content", "").strip()
-        if not content:
-            continue
-        if turn.get("role") in {"assistant", "model"}:
-            messages.append(AIMessage(content=content))
-        else:
-            messages.append(HumanMessage(content=content))
-    messages.append(HumanMessage(content=state.query))
+    messages: list[BaseMessage] = [
+        SystemMessage(content=ROUTER_PROMPT),
+        *history_messages(state.chat_history),
+        HumanMessage(content=state.query),
+    ]
 
     async def _execute_route(llm: Any) -> Any:
         wrapper = llm.with_structured_output(RouteDecision, include_raw=True)
@@ -435,16 +562,11 @@ async def chat_node(state: AgentState, config: RunnableConfig | None = None) -> 
             step.status = "completed"
         return state
 
-    messages: list[BaseMessage] = [SystemMessage(content=CHAT_PROMPT)]
-    for turn in state.chat_history:
-        content = turn.get("content", "").strip()
-        if not content:
-            continue
-        if turn.get("role") in {"assistant", "model"}:
-            messages.append(AIMessage(content=content))
-        else:
-            messages.append(HumanMessage(content=content))
-    messages.append(HumanMessage(content=state.query))
+    messages: list[BaseMessage] = [
+        SystemMessage(content=CHAT_PROMPT),
+        *history_messages(state.chat_history),
+        HumanMessage(content=state.query),
+    ]
 
     duration_ms = 0
 
@@ -590,17 +712,11 @@ def update_grounding(state: AgentState) -> None:
 def build_agent_messages(state: AgentState, context: str) -> None:
     """Build the agent's opening prompt: system prompt, history, query and wrapped passages."""
     system = AGENT_PROMPT + (NO_SOURCES_NOTE if state.grounding == "none" else "")
-    messages: list[AnyMessage] = [SystemMessage(content=system)]
-    for turn in state.chat_history:
-        role = turn.get("role")
-        content = turn.get("content", "").strip()
-        if not content:
-            continue
-        if role in {"assistant", "model"}:
-            messages.append(AIMessage(content=content))
-        else:
-            messages.append(HumanMessage(content=content))
-    messages.append(HumanMessage(content=f"{state.query}\n\nPassages:\n{context}"))
+    messages: list[AnyMessage] = [
+        SystemMessage(content=system),
+        *history_messages(state.chat_history),
+        HumanMessage(content=f"{state.query}\n\nPassages:\n{context}"),
+    ]
     state.agent_messages = messages
 
 
@@ -822,7 +938,22 @@ async def tools_node(
                     ToolEvent(tool=name, error="invalid arguments"),
                 )
             else:
-                content, event = await _run_tool(state, engine, name, args)
+                query = str(getattr(args, "query", "") or "")
+                if not tool_query_stays_on_task(state.query, query):
+                    security_event(
+                        "injection.flagged",
+                        filename=name or "tool",
+                        reason="tool query left the user request",
+                    )
+                    content = "Skipped: that search does not stay on the user's question."
+                    event = ToolEvent(tool=name, arguments={"query": query}, error="off_task")
+                else:
+                    try:
+                        content, event = await _run_tool(state, engine, name, args)
+                    except Exception:
+                        logger.exception("Tool %s failed", name)
+                        content = "The tool failed. Answer from the passages already retrieved."
+                        event = ToolEvent(tool=name, arguments={"query": query}, error="failed")
 
         event.duration_ms = max(int((time.perf_counter() - started) * 1000), 1)
         state.tool_events.append(event)

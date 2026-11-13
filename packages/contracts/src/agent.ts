@@ -7,7 +7,7 @@ export type Citation = CitationWire;
 
 export type Grounding = AgentDoneEventWire['grounding'];
 
-/** Retrieved text that looks like instructions (kept inside untrusted delimiters, but reported). */
+/** A retrieved passage that matched an injection pattern. It is withheld from the model. */
 export type InjectionWarning = InjectionWarningWire;
 
 /** Token usage record for a pipeline step. */
@@ -21,14 +21,14 @@ export type AgentInvokeResponse = AgentDoneEventWire;
 
 /** Payloads of the other `/api/agent/stream` SSE events, keyed by event name. */
 export type {
-    SseErrorEvent,
-    SseGroundingEvent,
-    SseNodeStartEvent,
-    SsePlanEvent,
-    SseStartEvent,
-    SseTokenEvent,
-    SseToolCallEvent,
-    SseToolResultEvent,
-    SseUsageEvent,
-    WebSourceWire
+  SseErrorEvent,
+  SseGroundingEvent,
+  SseNodeStartEvent,
+  SsePlanEvent,
+  SseStartEvent,
+  SseTokenEvent,
+  SseToolCallEvent,
+  SseToolResultEvent,
+  SseUsageEvent,
+  WebSourceWire
 } from './generated';
