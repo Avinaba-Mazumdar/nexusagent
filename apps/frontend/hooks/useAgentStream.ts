@@ -33,15 +33,23 @@ export class AgentStreamError extends Error {
   }
 }
 
-function describeHttpError(status: number, body: string): string {
+/**
+ * `quotaScope` is the API's X-Quota-Scope header on a 429: `user` is this person's own limit;
+ * `network`, `guests` and `service` are shared limits, explained by the server's own message.
+ */
+export function describeHttpError(status: number, body: string, quotaScope?: string | null): string {
   let detail = body;
+  let parsedDetail: string | undefined;
   try {
     const parsed = JSON.parse(body);
-    if (typeof parsed?.detail === 'string') detail = parsed.detail;
+    if (typeof parsed?.detail === 'string') detail = parsedDetail = parsed.detail;
   } catch {
     // Plain-text body
   }
-  if (status === 429) return 'Query quota exhausted. Resets every 24 hours.';
+  if (status === 429) {
+    if (quotaScope && quotaScope !== 'user' && parsedDetail) return parsedDetail;
+    return 'Query quota exhausted. Resets every 24 hours.';
+  }
   if (status === 401) return 'Your session has expired. Please sign in again.';
   return `Server returned status ${status}: ${detail}`;
 }
@@ -135,7 +143,7 @@ export function useAgentStream(options?: UseAgentStreamOptions) {
           if (response.status === 401) notifyUnauthorized();
           const retryAfter = Number(response.headers?.get?.('Retry-After'));
           throw new AgentStreamError(
-            describeHttpError(response.status, errText),
+            describeHttpError(response.status, errText, response.headers?.get?.('X-Quota-Scope')),
             response.status,
             Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined
           );

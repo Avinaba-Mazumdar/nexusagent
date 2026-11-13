@@ -378,3 +378,144 @@ def test_audit_migration_blocks_updates_and_unsanctioned_deletes():
     assert "BEFORE UPDATE OR DELETE ON tool_audit_logs" in sql
     assert "nexusagent.audit_retention" in sql
     assert "append-only" in sql
+
+
+# ---------------------------------------------------------------------------
+# Quota buckets: fingerprint is not a key, networks and the service have ceilings
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_shared_fingerprint_does_not_spend_another_guests_quota():
+    db = FakeUsageDb()
+    quota = ChatQuota(db=cast(NeonDatabase, db))
+    victim = User(id=uuid4(), is_guest=True, device_id="dev-victim", machine_hash="common-phone")
+    attacker = User(
+        id=uuid4(), is_guest=True, device_id="dev-attacker", machine_hash="common-phone"
+    )
+
+    for _ in range(5):
+        await quota.reserve(attacker, client_ip="198.51.100.1")
+
+    _usage_id, remaining = await quota.reserve(victim, client_ip="203.0.113.9")
+    assert remaining == 4
+
+
+@pytest.mark.asyncio
+async def test_guests_behind_one_network_share_the_network_bucket(monkeypatch):
+    from app.config import settings
+    from app.core.rate_limiter import BLOCKED_DETAIL
+
+    monkeypatch.setattr(settings, "GUEST_QUOTA_PER_NETWORK", 7)
+    db = FakeUsageDb()
+    quota = ChatQuota(db=cast(NeonDatabase, db))
+    first = User(id=uuid4(), is_guest=True, device_id="dev-a")
+    second = User(id=uuid4(), is_guest=True, device_id="dev-b")
+
+    for _ in range(5):
+        await quota.reserve(first, client_ip="192.0.2.10")
+    _usage_id, remaining = await quota.reserve(second, client_ip="192.0.2.10")
+    assert remaining == 1  # the network has 1 left, though this guest has 4
+    await quota.reserve(second, client_ip="192.0.2.10")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await quota.reserve(second, client_ip="192.0.2.10")
+    assert exc_info.value.status_code == 429
+    assert exc_info.value.detail == BLOCKED_DETAIL["network"]
+
+    # A Google account on the same network is not limited by guest chats there.
+    member = User(id=uuid4(), is_guest=False)
+    usage_id, _remaining = await quota.reserve(member, client_ip="192.0.2.10")
+    assert usage_id is not None
+
+
+@pytest.mark.asyncio
+async def test_service_wide_ceilings_stop_scripted_guests(monkeypatch):
+    from app.config import settings
+    from app.core.rate_limiter import BLOCKED_DETAIL
+
+    monkeypatch.setattr(settings, "GUEST_CHATS_PER_DAY", 3)
+    monkeypatch.setattr(settings, "CHATS_PER_DAY", 4)
+    db = FakeUsageDb()
+    quota = ChatQuota(db=cast(NeonDatabase, db))
+
+    # Every guest is new and on a new network, as a script rotating addresses would be.
+    for n in range(3):
+        guest = User(id=uuid4(), is_guest=True, device_id=f"dev-{n}")
+        await quota.reserve(guest, client_ip=f"198.51.100.{n}")
+    with pytest.raises(HTTPException) as exc_info:
+        await quota.reserve(User(id=uuid4(), is_guest=True, device_id="dev-x"), "198.51.100.99")
+    assert exc_info.value.detail == BLOCKED_DETAIL["guests"]
+
+    member = User(id=uuid4(), is_guest=False)
+    await quota.reserve(member)
+    with pytest.raises(HTTPException) as exc_info:
+        await quota.reserve(member)
+    assert exc_info.value.detail == BLOCKED_DETAIL["service"]
+
+
+def test_a_ceiling_of_zero_is_switched_off(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "GUEST_QUOTA_PER_NETWORK", 0)
+    monkeypatch.setattr(settings, "GUEST_CHATS_PER_DAY", 0)
+    monkeypatch.setattr(settings, "CHATS_PER_DAY", 0)
+    limits = ChatQuota(db=cast(NeonDatabase, FakeUsageDb())).limits_for(
+        User(id=uuid4(), is_guest=True, device_id="dev")
+    )
+    assert (limits.per_network, limits.guests_per_day, limits.all_per_day) == (None, None, None)
+
+
+# ---------------------------------------------------------------------------
+# Streaming scrubber: secrets longer than the 256-character hold
+# ---------------------------------------------------------------------------
+
+
+def _stream(text: str, step: int = 4) -> str:
+    from app.core.security_guardrails import StreamingScrubber
+
+    scrubber = StreamingScrubber()
+    out = "".join(scrubber.push(text[i : i + step]) for i in range(0, len(text), step))
+    return out + scrubber.flush()
+
+
+LONG_JWT = "eyJ" + "a" * 200 + "." + "b" * 200 + "." + "c" * 60
+LONG_PEM = (
+    "-----BEGIN PRIVATE KEY-----\n"
+    + ("QUJDREVGR0hJSktMTU5PUFFSU1RVVldY" * 2 + "\n") * 30
+    + "-----END PRIVATE KEY-----"
+)
+LONG_SK = "sk-" + "Z" * 400
+LONG_DB_URI = "postgresql://admin:" + "p" * 250 + "@db.example.com/prod"
+
+
+@pytest.mark.parametrize(
+    ("secret", "fragment"),
+    [
+        (LONG_JWT, "a" * 40),
+        (LONG_PEM, "QUJDREVGR0hJSktM"),
+        (LONG_SK, "Z" * 40),
+        (LONG_DB_URI, "p" * 40),
+    ],
+    ids=["jwt", "pem", "sk", "db-uri"],
+)
+def test_streaming_scrubber_redacts_secrets_longer_than_its_hold(secret, fragment):
+    assert len(secret) > 256
+    text = "Here it is: " + secret + " and that is all. " + "tail " * 80
+
+    emitted = _stream(text)
+
+    assert fragment not in emitted
+    assert "REDACTED" in emitted
+    assert emitted.endswith("tail " * 80)
+
+
+def test_streaming_scrubber_still_streams_ordinary_text():
+    from app.core.security_guardrails import StreamingScrubber
+
+    scrubber = StreamingScrubber()
+    text = "Claude leads CursorBench; risk-free eyJ-like words and sk-learn are fine. " * 20
+    emitted = "".join(scrubber.push(text[i : i + 5]) for i in range(0, len(text), 5))
+    # Everything but the 256-character hold has been sent before flush.
+    assert len(emitted) >= len(text) - 256 - 5
+    assert emitted + scrubber.flush() == text

@@ -208,11 +208,50 @@ def sanitize_retrieved_chunks(
     return kept, flagged
 
 
+# Secrets that can be longer than the 256-character hold, each with the text that ends it and
+# the longest span SECRET_PATTERNS can still match. While one of these has started and not
+# ended, the scrubber holds everything from its start.
+_PEM_BODY_MAX = 16384 + 128
+_JWT_MAX = 3 * 8192 + 2
+_LONG_SECRETS: tuple[tuple[re.Pattern[str], re.Pattern[str], int], ...] = (
+    (
+        re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"),
+        re.compile(r"-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"),
+        _PEM_BODY_MAX,
+    ),
+    (re.compile(r"(?<![A-Za-z0-9_-])eyJ"), re.compile(r"[^A-Za-z0-9_.-]"), _JWT_MAX),
+    (re.compile(r"\b(?:sk-|github_pat_)"), re.compile(r"[^A-Za-z0-9_-]"), _JWT_MAX),
+    (
+        re.compile(r"(?<![A-Za-z0-9])(?:postgresql|postgres|mysql|mongodb|redis)://"),
+        re.compile(r"[@\s]"),
+        512,
+    ),
+)
+
+
+def _unfinished_secret_start(buf: str) -> int | None:
+    """Index where a long secret starts but has not ended yet, or None."""
+    earliest: int | None = None
+    for opener, terminator, max_len in _LONG_SECRETS:
+        for match in opener.finditer(buf):
+            start = match.start()
+            if earliest is not None and start >= earliest:
+                break
+            if len(buf) - start > max_len:
+                continue  # Too long for SECRET_PATTERNS to match; holding it would not help.
+            if terminator.search(buf, match.end()) is None:
+                earliest = start
+                break
+    return earliest
+
+
 class StreamingScrubber:
     """Scrub secrets out of a token stream before a client sees them.
 
-    The last 256 characters stay buffered so a key that arrives split across tokens is complete
-    before it is emitted. ``flush`` sends the remainder.
+    The last 256 characters stay buffered so a short key that arrives split across tokens is
+    complete before it is emitted. A long secret (private key, JWT, ``sk-`` key, database URI)
+    is held from its first characters until it ends, so none of it is sent before it can be
+    redacted. ``flush`` sends the remainder.
     """
 
     def __init__(self, hold: int = _SECRET_HOLD):
@@ -223,7 +262,13 @@ class StreamingScrubber:
         self._buf += text
         if len(self._buf) <= self.hold:
             return ""
-        head, tail = self._buf[: -self.hold], self._buf[-self.hold :]
+        cut = len(self._buf) - self.hold
+        unfinished = _unfinished_secret_start(self._buf)
+        if unfinished is not None:
+            cut = min(cut, unfinished)
+        if cut <= 0:
+            return ""
+        head, tail = self._buf[:cut], self._buf[cut:]
         combined = scrub_sensitive_information(head + tail)
         scrubbed_tail = scrub_sensitive_information(tail)
         if scrubbed_tail and combined.endswith(scrubbed_tail):

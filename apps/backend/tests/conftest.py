@@ -44,6 +44,13 @@ from langchain_core.messages.ai import UsageMetadata
 from langchain_core.messages.tool import ToolCall
 
 from app.config import REPO_ROOT
+from app.core.quota_policy import (
+    QuotaDecision,
+    QuotaLimits,
+    UsageCounts,
+    after_reserving,
+    decide,
+)
 from app.db.neon import neon_db
 
 DB_STATE = {"connected": False}
@@ -78,78 +85,71 @@ async def neon_pool():
 
 
 class FakeUsageDb:
-    """In-memory stand-in for the chat usage methods of NeonDatabase."""
+    """In-memory stand-in for the chat usage methods of NeonDatabase (same buckets, same policy)."""
 
     def __init__(self):
         self.rows: list[dict[str, Any]] = []
 
-    def _matches(
-        self,
-        row: dict[str, Any],
-        user_id: UUID,
-        device_hash: str | None,
-        machine_hash: str | None,
-        client_ip: str | None,
-        now: datetime,
-    ) -> bool:
-        if now - row["created_at"] >= timedelta(hours=24):
-            return False
-        if row["user_id"] == user_id:
-            return True
-        if device_hash is not None and row["device_hash"] == device_hash:
-            return True
-        if machine_hash is not None and row["machine_hash"] == machine_hash:
-            return True
-        return bool(client_ip is not None and row["client_ip"] == client_ip)
+    def _counts(
+        self, user_id: UUID, device_hash: str | None, client_ip: str | None, now: datetime
+    ) -> UsageCounts:
+        recent = [r for r in self.rows if now - r["created_at"] < timedelta(hours=24)]
+        mine = [
+            r
+            for r in recent
+            if r["user_id"] == user_id
+            or (device_hash is not None and r["device_hash"] == device_hash)
+        ]
+        guests = [r for r in recent if r["device_hash"] is not None]
+        network = [r for r in guests if client_ip is not None and r["client_ip"] == client_ip]
+
+        def oldest(rows: list[dict[str, Any]]) -> datetime | None:
+            return min((r["created_at"] for r in rows), default=None)
+
+        return UsageCounts(
+            user=len(mine),
+            user_oldest=oldest(mine),
+            network=len(network),
+            network_oldest=oldest(network),
+            guests=len(guests),
+            guests_oldest=oldest(guests),
+            total=len(recent),
+            total_oldest=oldest(recent),
+        )
 
     async def reserve_chat(
         self,
         *,
         user_id: UUID,
         device_hash: str | None = None,
-        machine_hash: str | None = None,
         client_ip: str | None = None,
-        limit: int,
-    ) -> tuple[UUID | None, int, datetime | None]:
+        limits: QuotaLimits,
+    ) -> tuple[UUID | None, QuotaDecision]:
         now = datetime.now(UTC)
-        matching = [
-            r
-            for r in self.rows
-            if self._matches(r, user_id, device_hash, machine_hash, client_ip, now)
-        ]
-        used = len(matching)
-        oldest = min((r["created_at"] for r in matching), default=None)
-        if used >= limit:
-            return None, 0, oldest
+        decision = decide(self._counts(user_id, device_hash, client_ip, now), limits)
+        if decision.blocked_by is not None:
+            return None, decision
         usage_id = uuid4()
         self.rows.append(
             {
                 "id": usage_id,
                 "user_id": user_id,
                 "device_hash": device_hash,
-                "machine_hash": machine_hash,
                 "client_ip": client_ip,
                 "created_at": now,
             }
         )
-        return usage_id, limit - used - 1, oldest or now
+        return usage_id, after_reserving(decision, now)
 
     async def count_chats(
         self,
         *,
         user_id: UUID,
         device_hash: str | None = None,
-        machine_hash: str | None = None,
         client_ip: str | None = None,
-    ) -> tuple[int, datetime | None]:
-        now = datetime.now(UTC)
-        matching = [
-            r
-            for r in self.rows
-            if self._matches(r, user_id, device_hash, machine_hash, client_ip, now)
-        ]
-        oldest = min((r["created_at"] for r in matching), default=None)
-        return len(matching), oldest
+        limits: QuotaLimits,
+    ) -> QuotaDecision:
+        return decide(self._counts(user_id, device_hash, client_ip, datetime.now(UTC)), limits)
 
     async def release_chat(self, usage_id: UUID) -> None:
         self.rows = [r for r in self.rows if r["id"] != usage_id]

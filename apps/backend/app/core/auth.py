@@ -23,7 +23,7 @@ security_bearer = HTTPBearer(auto_error=False)
 
 def get_client_ip(request: Request, hops: int | None = None) -> str:
     """
-    Extract the client IP used for rate-limit keying.
+    Extract the client network used for rate-limit keying (see ``client_network``).
 
     With ``TRUSTED_PROXY_HOPS = 0`` (default) this is the socket address, so a client cannot rotate
     quota by sending its own ``X-Forwarded-For``. Behind ``n`` trusted proxies each proxy appends the
@@ -35,18 +35,31 @@ def get_client_ip(request: Request, hops: int | None = None) -> str:
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
             parts = [p.strip() for p in forwarded.split(",") if p.strip()]
-            if len(parts) >= n and _valid_ip(parts[-n]):
-                return parts[-n]
+            if len(parts) >= n and (key := client_network(parts[-n])):
+                return key
     socket_ip = request.client.host if request.client else "127.0.0.1"
-    return socket_ip if _valid_ip(socket_ip) else "127.0.0.1"
+    return client_network(socket_ip) or "127.0.0.1"
 
 
-def _valid_ip(value: str) -> bool:
+IPV6_CLIENT_PREFIX = 64
+
+
+def client_network(value: str) -> str | None:
+    """The rate-limit key for an address, or None if it is not an IP address.
+
+    IPv4 is the address itself. IPv6 is its /64: one subscriber is usually given a whole /64,
+    so keying on the full address would let a client rotate through billions of keys.
+    An IPv4-mapped IPv6 address is treated as the IPv4 address.
+    """
     try:
-        ipaddress.ip_address(value)
+        address = ipaddress.ip_address(value)
     except ValueError:
-        return False
-    return True
+        return None
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped is not None:
+            return str(address.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{address}/{IPV6_CLIENT_PREFIX}", strict=False))
+    return str(address)
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> tuple[str, int]:

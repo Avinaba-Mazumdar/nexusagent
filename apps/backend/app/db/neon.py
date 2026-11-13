@@ -9,6 +9,7 @@ import asyncpg
 from pgvector.asyncpg import register_vector
 
 from app.config import settings
+from app.core.quota_policy import QuotaDecision, QuotaLimits, UsageCounts, after_reserving, decide
 from app.db.models import Document, DocumentChunk, User
 
 logger = logging.getLogger("nexusagent.db.neon")
@@ -309,73 +310,82 @@ class NeonDatabase:
 
     USAGE_LOCK_KEY = 815_000_002
 
+    # Every bucket in one scan of the rolling day. Guest rows are the ones with a device hash
+    # (Google accounts record none). The service-wide ceilings keep this scan small.
+    USAGE_COUNTS_SQL = """
+        SELECT
+            COUNT(*) FILTER (WHERE mine) AS user_used,
+            MIN(created_at) FILTER (WHERE mine) AS user_oldest,
+            COUNT(*) FILTER (WHERE same_network) AS network_used,
+            MIN(created_at) FILTER (WHERE same_network) AS network_oldest,
+            COUNT(*) FILTER (WHERE device_hash IS NOT NULL) AS guests_used,
+            MIN(created_at) FILTER (WHERE device_hash IS NOT NULL) AS guests_oldest,
+            COUNT(*) AS total_used,
+            MIN(created_at) AS total_oldest
+        FROM (
+            SELECT created_at, device_hash,
+                   (user_id = $1 OR ($2::text IS NOT NULL AND device_hash = $2)) AS mine,
+                   ($3::text IS NOT NULL AND client_ip = $3 AND device_hash IS NOT NULL)
+                       AS same_network
+            FROM chat_usage
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+        ) recent;
+    """
+
+    @staticmethod
+    def _usage_counts(row: Any) -> UsageCounts:
+        return UsageCounts(
+            user=row["user_used"],
+            user_oldest=row["user_oldest"],
+            network=row["network_used"],
+            network_oldest=row["network_oldest"],
+            guests=row["guests_used"],
+            guests_oldest=row["guests_oldest"],
+            total=row["total_used"],
+            total_oldest=row["total_oldest"],
+        )
+
     async def reserve_chat(
         self,
         *,
         user_id: UUID,
         device_hash: str | None = None,
-        machine_hash: str | None = None,
         client_ip: str | None = None,
-        limit: int,
-    ) -> tuple[UUID | None, int, datetime | None]:
-        """Atomically count the caller's chats in the last 24h and, if under `limit`, record one.
-        Pass device_hash/machine_hash/client_ip only for guests (None for Google users).
-        Returns (usage_id or None if blocked, remaining_after, oldest_in_window)."""
+        limits: QuotaLimits,
+    ) -> tuple[UUID | None, QuotaDecision]:
+        """Atomically check every quota bucket and, if all have room, record one chat.
+
+        Pass ``device_hash`` and ``client_ip`` only for guests (None for Google accounts).
+        Returns ``(usage_id, decision)``; ``usage_id`` is None when a bucket is full.
+        """
         pool = self.get_pool()
         async with pool.acquire() as conn, conn.transaction():
             await conn.execute("SELECT pg_advisory_xact_lock($1);", self.USAGE_LOCK_KEY)
-            row = await conn.fetchrow(
-                """
-                SELECT COUNT(*) AS used, MIN(created_at) AS oldest FROM chat_usage
-                WHERE created_at > NOW() - INTERVAL '24 hours'
-                  AND (user_id = $1
-                       OR ($2::text IS NOT NULL AND device_hash = $2)
-                       OR ($3::text IS NOT NULL AND machine_hash = $3)
-                       OR ($4::text IS NOT NULL AND client_ip = $4))
-                """,
-                user_id,
-                device_hash,
-                machine_hash,
-                client_ip,
-            )
-            used, oldest = row["used"], row["oldest"]
-            if used >= limit:
-                return None, 0, oldest
+            row = await conn.fetchrow(self.USAGE_COUNTS_SQL, user_id, device_hash, client_ip)
+            decision = decide(self._usage_counts(row), limits)
+            if decision.blocked_by is not None:
+                return None, decision
             usage_id = await conn.fetchval(
-                "INSERT INTO chat_usage (user_id, device_hash, machine_hash, client_ip) "
-                "VALUES ($1, $2, $3, $4) RETURNING id;",
+                "INSERT INTO chat_usage (user_id, device_hash, client_ip) "
+                "VALUES ($1, $2, $3) RETURNING id;",
                 user_id,
                 device_hash,
-                machine_hash,
                 client_ip,
             )
-            return usage_id, limit - used - 1, oldest or datetime.now(UTC)
+            return usage_id, after_reserving(decision, datetime.now(UTC))
 
     async def count_chats(
         self,
         *,
         user_id: UUID,
         device_hash: str | None = None,
-        machine_hash: str | None = None,
         client_ip: str | None = None,
-    ) -> tuple[int, datetime | None]:
-        """Count caller's chats in the last 24h and find oldest in window."""
+        limits: QuotaLimits,
+    ) -> QuotaDecision:
+        """The quota decision a chat would get now, without recording one."""
         pool = self.get_pool()
-        row = await pool.fetchrow(
-            """
-            SELECT COUNT(*) AS used, MIN(created_at) AS oldest FROM chat_usage
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-              AND (user_id = $1
-                   OR ($2::text IS NOT NULL AND device_hash = $2)
-                   OR ($3::text IS NOT NULL AND machine_hash = $3)
-                   OR ($4::text IS NOT NULL AND client_ip = $4))
-            """,
-            user_id,
-            device_hash,
-            machine_hash,
-            client_ip,
-        )
-        return row["used"], row["oldest"]
+        row = await pool.fetchrow(self.USAGE_COUNTS_SQL, user_id, device_hash, client_ip)
+        return decide(self._usage_counts(row), limits)
 
     async def release_chat(self, usage_id: UUID) -> None:
         """Refund a chat usage record."""

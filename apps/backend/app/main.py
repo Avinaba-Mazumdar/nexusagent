@@ -16,7 +16,7 @@ from app.config import settings
 from app.core.auth import get_client_ip
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfProtectionMiddleware
-from app.core.rate_limiter import SlidingWindowCounter
+from app.core.rate_limiter import QUOTA_SCOPE_HEADER, SlidingWindowCounter
 from app.core.security_events import security_event
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.db.neon import DatabaseUnavailable, neon_db
@@ -149,6 +149,8 @@ app.add_middleware(
         "Accept",
         "Origin",
     ],
+    # The web app is on another origin; without this it cannot read why a request was refused.
+    expose_headers=["Retry-After", QUOTA_SCOPE_HEADER],
 )
 
 

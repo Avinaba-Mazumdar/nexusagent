@@ -71,6 +71,13 @@ class Settings(BaseSettings):
     JWT_AUDIENCE: str = "nexusagent-web"
     GUEST_QUOTA_DEFAULT: int = 5
     USER_QUOTA_DEFAULT: int = 25
+    # Guest chats per rolling day from one client network (an IPv4 address or an IPv6 /64).
+    # Everyone behind a shared NAT shares it, so it is a multiple of GUEST_QUOTA_DEFAULT.
+    GUEST_QUOTA_PER_NETWORK: int = 20
+    # Service-wide ceilings per rolling day. They keep scripted guests from spending the free
+    # model quota that every user shares. 0 switches a ceiling off.
+    GUEST_CHATS_PER_DAY: int = 500
+    CHATS_PER_DAY: int = 1500
     CHAT_HISTORY_MESSAGES: int = 6
     LLM_TIMEOUT_SECONDS: float = 45.0
     # A streamed call that sends nothing for this long is abandoned and the next model is tried.

@@ -332,3 +332,21 @@ async def test_mcp_dns_rebinding_protection_rejects_a_foreign_host():
         _mcp_request("localhost", origin="https://evil.example"), is_post=True
     )
     assert bad_origin is not None and bad_origin.status_code == 403
+
+
+def test_get_client_ip_keys_ipv6_clients_by_their_64():
+    first = _make_request({}, host="2001:db8:1:2:aaaa:bbbb:cccc:dddd")
+    second = _make_request({}, host="2001:db8:1:2::1")
+    other = _make_request({}, host="2001:db8:1:3::1")
+    key = get_client_ip(cast(Request, first), hops=0)
+    assert key == "2001:db8:1:2::/64"
+    assert get_client_ip(cast(Request, second), hops=0) == key
+    assert get_client_ip(cast(Request, other), hops=0) != key
+    assert len(key) <= 45  # fits users.client_ip / chat_usage.client_ip
+
+
+def test_get_client_ip_groups_forwarded_ipv6_and_unmaps_ipv4():
+    forwarded = _make_request({"X-Forwarded-For": "2001:db8:9:9::42"})
+    assert get_client_ip(cast(Request, forwarded), hops=1) == "2001:db8:9:9::/64"
+    mapped = _make_request({}, host="::ffff:192.0.2.7")
+    assert get_client_ip(cast(Request, mapped), hops=0) == "192.0.2.7"

@@ -30,7 +30,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub) WHER
 
 -- 2. Chat usage (rolling 24h quota)
 -- One row per metered chat. Rolling 24h quota = count of rows newer than NOW() - 24h.
--- user_id is SET NULL (not CASCADE) so pruning a guest does not reset the device/machine/IP counts.
+-- Buckets (app/core/quota_policy.py): per account/device, per guest network, service-wide guests,
+-- service-wide total. Guest rows are the ones with a device_hash. client_ip holds an IPv4 address
+-- or an IPv6 /64. machine_hash is no longer written (legacy column).
+-- user_id is SET NULL (not CASCADE) so pruning a guest does not reset the device/IP counts.
 CREATE TABLE IF NOT EXISTS chat_usage (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -43,6 +46,8 @@ CREATE INDEX IF NOT EXISTS idx_chat_usage_user ON chat_usage(user_id, created_at
 CREATE INDEX IF NOT EXISTS idx_chat_usage_device ON chat_usage(device_hash, created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_usage_machine ON chat_usage(machine_hash, created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_usage_ip ON chat_usage(client_ip, created_at);
+-- The quota check scans the whole rolling day for the service-wide ceilings.
+CREATE INDEX IF NOT EXISTS idx_chat_usage_created ON chat_usage(created_at);
 
 -- 3. Document metadata
 CREATE TABLE IF NOT EXISTS documents (

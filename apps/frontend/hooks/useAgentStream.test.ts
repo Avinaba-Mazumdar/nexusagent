@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vite-plus/test';
-import { useAgentStream } from './useAgentStream';
+import { describeHttpError, useAgentStream } from './useAgentStream';
 
 describe('useAgentStream Hook', () => {
     beforeEach(() => {
@@ -262,5 +262,20 @@ describe('useAgentStream Hook', () => {
             await result.current.startStream({ query: 'refuse me' });
         });
         expect(onQuotaMock).toHaveBeenCalledWith(4);
+    });
+});
+
+describe('describeHttpError on 429', () => {
+    const body = (detail: string) => JSON.stringify({ detail });
+
+    it("keeps the generic quota text for a person's own limit", () => {
+        expect(describeHttpError(429, body('Daily chat limit reached'), 'user')).toMatch(/quota exhausted/i);
+        expect(describeHttpError(429, body('bucket empty'))).toMatch(/quota exhausted/i);
+    });
+
+    it("shows the server's explanation for a shared limit", () => {
+        const network = 'Daily guest chat limit reached for this network. Sign in with Google to get your own quota.';
+        expect(describeHttpError(429, body(network), 'network')).toBe(network);
+        expect(describeHttpError(429, 'not json', 'service')).toMatch(/quota exhausted/i);
     });
 });
