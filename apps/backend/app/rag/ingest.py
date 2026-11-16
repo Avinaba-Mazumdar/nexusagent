@@ -1,6 +1,7 @@
 """Document ingestion with LlamaIndex: PDF or Markdown -> DocumentChunk rows."""
 
 import io
+from typing import cast
 from uuid import UUID, uuid5
 
 from llama_index.core import Document as LIDocument
@@ -20,7 +21,7 @@ _markdown = MarkdownNodeParser()
 
 def _pdf_documents(data: bytes, filename: str) -> list[LIDocument]:
     reader = PdfReader(io.BytesIO(data))
-    docs = []
+    docs: list[LIDocument] = []
     for i, page in enumerate(reader.pages, start=1):
         text = scrub_sensitive_information(page.extract_text() or "")
         if text.strip():
@@ -42,7 +43,7 @@ def build_chunks(
             [LIDocument(text=text, metadata={"filename": filename})]
         )
         nodes = _splitter(md_nodes)  # split oversized sections
-    chunks = []
+    chunks: list[DocumentChunk] = []
     for _index, node in enumerate(nodes):
         content = node.get_content().strip()
         if not content:
@@ -50,11 +51,11 @@ def build_chunks(
         safe, _reason = screen_passage(content)
         # A matching passage is stored as a placeholder and is not embedded by the callers.
         content = safe if safe is not None else WITHHELD_PASSAGE
-        header = node.metadata.get("header_path", "")
-        meta = {
+        header = cast(object, node.metadata.get("header_path", ""))
+        meta: dict[str, object] = {
             "filename": filename,
             "headerPath": [h for h in str(header).split("/") if h],
-            "page": node.metadata.get("page"),
+            "page": cast(object, node.metadata.get("page")),
         }
         chunk = DocumentChunk(
             document_id=document_id,

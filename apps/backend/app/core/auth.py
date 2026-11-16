@@ -3,7 +3,9 @@ import hashlib
 import ipaddress
 import logging
 import secrets
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
+from typing import Annotated, TypedDict, TypeGuard, cast
 from uuid import UUID, uuid4
 
 import jwt
@@ -62,9 +64,11 @@ def client_network(value: str) -> str | None:
     return str(address)
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> tuple[str, int]:
+def create_access_token(
+    data: Mapping[str, object], expires_delta: timedelta | None = None
+) -> tuple[str, int]:
     """Create signed HS256 JWT access token, returning token and expiresIn seconds."""
-    to_encode = data.copy()
+    to_encode: dict[str, object] = dict(data)
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
         expires_in = int(expires_delta.total_seconds())
@@ -84,7 +88,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> t
     return encoded_jwt, expires_in
 
 
-def decode_access_token(token: str) -> dict:
+def decode_access_token(token: str) -> dict[str, object]:
     """Decode and validate signed JWT."""
     try:
         return jwt.decode(
@@ -108,7 +112,7 @@ def decode_access_token(token: str) -> dict:
         )
 
 
-def session_claims(user: User, auth_time: int | None = None) -> dict:
+def session_claims(user: User, auth_time: int | None = None) -> dict[str, object]:
     """Claims identifying a session: who, which token generation, and when the login happened."""
     return {
         "sub": str(user.id),
@@ -161,7 +165,7 @@ def new_device_id() -> str:
     return secrets.token_urlsafe(32)
 
 
-def valid_device_id(value: str | None) -> bool:
+def valid_device_id(value: str | None) -> TypeGuard[str]:
     """True when the cookie value is long enough to be unguessable and safe to hash."""
     if value is None or not 32 <= len(value) <= 128:
         return False
@@ -182,18 +186,18 @@ def set_device_cookie(response: Response, device_id: str) -> None:
 
 async def session_token(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Security(security_bearer),
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(security_bearer)],
 ) -> str | None:
     return request.cookies.get(settings.SESSION_COOKIE_NAME) or (
         credentials.credentials if credentials else None
     )
 
 
-async def resolve_session(token: str, db: NeonDatabase) -> tuple[User, dict]:
+async def resolve_session(token: str, db: NeonDatabase) -> tuple[User, dict[str, object]]:
     """Decode the token and load its user (with the token claims); 401 if bad or signed out."""
     payload = decode_access_token(token)
     user_id_str = payload.get("sub")
-    if not user_id_str:
+    if not isinstance(user_id_str, str) or not user_id_str:
         raise _unauthorized("Invalid token subject")
 
     try:
@@ -211,8 +215,8 @@ async def resolve_session(token: str, db: NeonDatabase) -> tuple[User, dict]:
 
 async def get_current_user(
     request: Request,
-    token: str | None = Depends(session_token),
-    db: NeonDatabase = Depends(get_db),
+    token: Annotated[str | None, Depends(session_token)],
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ) -> User:
     """FastAPI dependency to extract and verify authenticated user."""
     if not token:
@@ -222,11 +226,11 @@ async def get_current_user(
     except HTTPException:
         security_event("auth.failure", reason="session", ip=get_client_ip(request))
         raise
-    await db.touch_user(user.id)
+    _ = await db.touch_user(user.id)
     return user
 
 
-async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+async def require_admin(current_user: Annotated[User, Depends(get_current_user)]) -> User:
     if current_user.is_guest or not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
     return current_user
@@ -234,8 +238,8 @@ async def require_admin(current_user: User = Depends(get_current_user)) -> User:
 
 async def get_current_user_optional(
     request: Request,
-    token: str | None = Depends(session_token),
-    db: NeonDatabase = Depends(get_db),
+    token: Annotated[str | None, Depends(session_token)],
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ) -> User | None:
     """Optional user extractor for endpoints supporting anonymous sessions."""
     if not token:
@@ -343,13 +347,22 @@ def _google_unauthorized(detail: str) -> HTTPException:
     )
 
 
-async def verify_google_token(credential: str) -> dict:
+class GoogleProfile(TypedDict):
+    """The verified fields of a Google ID token that sign-in uses."""
+
+    email: str
+    name: str
+    picture: str | None
+    sub: str
+
+
+async def verify_google_token(credential: str) -> GoogleProfile:
     """Verify a Google ID token's signature, audience, issuer and expiry; return the profile."""
     try:
         signing_key = await asyncio.to_thread(_google_jwks.get_signing_key_from_jwt, credential)
         info = jwt.decode(
             credential,
-            signing_key.key,
+            signing_key,
             algorithms=["RS256"],
             audience=settings.GOOGLE_CLIENT_ID,
             issuer=GOOGLE_ISSUERS,
@@ -368,8 +381,8 @@ async def verify_google_token(credential: str) -> dict:
     except jwt.PyJWTError as exc:
         raise _google_unauthorized("Invalid or expired Google credential") from exc
 
-    email = info.get("email")
-    if not email:
+    email = cast(object, info.get("email"))
+    if not isinstance(email, str) or not email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Google profile does not contain an email address",
@@ -380,9 +393,11 @@ async def verify_google_token(credential: str) -> dict:
             detail="Google email address has not been verified",
         )
 
-    return {
-        "email": email,
-        "name": info.get("name") or email.split("@")[0],
-        "picture": info.get("picture"),
-        "sub": info["sub"],
-    }
+    name = cast(object, info.get("name"))
+    picture = cast(object, info.get("picture"))
+    return GoogleProfile(
+        email=email,
+        name=name if isinstance(name, str) and name else email.split("@")[0],
+        picture=picture if isinstance(picture, str) else None,
+        sub=str(cast(object, info["sub"])),
+    )

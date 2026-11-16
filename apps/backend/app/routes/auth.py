@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
@@ -44,8 +45,8 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def create_guest_pass(
     request: Request,
     response: Response,
+    db: Annotated[NeonDatabase, Depends(get_db)],
     payload: GuestPassRequest | None = None,
-    db: NeonDatabase = Depends(get_db),
 ):
     """Issue 1-Click Ephemeral Guest Pass token pre-loaded with quota."""
     client_ip = get_client_ip(request)
@@ -66,7 +67,7 @@ async def google_auth(
     payload: GoogleAuthRequest,
     request: Request,
     response: Response,
-    db: NeonDatabase = Depends(get_db),
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ):
     """Authenticate or register user via verified Google ID token."""
     client_ip = get_client_ip(request)
@@ -101,8 +102,8 @@ async def google_auth(
 @router.get("/me", response_model=MeResponse)
 async def get_current_user_profile(
     request: Request,
-    current_user: User = Depends(get_current_user),
-    db: NeonDatabase = Depends(get_db),
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ):
     """Return active user profile and quota bucket status."""
     client_ip = get_client_ip(request)
@@ -126,8 +127,8 @@ async def get_current_user_profile(
 @router.post("/logout", response_model=SuccessResponse)
 async def logout(
     response: Response,
-    current_user: User = Depends(get_current_user),
-    db: NeonDatabase = Depends(get_db),
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ):
     """Revoke every token issued to this user."""
     await db.bump_token_version(current_user.id)
@@ -139,8 +140,8 @@ async def logout(
 async def refresh_token(
     request: Request,
     response: Response,
-    token: str | None = Depends(session_token),
-    db: NeonDatabase = Depends(get_db),
+    token: Annotated[str | None, Depends(session_token)],
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ):
     """Refresh JWT access token for currently authenticated session."""
     client_ip = get_client_ip(request)
@@ -157,7 +158,8 @@ async def refresh_token(
         security_event("auth.failure", reason="session", ip=client_ip)
         raise
 
-    auth_time = int(claims.get("auth_time", claims.get("iat", 0)))
+    issued = claims.get("auth_time", claims.get("iat", 0))
+    auth_time = int(issued) if isinstance(issued, int | float | str) else 0
     session_age = datetime.now(UTC) - datetime.fromtimestamp(auth_time, UTC)
     if session_age > timedelta(days=settings.MAX_SESSION_AGE_DAYS):
         raise HTTPException(

@@ -80,10 +80,10 @@ class ModelRouter:
         scope: str = "chat",
         on_cooldown: CooldownListener | None = None,
     ):
-        self.models = list(models)
-        self.scope = scope
-        self.on_cooldown = on_cooldown
-        self._clock = clock
+        self.models: list[str] = list(models)
+        self.scope: str = scope
+        self.on_cooldown: CooldownListener | None = on_cooldown
+        self._clock: Callable[[], float] = clock
         self._cooling_until: dict[str, float] = {}
 
     def candidates(self, prefer_lite: bool = False) -> list[str]:

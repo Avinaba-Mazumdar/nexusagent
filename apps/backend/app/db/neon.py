@@ -2,7 +2,7 @@ import json
 import logging
 import re
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import ClassVar, cast
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -11,6 +11,13 @@ from pgvector.asyncpg import register_vector
 from app.config import settings
 from app.core.quota_policy import QuotaDecision, QuotaLimits, UsageCounts, after_reserving, decide
 from app.db.models import Document, DocumentChunk, User
+from app.db.records import (
+    col_int,
+    col_opt_datetime,
+    col_str,
+    record_dict,
+    require_row,
+)
 
 logger = logging.getLogger("nexusagent.db.neon")
 
@@ -36,7 +43,8 @@ MAX_TS_TERMS = 20
 
 def build_or_tsquery(text: str) -> str:
     """Turn free text into a safe ``a | b | c`` tsquery (alphanumeric terms only)."""
-    terms = list(dict.fromkeys(t.lower() for t in _TS_TERM.findall(text)))[:MAX_TS_TERMS]
+    found: list[str] = _TS_TERM.findall(text)
+    terms = list(dict.fromkeys(t.lower() for t in found))[:MAX_TS_TERMS]
     return " | ".join(terms)
 
 
@@ -46,10 +54,10 @@ class DatabaseUnavailable(RuntimeError):
 
 class NeonDatabase:
     def __init__(self, dsn: str | None = None):
-        self.dsn = dsn or settings.NEON_DATABASE_URL
+        self.dsn: str = dsn or settings.NEON_DATABASE_URL
         self.pool: asyncpg.Pool | None = None
         # pgvector >= 0.8 can keep scanning the HNSW index until enough rows pass the WHERE filter.
-        self.hnsw_iterative_scan = False
+        self.hnsw_iterative_scan: bool = False
 
     def get_pool(self) -> asyncpg.Pool:
         """Return the active connection pool or raise an error if not connected."""
@@ -91,7 +99,7 @@ class NeonDatabase:
         """
         conn = await asyncpg.connect(self.dsn)
         try:
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            _ = await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
         except asyncpg.PostgresError as e:
             logger.warning(f"Could not create the pgvector extension ({e}); assuming it exists.")
         finally:
@@ -99,8 +107,11 @@ class NeonDatabase:
 
     async def _detect_pgvector_features(self) -> None:
         try:
-            version = await self.get_pool().fetchval(
-                "SELECT extversion FROM pg_extension WHERE extname = 'vector';"
+            version = cast(
+                object,
+                await self.get_pool().fetchval(
+                    "SELECT extversion FROM pg_extension WHERE extname = 'vector';"
+                ),
             )
             parts = tuple(int(p) for p in str(version).split(".")[:2])
             self.hnsw_iterative_scan = parts >= (0, 8)
@@ -115,7 +126,7 @@ class NeonDatabase:
             self.pool = None
             logger.info("Closed Neon PostgreSQL connection pool.")
 
-    async def fetch(self, query: str, *args: Any) -> list[asyncpg.Record]:
+    async def fetch(self, query: str, *args: object) -> list[asyncpg.Record]:
         """Execute query and fetch all records."""
         pool = self.get_pool()
         async with pool.acquire() as conn:
@@ -143,7 +154,7 @@ class NeonDatabase:
                 user.created_at,
                 user.last_seen_at,
             )
-            return User(**dict(row))
+            return User.model_validate(record_dict(require_row(row, "INSERT users")))
 
     async def get_user_by_id(self, user_id: UUID) -> User | None:
         """Fetch user by primary UUID key."""
@@ -151,7 +162,7 @@ class NeonDatabase:
         query = "SELECT * FROM users WHERE id = $1;"
         async with pool.acquire() as conn:
             row = await conn.fetchrow(query, user_id)
-            return User(**dict(row)) if row else None
+            return User.model_validate(record_dict(row)) if row else None
 
     async def upsert_google_user(
         self,
@@ -180,8 +191,8 @@ class NeonDatabase:
                     "SELECT id FROM users WHERE email = $1 AND google_sub IS NULL AND is_guest = FALSE;",
                     email,
                 )
-            user_id = existing["id"] if existing else uuid4()
-            await conn.execute(
+            user_id = cast(UUID, existing["id"]) if existing else uuid4()
+            _ = await conn.execute(
                 "UPDATE users SET email = NULL WHERE email = $1 AND id <> $2;", email, user_id
             )
             row = await conn.fetchrow(
@@ -206,13 +217,13 @@ class NeonDatabase:
                 google_sub,
                 now,
             )
-            return User(**dict(row))
+            return User.model_validate(record_dict(require_row(row, "UPSERT users")))
 
     async def bump_token_version(self, user_id: UUID) -> None:
         """Invalidate every token issued to the user (used by logout)."""
         pool = self.get_pool()
         async with pool.acquire() as conn:
-            await conn.execute(
+            _ = await conn.execute(
                 "UPDATE users SET token_version = token_version + 1 WHERE id = $1;", user_id
             )
 
@@ -229,20 +240,23 @@ class NeonDatabase:
         """
         async with pool.acquire() as conn:
             row = await conn.fetchrow(query, device_hash)
-            return User(**dict(row)) if row else None
+            return User.model_validate(record_dict(row)) if row else None
 
     async def count_guest_signups(self, client_ip: str) -> int:
         """Guests created from this IP in the last hour. Survives a process restart."""
         if not self.pool or not client_ip:
             return 0
         async with self.pool.acquire() as conn:
-            count = await conn.fetchval(
-                """
-                SELECT COUNT(*) FROM users
-                WHERE is_guest = TRUE AND client_ip = $1
-                  AND created_at > NOW() - INTERVAL '1 hour';
-                """,
-                client_ip,
+            count = cast(
+                int | None,
+                await conn.fetchval(
+                    """
+                    SELECT COUNT(*) FROM users
+                    WHERE is_guest = TRUE AND client_ip = $1
+                      AND created_at > NOW() - INTERVAL '1 hour';
+                    """,
+                    client_ip,
+                ),
             )
         return int(count or 0)
 
@@ -265,7 +279,7 @@ class NeonDatabase:
             WHERE id = $2;
         """
         async with self.pool.acquire() as conn:
-            await conn.execute(
+            _ = await conn.execute(
                 query, datetime.now(UTC), user_id, client_ip, device_id, machine_hash
             )
 
@@ -278,8 +292,10 @@ class NeonDatabase:
             return False
         async with self.pool.acquire() as conn:
             result = await conn.execute(
-                "UPDATE users SET last_seen_at = NOW() "
-                "WHERE id = $1 AND last_seen_at < NOW() - INTERVAL '5 minutes';",
+                (
+                    "UPDATE users SET last_seen_at = NOW() "
+                    + "WHERE id = $1 AND last_seen_at < NOW() - INTERVAL '5 minutes';"
+                ),
                 user_id,
             )
         return result.endswith(" 1")
@@ -308,11 +324,11 @@ class NeonDatabase:
             logger.info("Pruned %d expired guest user(s) older than %d hours.", count, ttl_hours)
             return count
 
-    USAGE_LOCK_KEY = 815_000_002
+    USAGE_LOCK_KEY: ClassVar[int] = 815_000_002
 
     # Every bucket in one scan of the rolling day. Guest rows are the ones with a device hash
     # (Google accounts record none). The service-wide ceilings keep this scan small.
-    USAGE_COUNTS_SQL = """
+    USAGE_COUNTS_SQL: ClassVar[str] = """
         SELECT
             COUNT(*) FILTER (WHERE mine) AS user_used,
             MIN(created_at) FILTER (WHERE mine) AS user_oldest,
@@ -333,16 +349,17 @@ class NeonDatabase:
     """
 
     @staticmethod
-    def _usage_counts(row: Any) -> UsageCounts:
+    def _usage_counts(row: asyncpg.Record | None) -> UsageCounts:
+        row = require_row(row, "usage counts")
         return UsageCounts(
-            user=row["user_used"],
-            user_oldest=row["user_oldest"],
-            network=row["network_used"],
-            network_oldest=row["network_oldest"],
-            guests=row["guests_used"],
-            guests_oldest=row["guests_oldest"],
-            total=row["total_used"],
-            total_oldest=row["total_oldest"],
+            user=col_int(row, "user_used"),
+            user_oldest=col_opt_datetime(row, "user_oldest"),
+            network=col_int(row, "network_used"),
+            network_oldest=col_opt_datetime(row, "network_oldest"),
+            guests=col_int(row, "guests_used"),
+            guests_oldest=col_opt_datetime(row, "guests_oldest"),
+            total=col_int(row, "total_used"),
+            total_oldest=col_opt_datetime(row, "total_oldest"),
         )
 
     async def reserve_chat(
@@ -360,17 +377,20 @@ class NeonDatabase:
         """
         pool = self.get_pool()
         async with pool.acquire() as conn, conn.transaction():
-            await conn.execute("SELECT pg_advisory_xact_lock($1);", self.USAGE_LOCK_KEY)
+            _ = await conn.execute("SELECT pg_advisory_xact_lock($1);", self.USAGE_LOCK_KEY)
             row = await conn.fetchrow(self.USAGE_COUNTS_SQL, user_id, device_hash, client_ip)
             decision = decide(self._usage_counts(row), limits)
             if decision.blocked_by is not None:
                 return None, decision
-            usage_id = await conn.fetchval(
-                "INSERT INTO chat_usage (user_id, device_hash, client_ip) "
-                "VALUES ($1, $2, $3) RETURNING id;",
-                user_id,
-                device_hash,
-                client_ip,
+            usage_id = cast(
+                UUID,
+                await conn.fetchval(
+                    "INSERT INTO chat_usage (user_id, device_hash, client_ip) "
+                    + "VALUES ($1, $2, $3) RETURNING id;",
+                    user_id,
+                    device_hash,
+                    client_ip,
+                ),
             )
             return usage_id, after_reserving(decision, datetime.now(UTC))
 
@@ -391,7 +411,7 @@ class NeonDatabase:
         """Refund a chat usage record."""
         pool = self.get_pool()
         async with pool.acquire() as conn:
-            await conn.execute("DELETE FROM chat_usage WHERE id = $1;", usage_id)
+            _ = await conn.execute("DELETE FROM chat_usage WHERE id = $1;", usage_id)
 
     async def prune_chat_usage(self, older_than_hours: int = 48) -> int:
         """Delete chat_usage rows older than ``older_than_hours``."""
@@ -417,7 +437,7 @@ class NeonDatabase:
             return 0
         async with self.pool.acquire() as conn, conn.transaction():
             # Transaction-local switch that the append-only trigger honours for DELETE.
-            await conn.execute("SELECT set_config('nexusagent.audit_retention', 'on', true);")
+            _ = await conn.execute("SELECT set_config('nexusagent.audit_retention', 'on', true);")
             result = await conn.execute(
                 "DELETE FROM tool_audit_logs WHERE executed_at < NOW() - ($1 * INTERVAL '1 day');",
                 retention_days,
@@ -433,7 +453,7 @@ class NeonDatabase:
         self, *, scope: str, model: str, reason: str, error: str, retry_after: datetime
     ) -> None:
         """Mark a model as failed until ``retry_after``. Never shortens an existing cooldown."""
-        await self.get_pool().execute(
+        _ = await self.get_pool().execute(
             """
             INSERT INTO model_cooldowns (scope, model, reason, error, failure_count, failed_at, retry_after)
             VALUES ($1, $2, $3, $4, 1, NOW(), $5)
@@ -458,7 +478,7 @@ class NeonDatabase:
         )
 
     @staticmethod
-    def _chunk_records(chunks: list[DocumentChunk]) -> list[tuple]:
+    def _chunk_records(chunks: list[DocumentChunk]) -> list[tuple[object, ...]]:
         return [
             (
                 c.id,
@@ -493,12 +513,12 @@ class NeonDatabase:
                 uploaded_at = EXCLUDED.uploaded_at;
         """
         async with pool.acquire() as conn, conn.transaction():
-            await conn.execute(
+            _ = await conn.execute(
                 "DELETE FROM documents WHERE is_seeded = TRUE AND id <> ALL($1::uuid[]);",
                 [doc.id for doc, _ in items],
             )
             for doc, chunks in items:
-                await conn.execute(
+                _ = await conn.execute(
                     doc_query,
                     doc.id,
                     doc.uploaded_by,
@@ -509,7 +529,7 @@ class NeonDatabase:
                     doc.is_seeded,
                     doc.uploaded_at,
                 )
-                await conn.execute(
+                _ = await conn.execute(
                     "DELETE FROM document_chunks WHERE document_id = $1 AND NOT (id = ANY($2::uuid[]));",
                     doc.id,
                     [c.id for c in chunks],
@@ -543,7 +563,7 @@ class NeonDatabase:
                 )
                 if records:
                     await conn.executemany(INSERT_CHUNK_SQL, records)
-                return Document(**dict(row))
+                return Document.model_validate(record_dict(require_row(row, "INSERT documents")))
         except asyncpg.UniqueViolationError:
             existing = await self.get_document_by_hash(document.sha256_hash)
             if existing:
@@ -566,7 +586,7 @@ class NeonDatabase:
         query = "SELECT * FROM documents WHERE id = $1;"
         async with pool.acquire() as conn:
             row = await conn.fetchrow(query, document_id)
-            return Document(**dict(row)) if row else None
+            return Document.model_validate(record_dict(row)) if row else None
 
     async def get_document_by_hash(self, sha256_hash: str) -> Document | None:
         """Fetch document by SHA-256 hash."""
@@ -574,14 +594,15 @@ class NeonDatabase:
         query = "SELECT * FROM documents WHERE sha256_hash = $1 LIMIT 1;"
         async with pool.acquire() as conn:
             row = await conn.fetchrow(query, sha256_hash)
-            return Document(**dict(row)) if row else None
+            return Document.model_validate(record_dict(row)) if row else None
 
     @staticmethod
     def _chunk_from_row(row: asyncpg.Record) -> DocumentChunk:
-        data = dict(row)
-        if isinstance(data.get("metadata"), str):
-            data["metadata"] = json.loads(data["metadata"])
-        return DocumentChunk(**data)
+        data = record_dict(row)
+        metadata = data.get("metadata")
+        if isinstance(metadata, str):
+            data["metadata"] = cast(object, json.loads(metadata))
+        return DocumentChunk.model_validate(data)
 
     async def get_document_chunks(
         self, document_id: UUID, limit: int | None = None
@@ -594,7 +615,7 @@ class NeonDatabase:
             WHERE document_id = $1
             ORDER BY chunk_index ASC
         """
-        params: list[Any] = [document_id]
+        params: list[object] = [document_id]
         if limit is not None:
             query += " LIMIT $2"
             params.append(limit)
@@ -607,8 +628,10 @@ class NeonDatabase:
         pool = self.get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT id, document_id, chunk_index, content, metadata, created_at "
-                "FROM document_chunks WHERE document_id = $1 AND id = $2;",
+                (
+                    "SELECT id, document_id, chunk_index, content, metadata, created_at "
+                    + "FROM document_chunks WHERE document_id = $1 AND id = $2;"
+                ),
                 document_id,
                 chunk_id,
             )
@@ -620,18 +643,18 @@ class NeonDatabase:
         query = "SELECT * FROM documents ORDER BY uploaded_at DESC;"
         async with pool.acquire() as conn:
             rows = await conn.fetch(query)
-            return [Document(**dict(r)) for r in rows]
+            return [Document.model_validate(record_dict(r)) for r in rows]
 
     async def search_chunks_dense(
         self,
         query_embedding: list[float],
         document_id: UUID | None = None,
         limit: int = 20,
-    ) -> list[dict]:
+    ) -> list[dict[str, object]]:
         """Dense cosine similarity search on document_chunks using pgvector HNSW index."""
         pool = self.get_pool()
         conditions = ["c.embedding IS NOT NULL", "c.embedding_model = $2"]
-        params: list[Any] = [query_embedding, settings.EMBEDDING_MODEL]
+        params: list[object] = [query_embedding, settings.EMBEDDING_MODEL]
         idx = 3
 
         if document_id:
@@ -655,26 +678,26 @@ class NeonDatabase:
         async with pool.acquire() as conn, conn.transaction():
             # The WHERE filter runs after the HNSW scan, so a small ef_search can return too few rows.
             if self.hnsw_iterative_scan:
-                await conn.execute("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
-                await conn.execute("SET LOCAL hnsw.max_scan_tuples = 20000")
+                _ = await conn.execute("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
+                _ = await conn.execute("SET LOCAL hnsw.max_scan_tuples = 20000")
             else:
-                await conn.execute("SET LOCAL hnsw.ef_search = 200")
+                _ = await conn.execute("SET LOCAL hnsw.ef_search = 200")
             rows = await conn.fetch(query, *params)
-            return [dict(r) for r in rows]
+            return [record_dict(r) for r in rows]
 
     async def search_chunks_lexical(
         self,
         query: str,
         document_id: UUID | None = None,
         limit: int = 20,
-    ) -> list[dict]:
+    ) -> list[dict[str, object]]:
         """Lexical full-text search (OR of query terms) using the tsvector GIN index."""
         ts_query = build_or_tsquery(query)
         if not ts_query:
             return []
         pool = self.get_pool()
         conditions = ["c.search_vector @@ to_tsquery('english', $1)"]
-        params: list[Any] = [ts_query]
+        params: list[object] = [ts_query]
         idx = 2
 
         if document_id:
@@ -697,14 +720,14 @@ class NeonDatabase:
         """
         async with pool.acquire() as conn:
             rows = await conn.fetch(query_sql, *params)
-            return [dict(r) for r in rows]
+            return [record_dict(r) for r in rows]
 
     async def create_conversation(
         self,
         user_id: UUID,
         title: str = "New Benchmark Inquiry",
         conversation_id: UUID | None = None,
-    ) -> dict:
+    ) -> dict[str, object]:
         """Create a new conversation record."""
         pool = self.get_pool()
         cid = conversation_id or uuid4()
@@ -717,13 +740,13 @@ class NeonDatabase:
         """
         async with pool.acquire() as conn:
             row = await conn.fetchrow(query, cid, user_id, title)
-            return dict(row) if row else {}
+            return record_dict(row) if row else {}
 
     async def list_conversations(
         self,
         user_id: UUID,
         limit: int = 50,
-    ) -> list[dict]:
+    ) -> list[dict[str, object]]:
         """List conversations for a user with aggregated message counts and latest snippets."""
         pool = self.get_pool()
         query = """
@@ -751,13 +774,13 @@ class NeonDatabase:
         """
         async with pool.acquire() as conn:
             rows = await conn.fetch(query, user_id, limit)
-            return [dict(r) for r in rows]
+            return [record_dict(r) for r in rows]
 
     async def get_conversation_with_messages(
         self,
         user_id: UUID,
         conversation_id: UUID,
-    ) -> tuple[dict | None, list[dict]]:
+    ) -> tuple[dict[str, object] | None, list[dict[str, object]]]:
         """Fetch conversation metadata and ordered messages in a single connection checkout."""
         pool = self.get_pool()
         query_conv = """
@@ -776,11 +799,11 @@ class NeonDatabase:
             if not conv_row:
                 return None, []
             msg_rows = await conn.fetch(query_msgs, conversation_id)
-            return dict(conv_row), [dict(r) for r in msg_rows]
+            return record_dict(conv_row), [record_dict(r) for r in msg_rows]
 
     async def get_conversation_history(
         self, user_id: UUID, conversation_id: UUID, limit: int
-    ) -> list[dict] | None:
+    ) -> list[dict[str, str]] | None:
         """Last ``limit`` messages (oldest first) of an owned conversation; None if not owned."""
         pool = self.get_pool()
         query = """
@@ -795,23 +818,26 @@ class NeonDatabase:
             ORDER BY created_at ASC;
         """
         async with pool.acquire() as conn:
-            owned = await conn.fetchval(
-                "SELECT 1 FROM agent_conversations WHERE id = $1 AND user_id = $2;",
-                conversation_id,
-                user_id,
+            owned = cast(
+                int | None,
+                await conn.fetchval(
+                    "SELECT 1 FROM agent_conversations WHERE id = $1 AND user_id = $2;",
+                    conversation_id,
+                    user_id,
+                ),
             )
             if not owned:
                 return None
             rows = await conn.fetch(query, conversation_id, user_id, limit)
-            return [dict(r) for r in rows]
+            return [{"role": col_str(r, "role"), "content": col_str(r, "content")} for r in rows]
 
     async def save_turn(
         self,
         conversation_id: UUID,
         user_content: str,
         assistant_content: str,
-        plan_trace: Any = None,
-        reflection_summary: Any = None,
+        plan_trace: object = None,
+        reflection_summary: object = None,
     ) -> None:
         """Persist a user question and its answer atomically and bump ``updated_at``."""
         pool = self.get_pool()
@@ -821,10 +847,10 @@ class NeonDatabase:
         """
         now = datetime.now(UTC)
         async with pool.acquire() as conn, conn.transaction():
-            await conn.execute(
+            _ = await conn.execute(
                 insert, uuid4(), conversation_id, "user", user_content, None, None, now
             )
-            await conn.execute(
+            _ = await conn.execute(
                 insert,
                 uuid4(),
                 conversation_id,
@@ -834,7 +860,7 @@ class NeonDatabase:
                 json.dumps(reflection_summary) if reflection_summary is not None else None,
                 now + timedelta(milliseconds=1),
             )
-            await conn.execute(
+            _ = await conn.execute(
                 "UPDATE agent_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1;",
                 conversation_id,
             )

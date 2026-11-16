@@ -1,7 +1,10 @@
 import asyncio
 import json
 import logging
-from typing import Any
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import ClassVar, Literal, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,7 +16,7 @@ logger = logging.getLogger("nexusagent.rag.hybrid_search")
 
 
 class HybridSearchResult(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
     id: str
     document_id: str
@@ -29,7 +32,7 @@ class HybridSearchResult(BaseModel):
     sparse_score: float | None = None
     page: int | None = None
     header_path: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)
 
 
 DEFAULT_DENSE_WEIGHT = 0.5
@@ -37,35 +40,69 @@ DEFAULT_SPARSE_WEIGHT = 0.5
 DEFAULT_RRF_K = 60
 
 
+Candidate = Mapping[str, object]
+"""One row from ``search_chunks_dense`` or ``search_chunks_lexical``."""
+
+
+@dataclass
+class _Fused:
+    """A candidate's combined Reciprocal Rank Fusion score and its rank in each list."""
+
+    item: Candidate
+    rrf_score: float = 0.0
+    dense_rank: int | None = None
+    sparse_rank: int | None = None
+    dense_score: float | None = None
+    sparse_score: float | None = None
+
+
+def _number(value: object) -> float:
+    return float(value) if isinstance(value, int | float | Decimal) else 0.0
+
+
 def _accumulate(
-    scores: dict[str, dict[str, Any]],
-    items: list[dict],
+    scores: dict[str, _Fused],
+    items: Sequence[Candidate],
     weight: float,
     rrf_k: int,
-    kind: str,
+    kind: Literal["dense", "sparse"],
     score_field: str,
 ) -> None:
-    """Add one ranking's RRF contribution (``kind`` is "dense" or "sparse") to ``scores``."""
+    """Add one ranking's RRF contribution to ``scores``."""
     for rank, item in enumerate(items, start=1):
-        entry = scores.setdefault(
-            str(item["id"]),
-            {
-                "item": item,
-                "rrf_score": 0.0,
-                "dense_rank": None,
-                "sparse_rank": None,
-                "dense_score": None,
-                "sparse_score": None,
-            },
-        )
-        entry["rrf_score"] += weight / (rrf_k + rank)
-        entry[f"{kind}_rank"] = rank
-        entry[f"{kind}_score"] = float(item.get(score_field, 0.0) or 0.0)
+        entry = scores.setdefault(str(item["id"]), _Fused(item=item))
+        entry.rrf_score += weight / (rrf_k + rank)
+        score = _number(item.get(score_field))
+        if kind == "dense":
+            entry.dense_rank, entry.dense_score = rank, score
+        else:
+            entry.sparse_rank, entry.sparse_score = rank, score
+
+
+def _metadata(item: Candidate) -> dict[str, object]:
+    """The chunk's metadata, stored as JSON text or already decoded."""
+    meta = item.get("metadata")
+    if isinstance(meta, str):
+        try:
+            meta = cast(object, json.loads(meta))
+        except json.JSONDecodeError, TypeError, ValueError:
+            meta = None
+    return dict(cast(dict[str, object], meta)) if isinstance(meta, dict) else {}
+
+
+def _header_path(meta: Mapping[str, object]) -> list[str]:
+    # The parser writes camelCase metadata keys only.
+    header_path = meta.get("headerPath")
+    if isinstance(header_path, str):
+        return [header_path]
+    if isinstance(header_path, list):
+        return [str(h) for h in cast(list[object], header_path)]
+    return []
 
 
 def compute_rrf(
-    dense_results: list[dict],
-    sparse_results: list[dict],
+    dense_results: Sequence[Candidate],
+    sparse_results: Sequence[Candidate],
     dense_weight: float = DEFAULT_DENSE_WEIGHT,
     sparse_weight: float = DEFAULT_SPARSE_WEIGHT,
     rrf_k: int = DEFAULT_RRF_K,
@@ -85,46 +122,37 @@ def compute_rrf(
         rrf_k: Smoothing parameter constant.
         limit: Top-K items to return after fusion.
     """
-    scores: dict[str, dict[str, Any]] = {}
+    scores: dict[str, _Fused] = {}
     _accumulate(scores, dense_results, dense_weight, rrf_k, "dense", "similarity")
     _accumulate(scores, sparse_results, sparse_weight, rrf_k, "sparse", "rank_score")
 
-    sorted_items = sorted(scores.values(), key=lambda x: x["rrf_score"], reverse=True)
+    ranked = sorted(scores.values(), key=lambda entry: entry.rrf_score, reverse=True)
 
     results: list[HybridSearchResult] = []
-    for entry in sorted_items[:limit]:
-        raw_item = entry["item"]
-        meta = raw_item.get("metadata") or {}
-        if isinstance(meta, str):
-            try:
-                meta = json.loads(meta)
-            except json.JSONDecodeError, TypeError, ValueError:
-                meta = {}
-
-        # The parser writes camelCase metadata keys only.
-        header_path = meta.get("headerPath") or []
-        if isinstance(header_path, str):
-            header_path = [header_path]
-
+    for entry in ranked[:limit]:
+        item = entry.item
+        meta = _metadata(item)
         results.append(
-            HybridSearchResult(
-                id=str(raw_item["id"]),
-                document_id=str(raw_item["document_id"]),
-                chunk_index=int(raw_item.get("chunk_index", 0)),
-                content=str(raw_item.get("content", "")),
-                filename=str(raw_item.get("filename", "")),
-                similarity_score=round(entry["rrf_score"], 6),
-                dense_rank=entry["dense_rank"],
-                sparse_rank=entry["sparse_rank"],
-                dense_score=round(entry["dense_score"], 4)
-                if entry["dense_score"] is not None
-                else None,
-                sparse_score=round(entry["sparse_score"], 4)
-                if entry["sparse_score"] is not None
-                else None,
-                page=meta.get("page"),
-                header_path=header_path,
-                metadata=meta,
+            HybridSearchResult.model_validate(
+                {
+                    "id": str(item["id"]),
+                    "document_id": str(item["document_id"]),
+                    "chunk_index": item.get("chunk_index", 0),
+                    "content": str(item.get("content", "")),
+                    "filename": str(item.get("filename", "")),
+                    "similarity_score": round(entry.rrf_score, 6),
+                    "dense_rank": entry.dense_rank,
+                    "sparse_rank": entry.sparse_rank,
+                    "dense_score": None
+                    if entry.dense_score is None
+                    else round(entry.dense_score, 4),
+                    "sparse_score": None
+                    if entry.sparse_score is None
+                    else round(entry.sparse_score, 4),
+                    "page": meta.get("page"),
+                    "header_path": _header_path(meta),
+                    "metadata": meta,
+                }
             )
         )
 
@@ -142,8 +170,8 @@ class HybridSearchEngine:
         db: NeonDatabase | None = None,
         embedding_service: EmbeddingService | None = None,
     ):
-        self.db = db or neon_db
-        self.embedding_service = embedding_service or default_embedding_service
+        self.db: NeonDatabase = db or neon_db
+        self.embedding_service: EmbeddingService = embedding_service or default_embedding_service
 
     async def search(
         self,
@@ -171,7 +199,7 @@ class HybridSearchEngine:
 
         candidate_limit = max(limit * candidate_pool_multiplier, 15)
 
-        async def dense() -> list[dict]:
+        async def dense() -> list[dict[str, object]]:
             if not use_embeddings:
                 return []
             try:

@@ -1,7 +1,8 @@
 import io
 from datetime import UTC, datetime
+from typing import override
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -9,9 +10,12 @@ from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from app.core.auth import get_current_user
-from app.db.models import Document, DocumentChunk, User
-from app.db.neon import get_db
+from app.db.models import Document, DocumentChunk, DocumentUploadResponseWire, User
+from app.db.neon import NeonDatabase, get_db
 from app.main import app
+
+type Users = tuple[User, User, User]
+"""(guest, Google user, admin)"""
 
 
 def _create_sample_pdf(text: str = "Sample benchmark evaluation results.") -> bytes:
@@ -30,12 +34,47 @@ def _create_sample_pdf(text: str = "Sample benchmark evaluation results.") -> by
     stream.set_data(f"BT /F1 12 Tf 72 100 Td ({text}) Tj ET".encode("latin-1"))
     page[NameObject("/Contents")] = stream
     buf = io.BytesIO()
-    writer.write(buf)
+    _ = writer.write(buf)
     return buf.getvalue()
 
 
+class _FakeDocumentsDb(NeonDatabase):
+    """The document methods of NeonDatabase, in memory. ``existing`` is a stored duplicate."""
+
+    def __init__(
+        self, existing: Document | None = None, existing_chunks: list[DocumentChunk] | None = None
+    ) -> None:
+        super().__init__(dsn="")
+        self.existing: Document | None = existing
+        self.existing_chunks: list[DocumentChunk] = existing_chunks or []
+        self.created: list[Document] = []
+        self.deleted: list[UUID] = []
+
+    @override
+    async def get_document_by_hash(self, sha256_hash: str) -> Document | None:
+        return self.existing
+
+    @override
+    async def get_document_chunks(
+        self, document_id: UUID, limit: int | None = None
+    ) -> list[DocumentChunk]:
+        return self.existing_chunks[:limit]
+
+    @override
+    async def create_document_with_chunks(
+        self, document: Document, chunks: list[DocumentChunk]
+    ) -> Document:
+        self.created.append(document)
+        return document
+
+    @override
+    async def delete_document(self, document_id: UUID) -> bool:
+        self.deleted.append(document_id)
+        return True
+
+
 @pytest.fixture
-def users():
+def users() -> Users:
     now = datetime.now(UTC)
     guest = User(
         id=uuid4(),
@@ -67,13 +106,16 @@ def users():
     return guest, google_user, admin_user
 
 
+def _client() -> AsyncClient:
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+
 @pytest.mark.asyncio
-async def test_guest_upload_is_forbidden_403(users):
+async def test_guest_upload_is_forbidden_403(users: Users):
     guest, _, _ = users
     app.dependency_overrides[get_current_user] = lambda: guest
     try:
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with _client() as client:
             res = await client.post(
                 "/api/documents/upload",
                 files={"file": ("bench.md", b"# Benchmark\nContent", "text/markdown")},
@@ -85,12 +127,11 @@ async def test_guest_upload_is_forbidden_403(users):
 
 
 @pytest.mark.asyncio
-async def test_regular_google_user_upload_is_forbidden_403(users):
+async def test_regular_google_user_upload_is_forbidden_403(users: Users):
     _, google_user, _ = users
     app.dependency_overrides[get_current_user] = lambda: google_user
     try:
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with _client() as client:
             res = await client.post(
                 "/api/documents/upload",
                 files={"file": ("bench.md", b"# Benchmark\nContent", "text/markdown")},
@@ -102,19 +143,13 @@ async def test_regular_google_user_upload_is_forbidden_403(users):
 
 
 @pytest.mark.asyncio
-async def test_admin_can_upload_pdf_and_gets_chunks(users, monkeypatch):
+async def test_admin_can_upload_pdf_and_gets_chunks(users: Users, monkeypatch: pytest.MonkeyPatch):
     _, _, admin = users
     pdf_bytes = _create_sample_pdf("MMLU evaluation scores for Gemini Flash.")
 
-    mock_db = AsyncMock()
-    mock_db.get_document_by_hash.return_value = None
-
-    async def fake_create_document(doc, chunks):
-        return doc
-
-    mock_db.create_document_with_chunks = AsyncMock(side_effect=fake_create_document)
+    db = _FakeDocumentsDb()
     app.dependency_overrides[get_current_user] = lambda: admin
-    app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_db] = lambda: db
 
     monkeypatch.setattr(
         "app.routes.documents.default_embedding_service.api_key",
@@ -126,41 +161,35 @@ async def test_admin_can_upload_pdf_and_gets_chunks(users, monkeypatch):
     )
 
     try:
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with _client() as client:
             res = await client.post(
                 "/api/documents/upload",
                 files={"file": ("mmlu.pdf", pdf_bytes, "application/pdf")},
                 headers={"Authorization": "Bearer fake-token"},
             )
             assert res.status_code == 200
-            data = res.json()
-            assert data["chunksCount"] >= 1
-            assert data["document"]["filename"] == "mmlu.pdf"
-            assert data["previewChunks"][0]["metadata"]["page"] == 1
+            data = DocumentUploadResponseWire.model_validate_json(res.content)
+            assert data.chunks_count >= 1
+            assert data.document.filename == "mmlu.pdf"
+            assert data.preview_chunks[0].metadata["page"] == 1
+            assert len(db.created) == 1
     finally:
         app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-async def test_admin_can_upload_markdown(users, monkeypatch):
+async def test_admin_can_upload_markdown(users: Users, monkeypatch: pytest.MonkeyPatch):
     _, _, admin = users
     md_bytes = (
         b"# GSM8K Benchmark\n\n"
-        b"Introduction to math benchmarks.\n\n"
-        b"## Math Reasoning\n\n"
-        b"GSM8K evaluates multi-step mathematical reasoning."
+        + b"Introduction to math benchmarks.\n\n"
+        + b"## Math Reasoning\n\n"
+        + b"GSM8K evaluates multi-step mathematical reasoning."
     )
 
-    mock_db = AsyncMock()
-    mock_db.get_document_by_hash.return_value = None
-
-    async def fake_create_document(doc, chunks):
-        return doc
-
-    mock_db.create_document_with_chunks = AsyncMock(side_effect=fake_create_document)
+    db = _FakeDocumentsDb()
     app.dependency_overrides[get_current_user] = lambda: admin
-    app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_db] = lambda: db
 
     monkeypatch.setattr(
         "app.routes.documents.default_embedding_service.api_key",
@@ -172,30 +201,28 @@ async def test_admin_can_upload_markdown(users, monkeypatch):
     )
 
     try:
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with _client() as client:
             res = await client.post(
                 "/api/documents/upload",
                 files={"file": ("gsm8k.md", md_bytes, "text/markdown")},
                 headers={"Authorization": "Bearer fake-token"},
             )
             assert res.status_code == 200
-            data = res.json()
-            assert data["chunksCount"] >= 1
-            assert data["document"]["filename"] == "gsm8k.md"
-            paths = [c["metadata"]["headerPath"] for c in data["previewChunks"]]
-            assert any("GSM8K Benchmark" in p for p in paths)
+            data = DocumentUploadResponseWire.model_validate_json(res.content)
+            assert data.chunks_count >= 1
+            assert data.document.filename == "gsm8k.md"
+            paths = [c.metadata["headerPath"] for c in data.preview_chunks]
+            assert any(isinstance(p, list) and "GSM8K Benchmark" in p for p in paths)
     finally:
         app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-async def test_pdf_without_magic_header_rejected_415(users):
+async def test_pdf_without_magic_header_rejected_415(users: Users):
     _, _, admin = users
     app.dependency_overrides[get_current_user] = lambda: admin
     try:
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with _client() as client:
             res = await client.post(
                 "/api/documents/upload",
                 files={"file": ("fake.pdf", b"NOT-A-PDF-HEADER", "application/pdf")},
@@ -207,17 +234,15 @@ async def test_pdf_without_magic_header_rejected_415(users):
 
 
 @pytest.mark.asyncio
-async def test_delete_document_admin_ok_others_403(users):
+async def test_delete_document_admin_ok_others_403(users: Users):
     guest, google_user, admin = users
     doc_id = uuid4()
 
-    mock_db = AsyncMock()
-    mock_db.delete_document.return_value = True
-    app.dependency_overrides[get_db] = lambda: mock_db
+    db = _FakeDocumentsDb()
+    app.dependency_overrides[get_db] = lambda: db
 
     try:
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with _client() as client:
             # Guest 403
             app.dependency_overrides[get_current_user] = lambda: guest
             res_guest = await client.delete(
@@ -242,12 +267,13 @@ async def test_delete_document_admin_ok_others_403(users):
             )
             assert res_admin.status_code == 200
             assert res_admin.json() == {"success": True, "id": str(doc_id)}
+            assert db.deleted == [doc_id]
     finally:
         app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-async def test_document_deduplication_by_hash(users, monkeypatch):
+async def test_document_deduplication_by_hash(users: Users, monkeypatch: pytest.MonkeyPatch):
     _, _, admin = users
     md_bytes = b"# Duplicate Benchmark\n\nContent identical to existing document."
 
@@ -267,25 +293,22 @@ async def test_document_deduplication_by_hash(users, monkeypatch):
         metadata={"filename": "existing.md", "headerPath": ["Duplicate Benchmark"], "page": None},
     )
 
-    mock_db = AsyncMock()
-    mock_db.get_document_by_hash.return_value = existing_doc
-    mock_db.get_document_chunks.return_value = [existing_chunk]
+    db = _FakeDocumentsDb(existing=existing_doc, existing_chunks=[existing_chunk])
     app.dependency_overrides[get_current_user] = lambda: admin
-    app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_db] = lambda: db
 
     monkeypatch.setattr("app.routes.documents.default_embedding_service.api_key", "mock-key")
 
     try:
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
+        async with _client() as client:
             res = await client.post(
                 "/api/documents/upload",
                 files={"file": ("dup.md", md_bytes, "text/markdown")},
                 headers={"Authorization": "Bearer fake-token"},
             )
             assert res.status_code == 200
-            data = res.json()
-            assert data["document"]["id"] == str(doc_id)
-            mock_db.create_document_with_chunks.assert_not_called()
+            data = DocumentUploadResponseWire.model_validate_json(res.content)
+            assert data.document.id == str(doc_id)
+            assert db.created == []
     finally:
         app.dependency_overrides.clear()

@@ -11,7 +11,7 @@ MB = 1024 * 1024
 
 
 @pytest.fixture
-def parse_calls(monkeypatch):
+def parse_calls(monkeypatch: pytest.MonkeyPatch):
     calls: list[int] = []
     original = MultiPartParser.parse
 
@@ -27,7 +27,7 @@ def _client() -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
-async def test_oversized_upload_is_rejected_before_parsing(parse_calls):
+async def test_oversized_upload_is_rejected_before_parsing(parse_calls: list[int]):
     files = {"file": ("big.md", b"a" * (6 * MB), "text/markdown")}
     async with _client() as client:
         response = await client.post(UPLOAD_URL, files=files)
@@ -35,7 +35,7 @@ async def test_oversized_upload_is_rejected_before_parsing(parse_calls):
     assert parse_calls == []
 
 
-async def test_oversized_chunked_upload_is_rejected(parse_calls):
+async def test_oversized_chunked_upload_is_rejected(parse_calls: list[int]):
     head = (
         b"--x\r\n"
         b'Content-Disposition: form-data; name="file"; filename="b.md"\r\n'

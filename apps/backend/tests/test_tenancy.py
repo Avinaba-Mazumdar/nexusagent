@@ -23,7 +23,7 @@ async def _make_user(name: str) -> tuple[User, dict[str, str]]:
 async def _delete_users(*users: User) -> None:
     async with neon_db.get_pool().acquire() as conn:
         for user in users:
-            await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
+            _ = await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
 
 
 @pytest.mark.db
@@ -32,7 +32,7 @@ async def test_audit_logs_only_return_the_callers_rows_r2_tst_01():
     user_a, headers_a = await _make_user("Auditor A")
     user_b, headers_b = await _make_user("Auditor B")
     try:
-        await default_audit_logger.log_tool_audit(
+        _ = await default_audit_logger.log_tool_audit(
             tool_name="only_a", input_args={}, output_summary={}, duration_ms=1, user_id=user_a.id
         )
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

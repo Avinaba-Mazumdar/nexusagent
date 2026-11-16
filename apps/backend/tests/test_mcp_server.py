@@ -25,11 +25,11 @@ async def connected_client():
                 mcp._lowlevel_server.create_initialization_options(),
             )
         )
-        await client.initialize()
+        _ = await client.initialize()
         try:
             yield client
         finally:
-            server_task.cancel()
+            _ = server_task.cancel()
 
 
 @pytest.mark.asyncio
@@ -42,7 +42,7 @@ async def test_list_tools():
 
 
 @pytest.mark.asyncio
-async def test_search_tool(monkeypatch):
+async def test_search_tool(monkeypatch: pytest.MonkeyPatch):
     fake_results = [
         HybridSearchResult(
             id="chunk-1",
@@ -124,7 +124,7 @@ async def test_fetch_tool_invalid_id():
 
 
 @pytest.mark.asyncio
-async def test_fetch_tool_success(monkeypatch):
+async def test_fetch_tool_success(monkeypatch: pytest.MonkeyPatch):
     fake_chunk = MagicMock(content="Passage full text content", metadata={"page": 3})
     fake_doc = MagicMock(filename="benchmarks.md")
 

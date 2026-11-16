@@ -1,6 +1,7 @@
 """Cross-Site Request Forgery (CSRF) protection for cookie-authenticated endpoints."""
 
 import json
+from typing import cast
 
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -23,20 +24,20 @@ class CsrfProtectionMiddleware:
     """
 
     def __init__(self, app: ASGIApp) -> None:
-        self.app = app
+        self.app: ASGIApp = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if (
             scope["type"] != "http"
             or scope["method"] not in _MUTATING_METHODS
-            or not scope["path"].startswith("/api/")
+            or not cast(str, scope["path"]).startswith("/api/")
         ):
             await self.app(scope, receive, send)
             return
 
         origin: str | None = None
         cookie: str = ""
-        for raw_k, raw_v in scope.get("headers", []):
+        for raw_k, raw_v in cast(list[tuple[bytes, bytes]], scope.get("headers", [])):
             lower_k = raw_k.lower()
             if lower_k == b"origin":
                 origin = raw_v.decode("latin1")

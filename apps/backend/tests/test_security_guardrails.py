@@ -18,7 +18,7 @@ from app.core.security_guardrails import (
 from app.db.models import User
 from app.db.neon import NeonDatabase
 from app.main import app
-from tests.conftest import FakeUsageDb
+from tests.conftest import FakeLLM, FakeUsageDb
 
 # ---------------------------------------------------------------------------
 # 1. Prompt Injection Delimiters Tests
@@ -26,7 +26,7 @@ from tests.conftest import FakeUsageDb
 
 
 @pytest.mark.asyncio
-async def test_answer_prompt_wraps_untrusted_context(fake_llm):
+async def test_answer_prompt_wraps_untrusted_context(fake_llm: FakeLLM):
     from app.agent.graph import add_chunks, answer_node, build_agent_messages
     from app.agent.state import AgentState
     from app.rag.hybrid_search import HybridSearchResult
@@ -199,7 +199,7 @@ async def test_chat_quota_rate_limiter_depletion():
         assert remaining == (4 - i)
 
     with pytest.raises(HTTPException) as exc_info:
-        await quota.reserve(user, client_ip="192.168.1.100")
+        _ = await quota.reserve(user, client_ip="192.168.1.100")
 
     assert exc_info.value.status_code == 429
     assert "Daily chat limit reached" in exc_info.value.detail
@@ -215,10 +215,10 @@ async def test_ip_rotation_does_not_reset_quota_sec_02():
     user = User(id=uuid4(), is_guest=True, device_id="dev1", machine_hash="mach1")
 
     for _ in range(5):
-        await quota.reserve(user, client_ip="192.0.2.1")
+        _ = await quota.reserve(user, client_ip="192.0.2.1")
 
     with pytest.raises(HTTPException) as exc_info:
-        await quota.reserve(user, client_ip="198.51.100.1")
+        _ = await quota.reserve(user, client_ip="198.51.100.1")
     assert exc_info.value.status_code == 429
 
 
@@ -233,7 +233,7 @@ async def test_guest_signup_and_ip_rate_limits():
     assert guest_signup_limiter.hit(ip) is False
 
 
-def test_sliding_window_counter_prunes_stale_keys(monkeypatch):
+def test_sliding_window_counter_prunes_stale_keys(monkeypatch: pytest.MonkeyPatch):
     """SEC-09: stale IP keys are evicted once the table grows past the cap."""
     from datetime import UTC, datetime, timedelta
 
@@ -278,7 +278,7 @@ async def test_audit_logs_query_is_filtered_by_user():
     db = AsyncMock()
     db.fetch.return_value = []
     user_a = uuid4()
-    await ToolAuditLogger(db=db).fetch_audit_logs_from_db(user_id=user_a, limit=10)
+    _ = await ToolAuditLogger(db=db).fetch_audit_logs_from_db(user_id=user_a, limit=10)
     query, *args = db.fetch.call_args.args
     assert "WHERE user_id = $1" in query
     assert args == [user_a, 10]
@@ -295,7 +295,7 @@ async def test_immutable_audit_logging_and_endpoint():
         user_id = UUID(guest_res.json()["user"]["id"])
 
         # 2. Log tool execution via coordinator for user
-        await default_audit_logger.log_tool_audit(
+        _ = await default_audit_logger.log_tool_audit(
             tool_name="hybrid_rag_search",
             input_args={"query": "Raft consensus"},
             output_summary={"count": 3},
@@ -337,10 +337,10 @@ async def test_429_retry_after_reflects_actual_reset_time():
     )
     # Fill remaining 4
     for _ in range(4):
-        await quota.reserve(user, "203.0.113.7")
+        _ = await quota.reserve(user, "203.0.113.7")
 
     with pytest.raises(HTTPException) as exc_info:
-        await quota.reserve(user, "203.0.113.7")
+        _ = await quota.reserve(user, "203.0.113.7")
     assert exc_info.value.headers is not None
     retry_after = int(exc_info.value.headers["Retry-After"])
     assert 3500 <= retry_after <= 3600
@@ -367,7 +367,7 @@ async def test_prune_audit_logs_uses_retention_switch_and_validates_input():
     assert await db.prune_audit_logs(30) == 7
     assert "nexusagent.audit_retention" in conn.execute.call_args_list[0].args[0]
     with pytest.raises(ValueError):
-        await db.prune_audit_logs(0)
+        _ = await db.prune_audit_logs(0)
 
 
 def test_audit_migration_blocks_updates_and_unsanctioned_deletes():
@@ -395,14 +395,14 @@ async def test_a_shared_fingerprint_does_not_spend_another_guests_quota():
     )
 
     for _ in range(5):
-        await quota.reserve(attacker, client_ip="198.51.100.1")
+        _ = await quota.reserve(attacker, client_ip="198.51.100.1")
 
     _usage_id, remaining = await quota.reserve(victim, client_ip="203.0.113.9")
     assert remaining == 4
 
 
 @pytest.mark.asyncio
-async def test_guests_behind_one_network_share_the_network_bucket(monkeypatch):
+async def test_guests_behind_one_network_share_the_network_bucket(monkeypatch: pytest.MonkeyPatch):
     from app.config import settings
     from app.core.rate_limiter import BLOCKED_DETAIL
 
@@ -413,13 +413,13 @@ async def test_guests_behind_one_network_share_the_network_bucket(monkeypatch):
     second = User(id=uuid4(), is_guest=True, device_id="dev-b")
 
     for _ in range(5):
-        await quota.reserve(first, client_ip="192.0.2.10")
+        _ = await quota.reserve(first, client_ip="192.0.2.10")
     _usage_id, remaining = await quota.reserve(second, client_ip="192.0.2.10")
     assert remaining == 1  # the network has 1 left, though this guest has 4
-    await quota.reserve(second, client_ip="192.0.2.10")
+    _ = await quota.reserve(second, client_ip="192.0.2.10")
 
     with pytest.raises(HTTPException) as exc_info:
-        await quota.reserve(second, client_ip="192.0.2.10")
+        _ = await quota.reserve(second, client_ip="192.0.2.10")
     assert exc_info.value.status_code == 429
     assert exc_info.value.detail == BLOCKED_DETAIL["network"]
 
@@ -430,7 +430,7 @@ async def test_guests_behind_one_network_share_the_network_bucket(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_service_wide_ceilings_stop_scripted_guests(monkeypatch):
+async def test_service_wide_ceilings_stop_scripted_guests(monkeypatch: pytest.MonkeyPatch):
     from app.config import settings
     from app.core.rate_limiter import BLOCKED_DETAIL
 
@@ -442,19 +442,19 @@ async def test_service_wide_ceilings_stop_scripted_guests(monkeypatch):
     # Every guest is new and on a new network, as a script rotating addresses would be.
     for n in range(3):
         guest = User(id=uuid4(), is_guest=True, device_id=f"dev-{n}")
-        await quota.reserve(guest, client_ip=f"198.51.100.{n}")
+        _ = await quota.reserve(guest, client_ip=f"198.51.100.{n}")
     with pytest.raises(HTTPException) as exc_info:
-        await quota.reserve(User(id=uuid4(), is_guest=True, device_id="dev-x"), "198.51.100.99")
+        _ = await quota.reserve(User(id=uuid4(), is_guest=True, device_id="dev-x"), "198.51.100.99")
     assert exc_info.value.detail == BLOCKED_DETAIL["guests"]
 
     member = User(id=uuid4(), is_guest=False)
-    await quota.reserve(member)
+    _ = await quota.reserve(member)
     with pytest.raises(HTTPException) as exc_info:
-        await quota.reserve(member)
+        _ = await quota.reserve(member)
     assert exc_info.value.detail == BLOCKED_DETAIL["service"]
 
 
-def test_a_ceiling_of_zero_is_switched_off(monkeypatch):
+def test_a_ceiling_of_zero_is_switched_off(monkeypatch: pytest.MonkeyPatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "GUEST_QUOTA_PER_NETWORK", 0)

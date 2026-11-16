@@ -32,7 +32,7 @@ async def test_list_seeded_documents_without_auth():
                 total_chunks=0,
                 is_seeded=True,
             )
-            await neon_db.create_document_with_chunks(doc, [])
+            _ = await neon_db.create_document_with_chunks(doc, [])
             created.append(doc_id)
     try:
         transport = ASGITransport(app=app)
@@ -48,4 +48,4 @@ async def test_list_seeded_documents_without_auth():
     finally:
         async with neon_db.get_pool().acquire() as conn:
             for doc_id in created:
-                await conn.execute("DELETE FROM documents WHERE id = $1;", doc_id)
+                _ = await conn.execute("DELETE FROM documents WHERE id = $1;", doc_id)

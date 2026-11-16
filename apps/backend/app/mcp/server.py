@@ -31,7 +31,7 @@ mcp = MCPServer(
 
 async def _db():
     if not neon_db.pool:
-        await neon_db.connect()
+        _ = await neon_db.connect()
 
 
 def _url(document_id: str, chunk_id: str) -> str:
@@ -39,7 +39,7 @@ def _url(document_id: str, chunk_id: str) -> str:
 
 
 @mcp.tool()
-async def search(query: str) -> dict:
+async def search(query: str) -> dict[str, object]:
     """Search the LLM benchmark knowledge base. Returns up to 8 matching passages (id, title, url)."""
     started = time.perf_counter()
     await _db()
@@ -53,7 +53,7 @@ async def search(query: str) -> dict:
             query=query[:1000], limit=8, use_embeddings=use_embeddings
         )
     )
-    result_data = {
+    result_data: dict[str, object] = {
         "results": [
             {
                 "id": f"{r.document_id}:{r.id}",
@@ -63,7 +63,7 @@ async def search(query: str) -> dict:
             for r in results
         ]
     }
-    await default_audit_logger.log_tool_audit(
+    _ = await default_audit_logger.log_tool_audit(
         tool_name="mcp.search",
         input_args={"query": query[:200]},
         output_summary={"results": len(results)},
@@ -74,7 +74,7 @@ async def search(query: str) -> dict:
 
 
 @mcp.tool()
-async def fetch(id: str) -> dict:
+async def fetch(id: str) -> dict[str, object]:
     """Fetch the full text of a passage returned by `search` (id is `document_id:chunk_id`)."""
     started = time.perf_counter()
     parts = id.split(":", 1)
@@ -96,14 +96,14 @@ async def fetch(id: str) -> dict:
     filename = doc.filename if doc else "document"
 
     safe, _reason = screen_passage(chunk.content)
-    result_data = {
+    result_data: dict[str, object] = {
         "id": id,
         "title": filename,
         "text": safe if safe is not None else WITHHELD_PASSAGE,
         "url": _url(str(doc_id), str(chunk_id)),
         "metadata": chunk.metadata,
     }
-    await default_audit_logger.log_tool_audit(
+    _ = await default_audit_logger.log_tool_audit(
         tool_name="mcp.fetch",
         input_args={"id": id[:100]},
         output_summary={"chars": len(chunk.content)},

@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import cast
 
 import asyncpg
 from fastapi import APIRouter, status
@@ -6,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.db.neon import neon_db
+from app.db.records import col_str
 
 router = APIRouter(prefix="/health", tags=["Health"])
 
@@ -19,25 +21,26 @@ async def get_health():
     if neon_db.pool is not None:
         try:
             async with neon_db.pool.acquire(timeout=2) as conn:
-                db_connected = await conn.fetchval("SELECT 1;") == 1
+                db_connected = cast(int | None, await conn.fetchval("SELECT 1;")) == 1
                 if db_connected and settings.is_dev:
                     # Version/extension fingerprints are dev-only; production does one query.
-                    engine_str = f"PostgreSQL {await conn.fetchval('SHOW server_version;')}"
+                    version = cast(str, await conn.fetchval("SHOW server_version;"))
+                    engine_str = f"PostgreSQL {version}"
                     ext_rows = await conn.fetch(
                         "SELECT extname FROM pg_extension ORDER BY extname;"
                     )
-                    extensions = [r["extname"] for r in ext_rows]
+                    extensions = [col_str(r, "extname") for r in ext_rows]
         except asyncpg.PostgresError, OSError, TimeoutError:
             db_connected = False
             engine_str = None
             extensions = []
 
     is_healthy = db_connected
-    database = {
+    database: dict[str, object] = {
         "status": "connected" if db_connected else "disconnected",
         "connected": db_connected,
     }
-    payload: dict = {
+    payload: dict[str, object] = {
         "status": "healthy" if is_healthy else "unhealthy",
         "timestamp": datetime.now(UTC).isoformat(),
         "database": database,

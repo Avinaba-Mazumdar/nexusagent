@@ -50,15 +50,15 @@ class AgentRun:
         conversation_id: UUID | None = None,
         usage_id: UUID | None = None,
     ) -> None:
-        self.query = query
-        self.session_id = session_id
-        self.user_id = user_id
-        self.graph = graph
-        self.is_guest = is_guest
-        self.quota_remaining = quota_remaining
-        self.quota_charged = quota_charged
-        self.usage_id = usage_id
-        self.state = AgentState(
+        self.query: str = query
+        self.session_id: str = session_id
+        self.user_id: UUID | None = user_id
+        self.graph: AgentGraph = graph
+        self.is_guest: bool = is_guest
+        self.quota_remaining: int | None = quota_remaining
+        self.quota_charged: bool = quota_charged
+        self.usage_id: UUID | None = usage_id
+        self.state: AgentState = AgentState(
             session_id=session_id,
             user_id=user_id,
             conversation_id=conversation_id,
@@ -68,10 +68,10 @@ class AgentRun:
             intent=intent,
         )
         self._frames: asyncio.Queue[str | None] = asyncio.Queue()
-        self._tokens_sent = False
-        self._scrubber = StreamingScrubber()
-        self._usage_sent = 0
-        self._events_sent = 0
+        self._tokens_sent: bool = False
+        self._scrubber: StreamingScrubber = StreamingScrubber()
+        self._usage_sent: int = 0
+        self._events_sent: int = 0
 
     async def frames(self) -> AsyncIterator[str]:
         """Run the pipeline in a task and yield its frames as they are produced."""
@@ -90,7 +90,7 @@ class AgentRun:
         finally:
             # The client went away: stop the pipeline. Its quota charge stays (see class docstring).
             if not pipeline.done():
-                pipeline.cancel()
+                _ = pipeline.cancel()
 
     def _send(self, frame: str) -> None:
         self._frames.put_nowait(frame)
@@ -170,9 +170,9 @@ class AgentRun:
             )
         elif upcoming == "tools":
             for call in state.pending_tool_calls[:MAX_TOOL_CALLS_PER_ROUND]:
-                name = call.get("name", "")
+                name = call["name"]
                 if name in TOOL_ARGS:
-                    self._send(tool_call_frame(self.session_id, name, call.get("args") or {}))
+                    self._send(tool_call_frame(self.session_id, name, call["args"]))
 
     async def _refund_router_refusal(self, final_state: AgentState) -> None:
         """A refusal decided by the router is free, up to a per-user hourly cap."""

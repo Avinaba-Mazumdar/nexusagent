@@ -14,6 +14,7 @@ from app.rag.embeddings import (
     EmbeddingService,
 )
 from app.rag.hybrid_search import compute_rrf
+from tests.conftest import FakeUsageDb
 
 
 def generate_deterministic_embedding(text: str, dim: int = EMBEDDING_DIMENSION) -> list[float]:
@@ -126,7 +127,7 @@ def test_rrf_camelcase_metadata():
 
 
 @pytest.mark.asyncio
-async def test_search_raises_runtime_error_when_db_disconnected(monkeypatch):
+async def test_search_raises_runtime_error_when_db_disconnected(monkeypatch: pytest.MonkeyPatch):
     """Verify hybrid search raises RuntimeError instead of fabricating offline results (L-11, D-6)."""
     from app.db.neon import neon_db
     from app.rag.hybrid_search import HybridSearchEngine
@@ -134,7 +135,7 @@ async def test_search_raises_runtime_error_when_db_disconnected(monkeypatch):
     monkeypatch.setattr(neon_db, "pool", None)
     engine = HybridSearchEngine(db=None)
     with pytest.raises(RuntimeError, match="Knowledge base unavailable: database not connected"):
-        await engine.search("Raft consensus")
+        _ = await engine.search("Raft consensus")
 
 
 @pytest.mark.db
@@ -155,7 +156,7 @@ async def test_hybrid_search_end_to_end_endpoint():
         ON CONFLICT (id) DO NOTHING;
     """
     async with neon_db.get_pool().acquire() as conn:
-        await conn.execute(
+        _ = await conn.execute(
             user_query, test_user.id, test_user.email, test_user.name, test_user.is_guest
         )
 
@@ -193,7 +194,7 @@ async def test_hybrid_search_end_to_end_endpoint():
         embedding=emb_chunk2,
         metadata={"page": 2, "headerPath": ["Database", "Indexes"]},
     )
-    await neon_db.create_document_with_chunks(doc, [chunk1, chunk2])
+    _ = await neon_db.create_document_with_chunks(doc, [chunk1, chunk2])
 
     # 3. Authenticate and query /api/rag/search
     token, _ = create_access_token({"sub": str(test_user.id), "role": "user"})
@@ -237,8 +238,8 @@ async def test_embedding_payload_has_task_type_and_pinned_model():
         "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp
     ) as mock_post:
         service = EmbeddingService(api_key="k")
-        await service.get_embeddings(["doc text"])
-        await service.get_embedding("query text")
+        _ = await service.get_embeddings(["doc text"])
+        _ = await service.get_embedding("query text")
     docs_req = mock_post.call_args_list[0].kwargs["json"]["requests"][0]
     query_req = mock_post.call_args_list[1].kwargs["json"]["requests"][0]
     assert docs_req["taskType"] == "RETRIEVAL_DOCUMENT"
@@ -259,7 +260,7 @@ async def test_embedding_404_does_not_fall_back_to_another_model():
         ) as mock_post,
         pytest.raises(RuntimeError),
     ):
-        await EmbeddingService(api_key="k").get_embeddings(["x"])
+        _ = await EmbeddingService(api_key="k").get_embeddings(["x"])
     assert mock_post.call_count == 1
 
 
@@ -327,7 +328,7 @@ async def test_search_skips_embeddings_when_the_caller_has_no_budget():
 
 
 @pytest.mark.asyncio
-async def test_embedding_retries_rate_limits_then_succeeds(monkeypatch):
+async def test_embedding_retries_rate_limits_then_succeeds(monkeypatch: pytest.MonkeyPatch):
     """R2-LOG-01: two 429s are retried; the third response is used."""
     import httpx
 
@@ -355,7 +356,7 @@ async def test_embedding_retries_rate_limits_then_succeeds(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_embedding_gives_up_after_retries_with_unavailable(monkeypatch):
+async def test_embedding_gives_up_after_retries_with_unavailable(monkeypatch: pytest.MonkeyPatch):
     import httpx
 
     from app.rag import embeddings
@@ -372,7 +373,7 @@ async def test_embedding_gives_up_after_retries_with_unavailable(monkeypatch):
     service._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     try:
         with pytest.raises(EmbeddingUnavailable):
-            await service.get_embeddings(["x"])
+            _ = await service.get_embeddings(["x"])
     finally:
         await service.aclose()
     assert len(calls) == 3
@@ -429,8 +430,8 @@ async def test_dense_search_finds_user_chunks_behind_many_seeded_chunks_r2_log_0
         for i in range(3)
     ]
     try:
-        await neon_db.create_document_with_chunks(seeded_doc, seeded_chunks)
-        await neon_db.create_document_with_chunks(user_doc, user_chunks)
+        _ = await neon_db.create_document_with_chunks(seeded_doc, seeded_chunks)
+        _ = await neon_db.create_document_with_chunks(user_doc, user_chunks)
         rows = await neon_db.search_chunks_dense(query_vec, document_id=user_doc.id, limit=400)
         assert {r["content"] for r in rows if r["content"].startswith("mine")} == {
             "mine 0",
@@ -440,14 +441,14 @@ async def test_dense_search_finds_user_chunks_behind_many_seeded_chunks_r2_log_0
     finally:
         pool = neon_db.get_pool()
         async with pool.acquire() as conn:
-            await conn.execute(
+            _ = await conn.execute(
                 "DELETE FROM documents WHERE id = ANY($1::uuid[]);", [seeded_doc.id, user_doc.id]
             )
-            await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
+            _ = await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
 
 
 @pytest.mark.asyncio
-async def test_invalid_document_id_is_a_422_and_costs_nothing_r2_log_10(fake_rate_db):
+async def test_invalid_document_id_is_a_422_and_costs_nothing_r2_log_10(fake_rate_db: FakeUsageDb):
     from datetime import UTC, datetime
     from uuid import uuid4
 
@@ -468,11 +469,13 @@ async def test_invalid_document_id_is_a_422_and_costs_nothing_r2_log_10(fake_rat
         assert res.status_code == 422
         assert len(fake_rate_db.rows) == 0  # no usage was created
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        _ = app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.mark.asyncio
-async def test_rag_search_omits_passages_that_match_injection_patterns(fake_rate_db, monkeypatch):
+async def test_rag_search_omits_passages_that_match_injection_patterns(
+    fake_rate_db: FakeUsageDb, monkeypatch: pytest.MonkeyPatch
+):
     from datetime import UTC, datetime
     from uuid import uuid4
 
@@ -515,4 +518,4 @@ async def test_rag_search_omits_passages_that_match_injection_patterns(fake_rate
         assert [row["filename"] for row in body["results"]] == ["good.md"]
         assert "Ignore previous instructions" not in res.text
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        _ = app.dependency_overrides.pop(get_current_user, None)

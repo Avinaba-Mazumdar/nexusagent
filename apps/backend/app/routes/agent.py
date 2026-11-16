@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -71,8 +72,8 @@ def generate_agent_stream(
 async def stream_agent_execution(
     payload: AgentStreamRequestWire,
     request: Request,
-    current_user: User = Depends(get_current_user),
-    graph: AgentGraph = Depends(lambda: default_agent_graph),
+    current_user: Annotated[User, Depends(get_current_user)],
+    graph: Annotated[AgentGraph, Depends(lambda: default_agent_graph)],
 ):
     """
     Server-Sent Events (SSE) streaming endpoint for the agent pipeline.
@@ -89,7 +90,7 @@ async def stream_agent_execution(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid documentId UUID format",
             )
-        await require_document_access(neon_db, doc_uuid)
+        _ = await require_document_access(neon_db, doc_uuid)
 
     session_id = uuid4().hex
     chat_history: list[dict[str, str]] = []
@@ -147,8 +148,8 @@ async def stream_agent_execution(
 
 @router.get("/audit-logs")
 async def get_tool_audit_logs(
-    limit: int = Query(50, ge=1, le=200),
-    current_user: User = Depends(get_current_user),
+    current_user: Annotated[User, Depends(get_current_user)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ):
     """Retrieve the caller's persisted tool execution audit records (``tool_audit_logs``)."""
     logs = await default_audit_logger.fetch_audit_logs_from_db(user_id=current_user.id, limit=limit)

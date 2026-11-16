@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import ClassVar, cast
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -54,11 +55,15 @@ class Settings(BaseSettings):
                 import json
 
                 try:
-                    return json.loads(v_str)
+                    parsed = cast(object, json.loads(v_str))
                 except json.JSONDecodeError, TypeError, ValueError:
-                    pass
+                    parsed = None
+                if isinstance(parsed, list):
+                    return [str(origin) for origin in cast(list[object], parsed)]
             return [origin.strip() for origin in v_str.split(",") if origin.strip()]
-        return v  # type: ignore[return-value]
+        if isinstance(v, list):
+            return [str(origin) for origin in cast(list[object], v)]
+        raise ValueError("CORS_ORIGINS must be a comma-separated string or a JSON list")
 
     NEON_DATABASE_URL: str = ""
 
@@ -136,16 +141,24 @@ class Settings(BaseSettings):
         if self.TRUSTED_PROXY_HOPS < 0 or self.TRUSTED_PROXY_HOPS > MAX_TRUSTED_PROXY_HOPS:
             raise ValueError(
                 f"TRUSTED_PROXY_HOPS must be between 0 and {MAX_TRUSTED_PROXY_HOPS} "
-                "(Render = 1, Cloudflare in front of Render = 2)."
+                + "(Render = 1, Cloudflare in front of Render = 2)."
             )
         if self.is_dev:
             local_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
-            self.CORS_ORIGINS = [
-                *(o for o in local_origins if o not in self.CORS_ORIGINS),
-                *self.CORS_ORIGINS,
-            ]
+            # Settings fields are uppercase by convention, not constants. Plain assignment reads
+            # as a constant redefinition to the type checker, so the dev defaults go through
+            # the model's field dict (validate_assignment is off, so this is equivalent).
+            dev_defaults: dict[str, object] = {
+                "CORS_ORIGINS": [
+                    *(o for o in local_origins if o not in self.CORS_ORIGINS),
+                    *self.CORS_ORIGINS,
+                ]
+            }
             if not self.JWT_SECRET_KEY:
-                self.JWT_SECRET_KEY = "nexusagent-local-dev-only-secret-not-for-production"
+                dev_defaults["JWT_SECRET_KEY"] = (
+                    "nexusagent-local-dev-only-secret-not-for-production"
+                )
+            vars(self).update(dev_defaults)
             return self
         if len(self.JWT_SECRET_KEY) < 32:
             raise ValueError("JWT_SECRET_KEY must be set (>= 32 chars) outside development/test.")
@@ -156,11 +169,11 @@ class Settings(BaseSettings):
         if self.TRUSTED_PROXY_HOPS < 1:
             raise ValueError(
                 "TRUSTED_PROXY_HOPS must be >= 1 outside development/test "
-                "(Render = 1). With 0 every client shares the proxy's IP address."
+                + "(Render = 1). With 0 every client shares the proxy's IP address."
             )
         return self
 
-    model_config = SettingsConfigDict(
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_file=(
             str(BACKEND_DIR / ".env.local"),
             ".env.local",

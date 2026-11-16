@@ -1,14 +1,59 @@
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from typing import Protocol, override
+from uuid import UUID, uuid4
 
+import jwt as pyjwt
 import pytest
-from fastapi import HTTPException
+from cryptography.hazmat.primitives.asymmetric import rsa
+from fastapi import HTTPException, Request
 from httpx import ASGITransport, AsyncClient
+from jwt import PyJWK
+from jwt.algorithms import RSAAlgorithm
 
-from app.core.auth import create_access_token, decode_access_token
-from app.db.models import User
-from app.db.neon import neon_db
+from app.config import settings
+from app.core.auth import (
+    GoogleProfile,
+    create_access_token,
+    decode_access_token,
+    get_current_user,
+    get_current_user_optional,
+    session_claims,
+    verify_google_token,
+)
+from app.db.models import GuestPassResponse, MeResponse, TokenResponse, User
+from app.db.neon import NeonDatabase, get_db, neon_db
 from app.main import app
+
+
+class _UsersDb(NeonDatabase):
+    """The user lookups of NeonDatabase for one known user, recording every call."""
+
+    def __init__(self, user: User | None = None) -> None:
+        super().__init__(dsn="")
+        self.user: User | None = user
+        self.lookups: int = 0
+        self.touched: list[UUID] = []
+        self.last_seen_updates: int = 0
+
+    @override
+    async def get_user_by_id(self, user_id: UUID) -> User | None:
+        self.lookups += 1
+        return self.user if self.user is not None and self.user.id == user_id else None
+
+    @override
+    async def touch_user(self, user_id: UUID) -> bool:
+        self.touched.append(user_id)
+        return True
+
+    @override
+    async def update_user_last_seen(
+        self,
+        user_id: UUID,
+        client_ip: str | None = None,
+        device_id: str | None = None,
+        machine_hash: str | None = None,
+    ) -> None:
+        self.last_seen_updates += 1
 
 
 @pytest.mark.asyncio
@@ -34,17 +79,15 @@ async def test_guest_pass_endpoint():
     ) as client:
         response = await client.post("/api/auth/guest")
         assert response.status_code == 200
-        data = response.json()
+        data = GuestPassResponse.model_validate_json(response.content)
 
-        assert "user" in data
-        assert data["user"]["isGuest"] is True
-        assert "Guest User" in data["user"]["name"]
-        assert "tokens" not in data
-        assert "accessToken" not in data
-        assert "expiresIn" in data
-        assert data["expiresIn"] > 0
-        assert data["quotaRemaining"] == 5
-        assert data["bucketCapacity"] == 5
+        assert data.user.is_guest is True
+        assert "Guest User" in data.user.name
+        assert '"tokens"' not in response.text
+        assert '"accessToken"' not in response.text
+        assert data.expiresIn > 0
+        assert data.quotaRemaining == 5
+        assert data.bucketCapacity == 5
         assert "nexus_session" in response.cookies
         token = response.cookies["nexus_session"]
         assert len(token) > 20
@@ -52,23 +95,23 @@ async def test_guest_pass_endpoint():
         # Test authenticated /me with this guest session cookie
         me_resp = await client.get("/api/auth/me")
         assert me_resp.status_code == 200
-        me_data = me_resp.json()
-        assert me_data["user"]["id"] == data["user"]["id"]
-        assert me_data["quota"]["tokensRemaining"] == 5
+        me_data = MeResponse.model_validate_json(me_resp.content)
+        assert me_data.user.id == data.user.id
+        assert me_data.quota.tokensRemaining == 5
 
         # The device cookie, not a body field, reopens this guest.
         res1 = await client.post("/api/auth/guest", json={"deviceId": "not-the-account-key"})
         assert res1.status_code == 200
-        user1 = res1.json()["user"]
+        user1 = GuestPassResponse.model_validate_json(res1.content).user
 
         res2 = await client.post("/api/auth/guest")
         assert res2.status_code == 200
-        user2 = res2.json()["user"]
+        user2 = GuestPassResponse.model_validate_json(res2.content).user
 
-        assert user1["id"] == user2["id"] == data["user"]["id"]
-        assert user1["name"] == user2["name"]
-        assert "deviceId" not in user2
-        assert "clientIp" not in user2
+        assert user1.id == user2.id == data.user.id
+        assert user1.name == user2.name
+        assert '"deviceId"' not in res2.text
+        assert '"clientIp"' not in res2.text
 
 
 @pytest.mark.db
@@ -82,13 +125,13 @@ async def test_guests_with_same_machine_hash_get_distinct_accounts():
     ):
         res_a = await client_a.post("/api/auth/guest", json={"machineId": "same-machine"})
         assert res_a.status_code == 200
-        user_a = res_a.json()["user"]
+        user_a = GuestPassResponse.model_validate_json(res_a.content).user
 
         res_b = await client_b.post("/api/auth/guest", json={"machineId": "same-machine"})
         assert res_b.status_code == 200
-        user_b = res_b.json()["user"]
+        user_b = GuestPassResponse.model_validate_json(res_b.content).user
 
-        assert user_a["id"] != user_b["id"]
+        assert user_a.id != user_b.id
 
 
 @pytest.mark.db
@@ -100,12 +143,12 @@ async def test_body_device_id_cannot_reopen_another_guest():
         res_a = await client_a.post("/api/auth/guest")
         assert res_a.status_code == 200
         stolen = res_a.cookies["nexus_device"]
-        user_a = res_a.json()["user"]["id"]
+        user_a = GuestPassResponse.model_validate_json(res_a.content).user.id
 
     async with AsyncClient(transport=transport, base_url="http://test") as client_b:
         res_b = await client_b.post("/api/auth/guest", json={"deviceId": stolen})
         assert res_b.status_code == 200
-        assert res_b.json()["user"]["id"] != user_a
+        assert GuestPassResponse.model_validate_json(res_b.content).user.id != user_a
 
 
 @pytest.mark.asyncio
@@ -132,15 +175,15 @@ async def test_unauthorized_access():
 
 @pytest.mark.db
 @pytest.mark.asyncio
-async def test_google_oauth_endpoint(monkeypatch):
-    profile = {
-        "email": "google.lead@distributed.io",
-        "name": "Senior Google Architect",
-        "picture": None,
-        "sub": "sub-lead-1",
-    }
+async def test_google_oauth_endpoint(monkeypatch: pytest.MonkeyPatch):
+    profile = GoogleProfile(
+        email="google.lead@distributed.io",
+        name="Senior Google Architect",
+        picture=None,
+        sub="sub-lead-1",
+    )
 
-    async def fake_verify(credential: str) -> dict:
+    async def fake_verify(credential: str) -> GoogleProfile:
         if credential == "invalid_raw_token_xyz":
             raise HTTPException(status_code=401, detail="Invalid or expired Google credential")
         return profile
@@ -156,31 +199,30 @@ async def test_google_oauth_endpoint(monkeypatch):
         # 1. Valid Google OAuth authentication
         resp = await client.post("/api/auth/google", json={"credential": "valid_token_1"})
         assert resp.status_code == 200
-        data = resp.json()
+        data = TokenResponse.model_validate_json(resp.content)
 
-        assert "accessToken" not in data
-        assert "expiresIn" in data
+        assert '"accessToken"' not in resp.text
         assert "nexus_session" in resp.cookies
         token = resp.cookies["nexus_session"]
         assert len(token) > 20
-        assert data["user"]["email"] == "google.lead@distributed.io"
-        assert data["user"]["name"] == "Senior Google Architect"
-        assert data["user"]["isGuest"] is False
+        assert data.user.email == "google.lead@distributed.io"
+        assert data.user.name == "Senior Google Architect"
+        assert data.user.is_guest is False
 
         # 2. Check /me with returned session cookie
         me_resp = await client.get("/api/auth/me")
         assert me_resp.status_code == 200
-        me_data = me_resp.json()
-        assert me_data["user"]["email"] == "google.lead@distributed.io"
-        assert me_data["quota"]["bucketCapacity"] == 25
+        me_data = MeResponse.model_validate_json(me_resp.content)
+        assert me_data.user.email == "google.lead@distributed.io"
+        assert me_data.quota.bucketCapacity == 25
 
         # 3. Repeat authentication with updated name (upsert verification)
         profile["name"] = "Principal Google Architect"
         upsert_resp = await client.post("/api/auth/google", json={"credential": "valid_token_2"})
         assert upsert_resp.status_code == 200
-        upsert_data = upsert_resp.json()
-        assert upsert_data["user"]["email"] == "google.lead@distributed.io"
-        assert upsert_data["user"]["name"] == "Principal Google Architect"
+        upsert_data = TokenResponse.model_validate_json(upsert_resp.content)
+        assert upsert_data.user.email == "google.lead@distributed.io"
+        assert upsert_data.user.name == "Principal Google Architect"
 
         # 4. Invalid credential returns 401
         bad_resp = await client.post(
@@ -204,28 +246,29 @@ async def test_garbage_google_token_is_rejected():
 CLIENT_ID = "test-client-id-123.apps.googleusercontent.com"
 
 
+class Signer(Protocol):
+    """Signs a Google ID token; ``None`` overrides drop a claim."""
+
+    def __call__(self, **overrides: object) -> str: ...
+
+
 @pytest.fixture
-def google_signer(monkeypatch):
+def google_signer(monkeypatch: pytest.MonkeyPatch) -> Signer:
     """Sign RS256 ID tokens with a throwaway key and make the JWKS client trust it."""
-    from types import SimpleNamespace
-
-    import jwt as pyjwt
-    from cryptography.hazmat.primitives.asymmetric import rsa
-
-    from app.config import settings
-    from app.core import auth as auth_module
-
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    signing_key = PyJWK(RSAAlgorithm.to_jwk(key.public_key(), as_dict=True), "RS256")
+
+    def get_signing_key_from_jwt(_token: str) -> PyJWK:
+        return signing_key
+
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", CLIENT_ID)
     monkeypatch.setattr(
-        auth_module._google_jwks,
-        "get_signing_key_from_jwt",
-        lambda _token: SimpleNamespace(key=key.public_key()),
+        "app.core.auth._google_jwks.get_signing_key_from_jwt", get_signing_key_from_jwt
     )
 
-    def sign(**overrides):
+    def sign(**overrides: object) -> str:
         now = datetime.now(UTC)
-        claims = {
+        claims: dict[str, object] = {
             "aud": CLIENT_ID,
             "iss": "https://accounts.google.com",
             "sub": "google-sub-1",
@@ -243,9 +286,7 @@ def google_signer(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_verify_google_token_accepts_a_valid_token(google_signer):
-    from app.core.auth import verify_google_token
-
+async def test_verify_google_token_accepts_a_valid_token(google_signer: Signer):
     profile = await verify_google_token(google_signer())
     assert profile["email"] == "user@example.com"
     assert profile["name"] == "Valid User"
@@ -262,31 +303,25 @@ async def test_verify_google_token_accepts_a_valid_token(google_signer):
         ({"sub": None}, "Invalid or expired"),
     ],
 )
-async def test_verify_google_token_rejects_bad_claims(google_signer, overrides, message):
-    from app.core.auth import verify_google_token
-
+async def test_verify_google_token_rejects_bad_claims(
+    google_signer: Signer, overrides: dict[str, object], message: str
+):
     with pytest.raises(HTTPException) as exc:
-        await verify_google_token(google_signer(**overrides))
+        _ = await verify_google_token(google_signer(**overrides))
     assert exc.value.status_code == 401
     assert message in exc.value.detail
 
 
 @pytest.mark.asyncio
-async def test_verify_google_token_rejects_unverified_email(google_signer):
-    from app.core.auth import verify_google_token
-
+async def test_verify_google_token_rejects_unverified_email(google_signer: Signer):
     with pytest.raises(HTTPException) as exc:
-        await verify_google_token(google_signer(email_verified=False))
+        _ = await verify_google_token(google_signer(email_verified=False))
     assert exc.value.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_verify_google_token_rejects_a_token_signed_by_another_key(google_signer):
-    import jwt as pyjwt
-    from cryptography.hazmat.primitives.asymmetric import rsa
-
-    from app.core.auth import verify_google_token
-
+@pytest.mark.usefixtures("google_signer")
+async def test_verify_google_token_rejects_a_token_signed_by_another_key():
     attacker_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     now = datetime.now(UTC)
     forged = pyjwt.encode(
@@ -303,7 +338,7 @@ async def test_verify_google_token_rejects_a_token_signed_by_another_key(google_
         algorithm="RS256",
     )
     with pytest.raises(HTTPException) as exc:
-        await verify_google_token(forged)
+        _ = await verify_google_token(forged)
     assert exc.value.status_code == 401
 
 
@@ -314,18 +349,14 @@ async def test_offline_prune_guests_safe_fallback():
     assert count == 0
 
 
-@pytest.mark.db
-@pytest.mark.asyncio
 # ---------------------------------------------------------------------------
 # SEC-04: revocation, session age cap, iss/aud
 # ---------------------------------------------------------------------------
 
 
-def _auth_request():
+def _auth_request() -> Request:
     """Direct dependency calls need a request so a rejected credential can be logged."""
-    from types import SimpleNamespace
-
-    return SimpleNamespace(headers={}, client=SimpleNamespace(host="127.0.0.1"))
+    return Request({"type": "http", "headers": [], "client": ("127.0.0.1", 0)})
 
 
 def _user(token_version: int = 0, is_guest: bool = False) -> User:
@@ -337,28 +368,19 @@ def _user(token_version: int = 0, is_guest: bool = False) -> User:
 @pytest.mark.asyncio
 async def test_token_from_before_logout_is_rejected():
     """Bumping token_version (logout) invalidates previously issued tokens."""
-    from unittest.mock import AsyncMock
-
-    from app.core.auth import get_current_user, session_claims
-
     user = _user(token_version=0)
     token, _ = create_access_token(session_claims(user))
-    db = AsyncMock()
-    db.get_user_by_id.return_value = user
+    db = _UsersDb(user)
 
     assert (await get_current_user(_auth_request(), token, db)).id == user.id
 
     user.token_version = 1  # user logged out
     with pytest.raises(HTTPException) as exc:
-        await get_current_user(_auth_request(), token, db)
+        _ = await get_current_user(_auth_request(), token, db)
     assert exc.value.status_code == 401
 
 
 def test_tokens_carry_and_require_issuer_and_audience():
-    import jwt as pyjwt
-
-    from app.config import settings
-
     token, _ = create_access_token({"sub": "x"})
     claims = pyjwt.decode(token, options={"verify_signature": False})
     assert claims["iss"] == settings.JWT_ISSUER and claims["aud"] == settings.JWT_AUDIENCE
@@ -369,23 +391,18 @@ def test_tokens_carry_and_require_issuer_and_audience():
         algorithm=settings.JWT_ALGORITHM,
     )
     with pytest.raises(HTTPException) as exc:
-        decode_access_token(foreign)
+        _ = decode_access_token(foreign)
     assert exc.value.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_refresh_cannot_extend_a_session_past_the_max_age(monkeypatch, fake_rate_db):
-    from unittest.mock import AsyncMock
-
-    from app.core.auth import session_claims
-    from app.db.neon import get_db
-
+@pytest.mark.usefixtures("fake_rate_db")
+async def test_refresh_cannot_extend_a_session_past_the_max_age():
     user = _user()
     old_login = int((datetime.now(UTC) - timedelta(days=8)).timestamp())
     token, _ = create_access_token(session_claims(user, auth_time=old_login))
-    mock_db = AsyncMock()
-    mock_db.get_user_by_id.return_value = user
-    app.dependency_overrides[get_db] = lambda: mock_db
+    db = _UsersDb(user)
+    app.dependency_overrides[get_db] = lambda: db
     try:
         transport = ASGITransport(app=app)
         async with AsyncClient(
@@ -407,15 +424,14 @@ async def test_refresh_cannot_extend_a_session_past_the_max_age(monkeypatch, fak
             new_claims = decode_access_token(refreshed_token)
             assert new_claims["auth_time"] == decode_access_token(fresh)["auth_time"]
     finally:
-        app.dependency_overrides.pop(get_db, None)
+        _ = app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.mark.asyncio
-async def test_google_auth_is_throttled_per_ip_sec_14(monkeypatch):
+async def test_google_auth_is_throttled_per_ip_sec_14(monkeypatch: pytest.MonkeyPatch):
     """SEC-14: the 21st Google sign-in attempt from one IP in an hour gets a 429."""
-    from app.config import settings
 
-    async def reject(_credential):
+    async def reject(_credential: str) -> GoogleProfile:
         raise HTTPException(status_code=401, detail="nope")
 
     monkeypatch.setattr("app.routes.auth.verify_google_token", reject)
@@ -432,14 +448,9 @@ async def test_google_auth_is_throttled_per_ip_sec_14(monkeypatch):
 @pytest.mark.asyncio
 async def test_optional_user_ignores_a_signed_out_token_r2_sec_04():
     """A token from before logout must not identify the user on optional-auth endpoints."""
-    from unittest.mock import AsyncMock
-
-    from app.core.auth import get_current_user_optional, session_claims
-
     user = _user(token_version=0)
     token, _ = create_access_token(session_claims(user))
-    db = AsyncMock()
-    db.get_user_by_id.return_value = user
+    db = _UsersDb(user)
 
     resolved = await get_current_user_optional(_auth_request(), token, db)
     assert resolved is not None and resolved.id == user.id
@@ -451,18 +462,13 @@ async def test_optional_user_ignores_a_signed_out_token_r2_sec_04():
 
 @pytest.mark.asyncio
 async def test_authenticated_requests_use_the_throttled_last_seen_write_r2_log_09():
-    from unittest.mock import AsyncMock
-
-    from app.core.auth import get_current_user, session_claims
-
     user = _user()
     token, _ = create_access_token(session_claims(user))
-    db = AsyncMock()
-    db.get_user_by_id.return_value = user
-    await get_current_user(_auth_request(), token, db)
+    db = _UsersDb(user)
+    _ = await get_current_user(_auth_request(), token, db)
 
-    db.touch_user.assert_awaited_once_with(user.id)
-    db.update_user_last_seen.assert_not_called()
+    assert db.touched == [user.id]
+    assert db.last_seen_updates == 0
 
 
 @pytest.mark.db
@@ -474,33 +480,35 @@ async def test_touch_user_writes_at_most_once_per_window_r2_log_09():
     try:
         pool = neon_db.get_pool()
         async with pool.acquire() as conn:
-            await conn.execute(
+            _ = await conn.execute(
                 "UPDATE users SET last_seen_at = NOW() - INTERVAL '1 hour' WHERE id = $1;", user.id
             )
         assert await neon_db.touch_user(user.id) is True
         assert await neon_db.touch_user(user.id) is False
     finally:
         async with neon_db.get_pool().acquire() as conn:
-            await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
+            _ = await conn.execute("DELETE FROM users WHERE id = $1;", user.id)
 
 
 @pytest.mark.asyncio
-async def test_refresh_limit_applies_before_any_database_work_r2_log_11(monkeypatch):
-    from unittest.mock import AsyncMock
-
+async def test_refresh_limit_applies_before_any_database_work_r2_log_11(
+    monkeypatch: pytest.MonkeyPatch,
+):
     from app.core.rate_limiter import refresh_limiter
-    from app.db.neon import get_db
 
-    mock_db = AsyncMock()
-    app.dependency_overrides[get_db] = lambda: mock_db
-    monkeypatch.setattr(refresh_limiter, "hit", lambda _ip: False)
+    def always_limited(_ip: str) -> bool:
+        return False
+
+    db = _UsersDb()
+    app.dependency_overrides[get_db] = lambda: db
+    monkeypatch.setattr(refresh_limiter, "hit", always_limited)
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             res = await client.post("/api/auth/refresh", headers={"Authorization": "Bearer x"})
         assert res.status_code == 429
-        mock_db.get_user_by_id.assert_not_called()
+        assert db.lookups == 0
     finally:
-        app.dependency_overrides.pop(get_db, None)
+        _ = app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.mark.asyncio
@@ -548,7 +556,7 @@ async def test_auth_me_works_with_only_cookie():
     ) as client:
         me_res = await client.get("/api/auth/me")
         assert me_res.status_code == 200
-        assert me_res.json()["user"]["isGuest"] is True
+        assert MeResponse.model_validate_json(me_res.content).user.is_guest is True
 
 
 @pytest.mark.db
@@ -565,7 +573,7 @@ async def test_logout_clears_cookie():
             "/api/auth/logout", headers={"Origin": "http://localhost:3000"}
         )
         assert logout_res.status_code == 200
-        set_cookie = logout_res.headers.get("set-cookie", "").lower()
+        set_cookie = "; ".join(logout_res.headers.get_list("set-cookie")).lower()
         assert (
             "max-age=0" in set_cookie
             or 'nexus_session=""' in set_cookie
@@ -582,7 +590,7 @@ async def test_auth_json_responses_contain_no_access_token():
         guest_res = await client.post("/api/auth/guest")
         assert guest_res.status_code == 200
         assert "accessToken" not in guest_res.text
-        assert "tokens" not in guest_res.json()
+        assert '"tokens"' not in guest_res.text
 
         refresh_res = await client.post(
             "/api/auth/refresh", headers={"Origin": "http://localhost:3000"}
@@ -614,18 +622,13 @@ async def test_csrf_rejects_cookie_without_origin():
 
 
 @pytest.mark.asyncio
-async def test_csrf_allows_bearer_without_origin_and_no_cookie(fake_rate_db):
+@pytest.mark.usefixtures("fake_rate_db")
+async def test_csrf_allows_bearer_without_origin_and_no_cookie():
     """(g) a POST with a Bearer header and no Origin and no cookie works."""
-    from unittest.mock import AsyncMock
-
-    from app.core.auth import session_claims
-    from app.db.neon import get_db
-
     user = _user()
     token, _ = create_access_token(session_claims(user))
-    mock_db = AsyncMock()
-    mock_db.get_user_by_id.return_value = user
-    app.dependency_overrides[get_db] = lambda: mock_db
+    db = _UsersDb(user)
+    app.dependency_overrides[get_db] = lambda: db
     try:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -635,4 +638,4 @@ async def test_csrf_allows_bearer_without_origin_and_no_cookie(fake_rate_db):
             )
             assert res.status_code == 200
     finally:
-        app.dependency_overrides.pop(get_db, None)
+        _ = app.dependency_overrides.pop(get_db, None)

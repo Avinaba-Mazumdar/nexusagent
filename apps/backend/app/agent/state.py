@@ -1,8 +1,9 @@
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import ClassVar, Literal
 from uuid import UUID, uuid4
 
 from langchain_core.messages import AnyMessage
+from langchain_core.messages.tool import ToolCall
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.rag.hybrid_search import HybridSearchResult
@@ -31,7 +32,7 @@ class WebSource(BaseModel):
 class Citation(BaseModel):
     """A source the model was shown. ``label`` ([S1], [S2], ...) is what the answer cites."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=lambda: uuid4().hex[:8])
     label: str
@@ -44,7 +45,7 @@ class Citation(BaseModel):
 
 
 class PlanStep(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
     step_number: int
     description: str
@@ -61,7 +62,7 @@ class ToolEvent(BaseModel):
     """One executed tool call, reported to the client and the audit log."""
 
     tool: str
-    arguments: dict[str, Any] = Field(default_factory=dict)
+    arguments: dict[str, object] = Field(default_factory=dict)
     results: int = 0
     duration_ms: int = 0
     error: str | None = None
@@ -73,7 +74,7 @@ class AgentState(BaseModel):
     router -> refuse | chat | preload -> agent <-> tools.
     """
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
     # Conversation identity
     session_id: str = Field(default_factory=lambda: uuid4().hex)
@@ -108,7 +109,7 @@ class AgentState(BaseModel):
 
     # Tool-calling loop (benchmark route)
     agent_messages: list[AnyMessage] = Field(default_factory=list)
-    pending_tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    pending_tool_calls: list[ToolCall] = Field(default_factory=list)
     tool_rounds: int = 0
     tool_events: list[ToolEvent] = Field(default_factory=list)
 

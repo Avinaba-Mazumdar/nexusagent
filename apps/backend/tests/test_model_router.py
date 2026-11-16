@@ -1,31 +1,43 @@
 """Free-tier model routing: a model that hits its quota is skipped until the quota comes back."""
 
+import asyncio
+from collections.abc import AsyncIterator, Callable, Sequence
+from dataclasses import dataclass
 from datetime import datetime
-from types import SimpleNamespace
+from typing import final, override
 from uuid import uuid4
 
+import httpx
 import pytest
+from google.genai.errors import ServerError
+from langchain_core.messages import AIMessageChunk, BaseMessage
 from langchain_google_genai.chat_models import GoogleModelNotFoundError, GoogleRateLimitError
 
 from app.agent.graph import answer_node, build_agent_messages, chat_node, default_model_router
-from app.agent.model_router import PACIFIC, ModelRouter, rate_limit_cooldown
+from app.agent.model_router import (
+    OVERLOADED_COOLDOWN_SECONDS,
+    PACIFIC,
+    TIMEOUT_COOLDOWN_SECONDS,
+    ModelRouter,
+    rate_limit_cooldown,
+)
 from app.agent.state import AgentState
 from app.agent.tools import web_search_model_router
-from app.config import settings
+from app.config import Settings, settings
 
 
 class _GoogleError(Exception):
     """Stand-in for google.genai's ClientError: the parsed error body is in ``details``."""
 
-    def __init__(self, details: dict):
+    def __init__(self, details: dict[str, object]):
         super().__init__("429 RESOURCE_EXHAUSTED")
-        self.details = details
+        self.details: dict[str, object] = details
 
 
 def rate_limited(
-    quota_id: str = "GenerateRequestsPerMinutePerProjectPerModel-FreeTier", delay="41s"
-):
-    body = {
+    quota_id: str = "GenerateRequestsPerMinutePerProjectPerModel-FreeTier", delay: str = "41s"
+) -> GoogleRateLimitError:
+    body: dict[str, object] = {
         "error": {
             "code": 429,
             "status": "RESOURCE_EXHAUSTED",
@@ -38,13 +50,17 @@ def rate_limited(
             ],
         }
     }
-    try:
-        raise _GoogleError(body)
-    except _GoogleError as cause:
-        try:
-            raise GoogleRateLimitError("Error calling model (RESOURCE_EXHAUSTED)") from cause
-        except GoogleRateLimitError as exc:
-            return exc
+    exc = GoogleRateLimitError("Error calling model (RESOURCE_EXHAUSTED)")
+    exc.__cause__ = _GoogleError(body)
+    return exc
+
+
+@dataclass
+class _Clock:
+    t: float
+
+    def __call__(self) -> float:
+        return self.t
 
 
 def test_hosted_gemma_models_sit_between_lite_and_full_flash_in_both_routers():
@@ -67,8 +83,8 @@ def test_per_day_limit_waits_until_midnight_pacific():
 
 
 def test_cooling_model_is_skipped_until_its_cooldown_ends():
-    clock = SimpleNamespace(t=1000.0)
-    router = ModelRouter(["a", "b"], clock=lambda: clock.t)
+    clock = _Clock(1000.0)
+    router = ModelRouter(["a", "b"], clock=clock)
 
     router.mark_rate_limited("a", rate_limited(delay="30s"))
     assert router.candidates() == ["b"]
@@ -98,30 +114,39 @@ def test_prefer_lite_sorts_lite_models_first():
 class _Model:
     """Fake chat model: raises ``error`` (optionally after streaming ``pieces``) or streams them."""
 
-    def __init__(self, pieces=(), error: BaseException | None = None):
-        self.pieces, self.error, self.calls = list(pieces), error, 0
+    def __init__(self, pieces: Sequence[str] = (), error: BaseException | None = None):
+        self.pieces: list[str] = list(pieces)
+        self.error: BaseException | None = error
+        self.calls: int = 0
+        self.model: str = "fake-model"
+        self.tool_model: _Model | None = None
 
-    def bind_tools(self, tools):
+    def bind_tools(self, _tools: Sequence[object]) -> _Model:
         return self
 
-    async def astream(self, messages):
+    async def astream(self, _messages: Sequence[BaseMessage]) -> AsyncIterator[AIMessageChunk]:
         self.calls += 1
         for piece in self.pieces:
-            yield SimpleNamespace(content=piece, type="ai")
+            yield AIMessageChunk(content=piece)
         if self.error:
             raise self.error
 
 
+type UseModels = Callable[[dict[str, _Model]], dict[str, _Model]]
+
+
 @pytest.fixture
-def models(monkeypatch):
+def models(monkeypatch: pytest.MonkeyPatch) -> UseModels:
     """Route synthesis through fake models keyed by name: ``use({"m1": _Model(...), ...})``."""
 
-    def use(fakes: dict[str, _Model]):
+    def use(fakes: dict[str, _Model]) -> dict[str, _Model]:
+        def fake_get_llm(_api_key: str, model: str) -> _Model:
+            return fakes[model]
+
         monkeypatch.setattr("app.agent.graph.settings.GEMINI_API_KEY", "test-key")
         monkeypatch.setattr("app.agent.llm.settings.GEMINI_API_KEY", "test-key")
         monkeypatch.setattr(default_model_router, "models", list(fakes))
-        monkeypatch.setattr("app.agent.graph._get_llm", lambda api_key, model: fakes[model])
-        monkeypatch.setattr("app.agent.llm._get_llm", lambda api_key, model: fakes[model])
+        monkeypatch.setattr("app.agent.llm.get_llm", fake_get_llm)
         return fakes
 
     return use
@@ -134,7 +159,7 @@ def _state() -> AgentState:
 
 
 @pytest.mark.asyncio
-async def test_rate_limited_model_hands_over_and_stays_skipped(models):
+async def test_rate_limited_model_hands_over_and_stays_skipped(models: UseModels):
     fakes = models({"m1": _Model(error=rate_limited()), "m2": _Model(["Answer from m2."])})
 
     first = await answer_node(_state())
@@ -146,14 +171,14 @@ async def test_rate_limited_model_hands_over_and_stays_skipped(models):
 
 
 @pytest.mark.asyncio
-async def test_inaccessible_model_is_skipped(models):
-    models({"gone": _Model(error=GoogleModelNotFoundError("404")), "ok": _Model(["Fine."])})
+async def test_inaccessible_model_is_skipped(models: UseModels):
+    _ = models({"gone": _Model(error=GoogleModelNotFoundError("404")), "ok": _Model(["Fine."])})
     result = await answer_node(_state())
     assert (result.response, result.model) == ("Fine.", "ok")
 
 
 @pytest.mark.asyncio
-async def test_no_switch_after_text_reached_the_client(models):
+async def test_no_switch_after_text_reached_the_client(models: UseModels):
     fakes = models(
         {"m1": _Model(["Partial "], error=rate_limited()), "m2": _Model(["Never used."])}
     )
@@ -164,16 +189,14 @@ async def test_no_switch_after_text_reached_the_client(models):
 
 
 @pytest.mark.asyncio
-async def test_all_models_limited_reports_when_to_retry(models):
-    models({"m1": _Model(error=rate_limited(delay="60s"))})
+async def test_all_models_limited_reports_when_to_retry(models: UseModels):
+    _ = models({"m1": _Model(error=rate_limited(delay="60s"))})
     result = await answer_node(_state())
     assert result.error and "about 1 minute" in result.error
 
 
 @pytest.mark.asyncio
-async def test_server_error_model_hands_over_and_stays_skipped(models):
-    from google.genai.errors import ServerError
-
+async def test_server_error_model_hands_over_and_stays_skipped(models: UseModels):
     fakes = models({"m1": _Model(error=ServerError(500, {})), "m2": _Model(["Answer from m2."])})
     first = await answer_node(_state())
     assert (first.response, first.model, first.error) == ("Answer from m2.", "m2", None)
@@ -184,9 +207,7 @@ async def test_server_error_model_hands_over_and_stays_skipped(models):
 
 
 @pytest.mark.asyncio
-async def test_timed_out_model_hands_over_and_stays_skipped(models):
-    import httpx
-
+async def test_timed_out_model_hands_over_and_stays_skipped(models: UseModels):
     fakes = models(
         {"m1": _Model(error=httpx.ReadTimeout("timed out")), "m2": _Model(["Answer from m2."])}
     )
@@ -199,9 +220,7 @@ async def test_timed_out_model_hands_over_and_stays_skipped(models):
 
 
 @pytest.mark.asyncio
-async def test_no_switch_after_text_reached_the_client_on_server_error(models):
-    from google.genai.errors import ServerError
-
+async def test_no_switch_after_text_reached_the_client_on_server_error(models: UseModels):
     fakes = models(
         {"m1": _Model(["Partial "], error=ServerError(500, {})), "m2": _Model(["Never used."])}
     )
@@ -211,47 +230,57 @@ async def test_no_switch_after_text_reached_the_client_on_server_error(models):
     assert result.error
 
 
-@pytest.mark.asyncio
-async def test_chat_node_falls_back_when_google_search_rate_limited(models):
-    class _ToolFailingModel(_Model):
-        def bind_tools(self, tools):
-            return _Model(error=rate_limited())
+class _ToolFailingModel(_Model):
+    """Its Google Search binding is rate limited; plain calls work."""
 
-    models({"m1": _ToolFailingModel(pieces=["Fallback answer without tools."])})
+    @override
+    def bind_tools(self, _tools: Sequence[object]) -> _Model:
+        return _Model(error=rate_limited())
+
+
+@pytest.mark.asyncio
+async def test_chat_node_falls_back_when_google_search_rate_limited(models: UseModels):
+    _ = models({"m1": _ToolFailingModel(pieces=["Fallback answer without tools."])})
     state = AgentState(query="hello", user_id=uuid4(), intent="smalltalk")
     result = await chat_node(state)
     assert result.response == "Fallback answer without tools."
     assert result.error is None
 
 
+@final
+class _FailingWithTools(_Model):
+    """Its tool binding fails with ``tool_error``; remembers the bound model."""
+
+    def __init__(self, pieces: Sequence[str], tool_error: BaseException):
+        super().__init__(pieces)
+        self.tool_error: BaseException = tool_error
+
+    @override
+    def bind_tools(self, _tools: Sequence[object]) -> _Model:
+        self.tool_model = _Model(error=self.tool_error)
+        return self.tool_model
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("make_error", ["timeout", "server"])
+@pytest.mark.usefixtures("web_search_on")
 async def test_chat_node_moves_on_instead_of_retrying_without_tools(
-    models, make_error, web_search_on
+    models: UseModels, make_error: str
 ):
-    import httpx
-    from google.genai.errors import ServerError
-
     error = httpx.ReadTimeout("timed out") if make_error == "timeout" else ServerError(500, {})
 
-    class _HangingWithTools(_Model):
-        def bind_tools(self, tools):
-            self.tool_model = _Model(error=error)
-            return self.tool_model
-
-    fakes = models({"m1": _HangingWithTools(["Should not be used."]), "m2": _Model(["Hi!"])})
+    fakes = models({"m1": _FailingWithTools(["Should not be used."], error), "m2": _Model(["Hi!"])})
     state = AgentState(query="hello", user_id=uuid4(), intent="smalltalk")
     result = await chat_node(state)
     assert (result.response, result.model, result.error) == ("Hi!", "m2", None)
-    assert fakes["m1"].tool_model.calls == 1
+    tool_model = fakes["m1"].tool_model
+    assert tool_model is not None and tool_model.calls == 1
     assert fakes["m1"].calls == 0  # no same-model retry without tools
 
 
 def test_timed_out_model_cools_down_longer_than_server_error():
-    from app.agent.model_router import OVERLOADED_COOLDOWN_SECONDS, TIMEOUT_COOLDOWN_SECONDS
-
-    clock = SimpleNamespace(t=0.0)
-    router = ModelRouter(["slow", "busy"], clock=lambda: clock.t)
+    clock = _Clock(0.0)
+    router = ModelRouter(["slow", "busy"], clock=clock)
     router.mark_timed_out("slow")
     router.mark_overloaded("busy")
 
@@ -261,18 +290,17 @@ def test_timed_out_model_cools_down_longer_than_server_error():
     assert router.candidates() == ["slow", "busy"]
 
 
+@final
 class _SlowModel(_Model):
     """Waits ``delay`` seconds before its first chunk, then streams ``pieces``."""
 
-    def __init__(self, pieces=(), delay: float = 0.0, gap: float = 0.0):
+    def __init__(self, pieces: Sequence[str] = (), delay: float = 0.0, gap: float = 0.0):
         super().__init__(pieces)
-        self.delay, self.gap = delay, gap
+        self.delay: float = delay
+        self.gap: float = gap
 
-    async def astream(self, messages):
-        import asyncio
-
-        from langchain_core.messages import AIMessageChunk
-
+    @override
+    async def astream(self, _messages: Sequence[BaseMessage]) -> AsyncIterator[AIMessageChunk]:
         self.calls += 1
         await asyncio.sleep(self.delay)
         for piece in self.pieces:
@@ -281,7 +309,9 @@ class _SlowModel(_Model):
 
 
 @pytest.mark.asyncio
-async def test_model_silent_past_first_token_deadline_is_skipped(models, monkeypatch):
+async def test_model_silent_past_first_token_deadline_is_skipped(
+    models: UseModels, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr("app.agent.llm.settings.LLM_FIRST_TOKEN_TIMEOUT_SECONDS", 0.05)
     fakes = models({"slow": _SlowModel(["Too late."], delay=5), "fast": _Model(["Hi!"])})
 
@@ -296,13 +326,19 @@ async def test_model_silent_past_first_token_deadline_is_skipped(models, monkeyp
 
 
 @pytest.mark.asyncio
-async def test_first_token_timeout_is_not_reported_as_a_quota_limit(models, monkeypatch):
+async def test_first_token_timeout_is_not_reported_as_a_quota_limit(
+    models: UseModels, monkeypatch: pytest.MonkeyPatch
+):
     """A slow start is a 30s in-memory skip. It is not a shared outage and not an exhausted quota."""
     monkeypatch.setattr("app.agent.llm.settings.LLM_FIRST_TOKEN_TIMEOUT_SECONDS", 0.05)
     default_model_router.reset()
-    recorded: list[tuple] = []
-    monkeypatch.setattr(default_model_router, "on_cooldown", lambda *args: recorded.append(args))
-    models(
+    recorded: list[tuple[object, ...]] = []
+
+    def record(*args: object) -> None:
+        recorded.append(args)
+
+    monkeypatch.setattr(default_model_router, "on_cooldown", record)
+    _ = models(
         {
             "slow": _SlowModel(["Too late."], delay=5),
             "also": _SlowModel(["Also late."], delay=5),
@@ -319,16 +355,16 @@ async def test_first_token_timeout_is_not_reported_as_a_quota_limit(models, monk
 
 
 @pytest.mark.asyncio
-async def test_first_token_deadline_does_not_cut_off_a_streaming_answer(models, monkeypatch):
+async def test_first_token_deadline_does_not_cut_off_a_streaming_answer(
+    models: UseModels, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr("app.agent.llm.settings.LLM_FIRST_TOKEN_TIMEOUT_SECONDS", 0.05)
-    models({"m1": _SlowModel(["Long ", "answer."], delay=0.01, gap=0.1)})
+    _ = models({"m1": _SlowModel(["Long ", "answer."], delay=0.01, gap=0.1)})
     result = await answer_node(_state())
     assert (result.response, result.model, result.error) == ("Long answer.", "m1", None)
 
 
 def test_text_models_try_lite_then_gemma_then_full_flash():
-    from app.config import Settings
-
     s = Settings(
         GEMINI_MODELS=[
             "gemini-3.8-flash",

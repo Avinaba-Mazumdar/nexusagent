@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, ClassVar, Literal, cast
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
@@ -11,7 +11,7 @@ def utc_now() -> datetime:
 
 
 class User(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
     id: UUID = Field(default_factory=uuid4)
     email: str | None = None
@@ -28,7 +28,7 @@ class User(BaseModel):
 
 
 class Document(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
     id: UUID = Field(default_factory=uuid4)
     uploaded_by: UUID | None = None
@@ -41,40 +41,35 @@ class Document(BaseModel):
 
 
 class DocumentChunk(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
     id: UUID = Field(default_factory=uuid4)
     document_id: UUID
     chunk_index: int
     content: str
     embedding: list[float] | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=utc_now)
 
     @field_validator("embedding", mode="before")
     @classmethod
-    def convert_vector_to_list(cls, v: Any) -> list[float] | None:
-        if v is None:
-            return None
-        if hasattr(v, "tolist"):
-            return [float(x) for x in v.tolist()]
-        try:
-            return [float(x) for x in v]
-        except TypeError, ValueError:
-            return v
+    def convert_vector_to_list(cls, v: object) -> object:
+        """pgvector returns a numpy array; pydantic then validates the list as ``list[float]``."""
+        tolist = cast(object, getattr(v, "tolist", None))
+        return tolist() if callable(tolist) else v
 
 
-def _wire_id(value: Any) -> Any:
+def _wire_id(value: object) -> object:
     """UUIDs travel as their canonical string form."""
     return str(value) if isinstance(value, UUID) else value
 
 
-def _wire_timestamp(value: Any) -> Any:
+def _wire_timestamp(value: object) -> object:
     """Datetimes travel as ISO-8601 strings."""
     return value.isoformat() if isinstance(value, datetime) else value
 
 
-def _wire_count(value: Any) -> Any:
+def _wire_count(value: object) -> object:
     """Message counts are never null on the wire: a missing count is zero."""
     return 0 if value is None else value
 
@@ -89,7 +84,9 @@ class WireModel(BaseModel):
     or row dicts of the same shape (``model_validate``); UUIDs and datetimes become strings.
     """
 
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        alias_generator=to_camel, populate_by_name=True, from_attributes=True
+    )
 
 
 # Wire Schemas matching packages/contracts/src/auth.ts
@@ -153,7 +150,7 @@ class DocumentChunkWire(WireModel):
     document_id: WireId
     chunk_index: int
     content: str
-    metadata: dict[str, Any]
+    metadata: dict[str, object]
     created_at: WireTimestamp
 
 
@@ -196,8 +193,8 @@ class ChatMessageWire(WireModel):
     conversation_id: WireId
     role: Literal["user", "assistant", "system"]
     content: str
-    plan_trace: Any = None
-    reflection_summary: Any = None
+    plan_trace: object = None
+    reflection_summary: object = None
     created_at: WireTimestamp
 
 
@@ -284,7 +281,7 @@ class SseToolCallEvent(BaseModel):
 
     sessionId: str
     tool: Literal["hybrid_rag_search", "google_search", "web_search"]
-    arguments: dict[str, Any]
+    arguments: dict[str, object]
 
 
 class SseToolResultEvent(BaseModel):

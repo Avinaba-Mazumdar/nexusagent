@@ -31,7 +31,7 @@ class _FakeCooldownDb:
 
 
 @pytest.fixture
-def fake_db(monkeypatch):
+def fake_db(monkeypatch: pytest.MonkeyPatch):
     db = _FakeCooldownDb()
     monkeypatch.setattr(neon_db, "pool", object())
     monkeypatch.setattr(neon_db, "upsert_model_cooldown", db.upsert_model_cooldown)
@@ -69,7 +69,7 @@ def test_loaded_cooldown_never_shortens_a_local_one():
 
 
 @pytest.mark.asyncio
-async def test_failure_is_saved_and_loaded_into_a_fresh_router(fake_db):
+async def test_failure_is_saved_and_loaded_into_a_fresh_router(fake_db: _FakeCooldownDb):
     writer = ModelRouter(["m1", "m2"], scope="chat", on_cooldown=model_health.persist_cooldown)
     writer.mark_unavailable("m1", RuntimeError("404 not found"))
     await asyncio.sleep(0)  # let the background write run
@@ -86,7 +86,7 @@ async def test_failure_is_saved_and_loaded_into_a_fresh_router(fake_db):
     assert fresh_search.candidates() == ["m1", "m2"]  # scopes are independent
 
 
-def test_persist_is_a_no_op_without_a_database(monkeypatch):
+def test_persist_is_a_no_op_without_a_database(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(neon_db, "pool", None)
     model_health.persist_cooldown("chat", "m1", "overloaded", 0.0, "")  # must not raise
 
@@ -112,4 +112,4 @@ async def test_cooldown_round_trip_against_neon():
         )
         assert count == 2
     finally:
-        await neon_db.get_pool().execute("DELETE FROM model_cooldowns WHERE model = $1", model)
+        _ = await neon_db.get_pool().execute("DELETE FROM model_cooldowns WHERE model = $1", model)

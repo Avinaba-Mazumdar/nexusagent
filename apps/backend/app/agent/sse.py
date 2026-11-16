@@ -5,7 +5,7 @@ module. The payload models are in ``app.db.models`` and ``SSE_WIRE_MODELS`` expo
 contracts package.
 """
 
-from typing import Any
+from collections.abc import Mapping
 
 from pydantic import BaseModel
 
@@ -52,16 +52,13 @@ def node_start_frame(session_id: str, node: str) -> str:
     return format_sse("node_start", SseNodeStartEvent(sessionId=session_id, node=node))
 
 
-def tool_call_frame(session_id: str, tool: str, arguments: dict[str, Any]) -> str:
+def tool_call_frame(session_id: str, tool: str, arguments: Mapping[str, object]) -> str:
     """Announce a tool call before it runs; its `tool_result` follows when it finishes."""
-    return format_sse(
-        "tool_call",
-        SseToolCallEvent(
-            sessionId=session_id,
-            tool=tool,  # type: ignore
-            arguments=arguments,
-        ),
+    # Validation checks ``tool`` against the event's literal set of tool names.
+    event = SseToolCallEvent.model_validate(
+        {"sessionId": session_id, "tool": tool, "arguments": dict(arguments)}
     )
+    return format_sse("tool_call", event)
 
 
 def token_frame(session_id: str, text: str) -> str:
@@ -75,7 +72,7 @@ def error_frame(session_id: str, error: str) -> str:
 
 def usage_frames(session_id: str, state: AgentState, already_sent: int = 0) -> list[str]:
     """Frames for new usage records produced since ``already_sent``."""
-    frames = []
+    frames: list[str] = []
     for u in state.usage[already_sent:]:
         frames.append(
             format_sse(
@@ -133,7 +130,7 @@ def _router_frames(session_id: str, state: AgentState) -> list[str]:
 
 
 def _chat_frames(session_id: str, state: AgentState) -> list[str]:
-    frames = []
+    frames: list[str] = []
     if state.web_search_queries:
         frames.append(
             format_sse(
@@ -161,8 +158,8 @@ def _chat_frames(session_id: str, state: AgentState) -> list[str]:
     return frames
 
 
-def _preload_frames(session_id: str, state: AgentState) -> list[str]:
-    frames = []
+def _preload_frames(state: AgentState) -> list[str]:
+    frames: list[str] = []
     first_event = state.tool_events[0] if state.tool_events else None
     duration_ms = first_event.duration_ms if first_event else state.retrieval_duration_ms
     frames.append(
@@ -183,8 +180,8 @@ def _preload_frames(session_id: str, state: AgentState) -> list[str]:
     return frames
 
 
-def _tools_frames(session_id: str, state: AgentState, events: list[ToolEvent]) -> list[str]:
-    frames = []
+def _tools_frames(state: AgentState, events: list[ToolEvent]) -> list[str]:
+    frames: list[str] = []
     for ev in events:
         citations = (
             [CitationWire.model_validate(c) for c in state.citations]
@@ -221,16 +218,16 @@ def node_frames(
     events_sent: int = 0,
 ) -> list[str]:
     """The frames a node reports when it finishes, including usage frames for LLM nodes."""
-    frames = []
+    frames: list[str] = []
     if node == "router":
         frames.extend(_router_frames(session_id, state))
     elif node == "chat":
         frames.extend(_chat_frames(session_id, state))
     elif node == "preload":
-        frames.extend(_preload_frames(session_id, state))
+        frames.extend(_preload_frames(state))
     elif node == "tools":
         new_events = state.tool_events[events_sent:]
-        frames.extend(_tools_frames(session_id, state, new_events))
+        frames.extend(_tools_frames(state, new_events))
 
     if node in {"router", "chat", "agent", "tools"}:
         frames.extend(usage_frames(session_id, state, already_sent=usage_sent))

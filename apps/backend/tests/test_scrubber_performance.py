@@ -17,7 +17,7 @@ ADVERSARIAL = {
 @pytest.mark.parametrize("name", ADVERSARIAL)
 def test_scrubber_is_linear_on_adversarial_input(name):
     started = time.perf_counter()
-    scrub_sensitive_information(ADVERSARIAL[name], preserve_lines=True)
+    _ = scrub_sensitive_information(ADVERSARIAL[name], preserve_lines=True)
     assert time.perf_counter() - started < 2.0
 
 

@@ -1,6 +1,7 @@
 """Reject oversized request bodies before FastAPI parses them (and before authentication runs)."""
 
 import json
+from typing import cast
 
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_413_CONTENT_TOO_LARGE
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -16,9 +17,9 @@ class BodySizeLimitMiddleware:
     """Pure-ASGI middleware: the upload route gets its own limit, every other path a small one."""
 
     def __init__(self, app: ASGIApp, upload_limit: int, default_limit: int) -> None:
-        self.app = app
-        self.upload_limit = upload_limit
-        self.default_limit = default_limit
+        self.app: ASGIApp = app
+        self.upload_limit: int = upload_limit
+        self.default_limit: int = default_limit
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -27,7 +28,8 @@ class BodySizeLimitMiddleware:
 
         limit = self.upload_limit if scope["path"] == UPLOAD_PATH else self.default_limit
 
-        declared = dict(scope["headers"]).get(b"content-length")
+        headers = cast(list[tuple[bytes, bytes]], scope["headers"])
+        declared = dict(headers).get(b"content-length")
         if declared is not None:
             try:
                 size = int(declared)
@@ -49,7 +51,7 @@ class BodySizeLimitMiddleware:
             nonlocal received, exceeded
             message = await receive()
             if message["type"] == "http.request":
-                received += len(message.get("body", b""))
+                received += len(cast(bytes, message.get("body", b"")))
                 if received > limit:
                     exceeded = True
                     raise _BodyTooLarge

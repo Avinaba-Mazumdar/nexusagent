@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
@@ -75,7 +75,7 @@ class HybridSearchResultWire(WireModel):
     sparse_score: float | None = None
     page: int | None = None
     header_path: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)
 
 
 class HybridSearchResponseWire(WireModel):
@@ -88,8 +88,8 @@ class HybridSearchResponseWire(WireModel):
 async def hybrid_search_documents(
     payload: HybridSearchRequestWire,
     request: Request,
-    current_user: User = Depends(get_current_user),
-    db: NeonDatabase = Depends(get_db),
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ):
     """
     Execute hybrid dense (pgvector HNSW) and sparse (tsvector GIN) search
@@ -100,9 +100,9 @@ async def hybrid_search_documents(
     # Validate input and tenancy before charging the quota.
     doc_uuid = payload.documentId
     if doc_uuid:
-        await require_document_access(db, doc_uuid)
+        _ = await require_document_access(db, doc_uuid)
 
-    await default_chat_quota.reserve(current_user, client_ip)
+    _ = await default_chat_quota.reserve(current_user, client_ip)
 
     engine = HybridSearchEngine(db=db)
     start_time = time.perf_counter()
@@ -117,7 +117,7 @@ async def hybrid_search_documents(
         )
     )
     duration_ms = max(int((time.perf_counter() - start_time) * 1000), 0)
-    await default_audit_logger.log_tool_audit(
+    _ = await default_audit_logger.log_tool_audit(
         tool_name="hybrid_rag_search",
         input_args={"query": payload.query, "limit": payload.limit},
         output_summary={"results": len(results), "withheld": len(flagged)},

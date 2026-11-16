@@ -23,7 +23,7 @@ def _create_sample_pdf(text: str = "Sample benchmark evaluation results.") -> by
     stream.set_data(f"BT /F1 12 Tf 72 100 Td ({text}) Tj ET".encode("latin-1"))
     page[NameObject("/Contents")] = stream
     buf = io.BytesIO()
-    writer.write(buf)
+    _ = writer.write(buf)
     return buf.getvalue()
 
 

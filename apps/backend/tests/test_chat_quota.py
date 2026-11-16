@@ -45,7 +45,7 @@ async def test_rolling_24h_quota_enforcement():
         assert remaining == (4 - i)
 
     with pytest.raises(HTTPException) as exc_info:
-        await default_chat_quota.reserve(guest1, client_ip)
+        _ = await default_chat_quota.reserve(guest1, client_ip)
     assert exc_info.value.status_code == 429
     assert exc_info.value.headers is not None
     assert int(exc_info.value.headers.get("Retry-After", 0)) > 0
@@ -71,7 +71,7 @@ async def test_rolling_24h_quota_enforcement():
 
     late_neighbour = await _guest(client_ip)
     with pytest.raises(HTTPException) as exc_info:
-        await default_chat_quota.reserve(late_neighbour, client_ip)
+        _ = await default_chat_quota.reserve(late_neighbour, client_ip)
     assert exc_info.value.status_code == 429
     assert exc_info.value.detail == BLOCKED_DETAIL["network"]
 
@@ -88,12 +88,12 @@ async def test_rolling_24h_quota_enforcement():
         assert g_remaining == (24 - i)
 
     with pytest.raises(HTTPException) as exc_info:
-        await default_chat_quota.reserve(google_user, client_ip)
+        _ = await default_chat_quota.reserve(google_user, client_ip)
     assert exc_info.value.status_code == 429
 
     # 5. Once a guest's chats are over 24 hours old they count for nothing
     async with pool.acquire() as conn:
-        await conn.execute(
+        _ = await conn.execute(
             """
             UPDATE chat_usage
             SET created_at = NOW() - INTERVAL '24 hours 1 second'
@@ -114,7 +114,7 @@ async def test_rolling_24h_quota_enforcement():
 
 @pytest.mark.db
 @pytest.mark.asyncio
-async def test_service_wide_guest_ceiling(monkeypatch):
+async def test_service_wide_guest_ceiling(monkeypatch: pytest.MonkeyPatch):
     """With the guest ceiling at the current guest total, the next guest chat is refused."""
     pool = neon_db.get_pool()
     async with pool.acquire() as conn:
@@ -132,6 +132,6 @@ async def test_service_wide_guest_ceiling(monkeypatch):
     elsewhere = _network()
     second = await _guest(elsewhere)
     with pytest.raises(HTTPException) as exc_info:
-        await default_chat_quota.reserve(second, elsewhere)
+        _ = await default_chat_quota.reserve(second, elsewhere)
     assert exc_info.value.status_code == 429
     assert exc_info.value.detail == BLOCKED_DETAIL["guests"]

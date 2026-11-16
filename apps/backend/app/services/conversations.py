@@ -40,11 +40,12 @@ async def persist_turn(user_id: UUID, session_id: str, query: str, state: AgentS
         conv = await neon_db.create_conversation(
             user_id, title=title, conversation_id=UUID(session_id)
         )
-        if not conv or "id" not in conv:
+        conv_id = conv.get("id")
+        if not isinstance(conv_id, UUID):
             logger.warning(f"Could not persist conversation {session_id} for user {user_id}")
             return None
         await neon_db.save_turn(
-            conv["id"],
+            conv_id,
             query,
             response,
             plan_trace=[

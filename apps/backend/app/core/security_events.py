@@ -14,8 +14,8 @@ _MAX_KEYS = 10_000
 
 class _AlertWindow:
     def __init__(self, threshold: int, window: timedelta):
-        self.threshold = threshold
-        self.window = window
+        self.threshold: int = threshold
+        self.window: timedelta = window
         self._events: dict[str, list[datetime]] = {}
         self._alerted: dict[str, datetime] = {}
 

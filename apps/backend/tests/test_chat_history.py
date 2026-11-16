@@ -28,7 +28,7 @@ async def test_chat_history_guest_forbidden():
         is_guest=True,
     )
     if neon_db.pool:
-        await neon_db.create_user(guest_user)
+        _ = await neon_db.create_user(guest_user)
 
     token, _ = create_access_token({"sub": str(guest_id), "role": "guest", "is_guest": True})
     headers = {"Authorization": f"Bearer {token}"}
@@ -52,7 +52,7 @@ async def test_chat_history_google_user_crud():
         is_guest=False,
     )
     if neon_db.pool:
-        await neon_db.create_user(google_user)
+        _ = await neon_db.create_user(google_user)
 
     token, _ = create_access_token({"sub": str(user_id), "role": "user", "is_guest": False})
     headers = {"Authorization": f"Bearer {token}"}
@@ -93,7 +93,7 @@ async def test_follow_up_turn_keeps_first_title():
     from app.services.conversations import persist_turn
 
     user_id = uuid4()
-    await neon_db.create_user(
+    _ = await neon_db.create_user(
         User(
             id=user_id,
             email=f"title-{uuid4().hex[:8]}@nexusagent.test",
@@ -129,7 +129,7 @@ async def test_persist_turn_saves_web_sources():
         is_guest=False,
     )
     if neon_db.pool:
-        await neon_db.create_user(google_user)
+        _ = await neon_db.create_user(google_user)
 
     token, _ = create_access_token({"sub": str(user_id), "role": "user", "is_guest": False})
     headers = {"Authorization": f"Bearer {token}"}

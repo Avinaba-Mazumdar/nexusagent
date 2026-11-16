@@ -2,9 +2,10 @@ import asyncio
 import hashlib
 import logging
 import time
+from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.config import settings
 from app.core.access import require_document_access
@@ -52,8 +53,8 @@ def safe_filename(raw: str | None) -> str:
 
 @router.get("", response_model=DocumentListResponseWire)
 async def list_documents(
-    _current_user: User | None = Depends(get_current_user_optional),
-    db: NeonDatabase = Depends(get_db),
+    _current_user: Annotated[User | None, Depends(get_current_user_optional)],
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ):
     """
     List all documents in the knowledge base.
@@ -68,11 +69,11 @@ async def list_documents(
 async def get_document_chunk(
     document_id: UUID,
     chunk_id: UUID,
-    _current_user: User = Depends(get_current_user),
-    db: NeonDatabase = Depends(get_db),
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ):
     """Fetch one chunk (the passage a citation points at) with its section metadata."""
-    await require_document_access(db, document_id)
+    _ = await require_document_access(db, document_id)
     chunk = await db.get_document_chunk(document_id, chunk_id)
     if not chunk:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found")
@@ -84,13 +85,13 @@ async def get_document_chunk(
 @router.delete("/{document_id}", response_model=SuccessResponse)
 async def delete_document(
     document_id: UUID,
-    current_user: User = Depends(require_admin),
-    db: NeonDatabase = Depends(get_db),
+    current_user: Annotated[User, Depends(require_admin)],
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ):
     """Delete a document and its chunks (admin only)."""
     if not await db.delete_document(document_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    await default_audit_logger.log_tool_audit(
+    _ = await default_audit_logger.log_tool_audit(
         tool_name="document_delete",
         input_args={"document_id": str(document_id)},
         output_summary={"deleted": True},
@@ -103,10 +104,9 @@ async def delete_document(
 
 @router.post("/upload", response_model=DocumentUploadResponseWire)
 async def upload_document(
-    request: Request,
-    file: UploadFile = File(...),
-    current_user: User = Depends(require_admin),
-    db: NeonDatabase = Depends(get_db),
+    file: Annotated[UploadFile, File()],
+    current_user: Annotated[User, Depends(require_admin)],
+    db: Annotated[NeonDatabase, Depends(get_db)],
 ):
     """
     Upload and parse PDF or markdown benchmark documents (admin only).
@@ -227,7 +227,7 @@ async def upload_document(
             headers={"Retry-After": "30"},
         )
 
-    await default_audit_logger.log_tool_audit(
+    _ = await default_audit_logger.log_tool_audit(
         tool_name="document_upload",
         input_args={"filename": filename, "bytes": len(raw_bytes)},
         output_summary={

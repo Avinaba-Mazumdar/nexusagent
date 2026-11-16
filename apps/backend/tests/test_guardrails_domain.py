@@ -5,6 +5,7 @@ import pytest
 from app.agent.graph import REFUSAL, AgentGraph, route_after_router
 from app.agent.state import AgentState
 from app.rag.hybrid_search import HybridSearchResult
+from tests.conftest import FakeLLM
 
 
 def _chunk(dense_score: float | None = 0.9) -> HybridSearchResult:
@@ -21,7 +22,7 @@ def _chunk(dense_score: float | None = 0.9) -> HybridSearchResult:
 
 
 @pytest.mark.asyncio
-async def test_guardrail_refuses_off_topic_queries(fake_llm):
+async def test_guardrail_refuses_off_topic_queries(fake_llm: FakeLLM):
     """The agent must immediately refuse unrelated non-benchmark queries with REFUSAL."""
     fake_llm(["I can help with coding."])
     graph = AgentGraph()

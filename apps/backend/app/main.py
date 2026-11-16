@@ -1,13 +1,14 @@
 import asyncio
 import logging
 import os
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.agent.llm import default_model_router
 from app.agent.model_health import flush_pending_writes, sync_cooldowns, sync_cooldowns_forever
@@ -46,7 +47,7 @@ def ensure_single_worker() -> None:
     if workers > 1 and not settings.is_dev:
         raise RuntimeError(
             "NexusAgent keeps abuse counters and MCP rate limits in process memory; "
-            "run exactly one worker (see README)."
+            + "run exactly one worker (see README)."
         )
 
 
@@ -54,7 +55,7 @@ async def stop_background(sync_task: asyncio.Task[None] | None) -> None:
     """Stop the cooldown sync and always release the database, even if that task already failed."""
     if sync_task is not None:
         if not sync_task.done():
-            sync_task.cancel()
+            _ = sync_task.cancel()
         try:
             await sync_task
         except asyncio.CancelledError:
@@ -76,7 +77,7 @@ async def stop_background(sync_task: asyncio.Task[None] | None) -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     """Lifecycle manager for Neon PostgreSQL 18 connection pool and MCP session manager."""
     ensure_single_worker()
     connected = await neon_db.connect()
@@ -112,7 +113,9 @@ mcp_global_limiter = SlidingWindowCounter(limit=MCP_GLOBAL_PER_MINUTE, window=ti
 
 
 @app.middleware("http")
-async def mcp_rate_limit_middleware(request: Request, call_next):
+async def mcp_rate_limit_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     if request.url.path.rstrip("/") == MCP_PATH:
         client_ip = get_client_ip(request)
         if not mcp_rate_limiter.hit(client_ip) or not mcp_global_limiter.hit("all"):

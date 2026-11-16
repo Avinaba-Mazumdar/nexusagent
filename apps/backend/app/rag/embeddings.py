@@ -1,8 +1,10 @@
 import asyncio
 import logging
 from collections.abc import Sequence
+from typing import cast
 
 import httpx
+from pydantic import BaseModel, ValidationError
 
 from app.config import settings
 
@@ -16,6 +18,16 @@ RETRY_DELAYS = (0.5, 1.5)
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
 
+class _Embedding(BaseModel):
+    values: list[float]
+
+
+class _BatchEmbedResponse(BaseModel):
+    """The part of a ``batchEmbedContents`` response this client reads."""
+
+    embeddings: list[_Embedding] = []
+
+
 class EmbeddingUnavailable(RuntimeError):
     """The embedding provider failed (or is rate limiting) and the request can be retried later."""
 
@@ -24,9 +36,9 @@ class EmbeddingService:
     """Gemini embedding client pinned to one model so every stored vector shares a vector space."""
 
     def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or settings.GEMINI_API_KEY
-        self.dimension = EMBEDDING_DIMENSION
-        self.model = settings.EMBEDDING_MODEL
+        self.api_key: str = api_key or settings.GEMINI_API_KEY
+        self.dimension: int = EMBEDDING_DIMENSION
+        self.model: str = settings.EMBEDDING_MODEL
         self._client: httpx.AsyncClient | None = None
 
     def _get_client(self) -> httpx.AsyncClient:
@@ -40,7 +52,7 @@ class EmbeddingService:
             self._client = None
 
     async def _post_with_retry(
-        self, url: str, headers: dict[str, str], payload: dict
+        self, url: str, headers: dict[str, str], payload: dict[str, object]
     ) -> httpx.Response:
         client = self._get_client()
         for attempt in range(len(RETRY_DELAYS) + 1):
@@ -94,7 +106,12 @@ class EmbeddingService:
                 )
                 raise EmbeddingUnavailable("Gemini embedding provider unavailable")
 
-            embeddings = [item["values"] for item in response.json().get("embeddings", [])]
+            try:
+                body = _BatchEmbedResponse.model_validate(cast(object, response.json()))
+            except (ValueError, ValidationError) as exc:
+                logger.error("Gemini embedding API (%s) returned a malformed body", self.model)
+                raise EmbeddingUnavailable("Gemini embedding provider unavailable") from exc
+            embeddings = [item.values for item in body.embeddings]
             if len(embeddings) != len(slice_texts):
                 logger.error("Gemini embedding API (%s) returned a short batch", self.model)
                 raise EmbeddingUnavailable("Gemini embedding provider unavailable")

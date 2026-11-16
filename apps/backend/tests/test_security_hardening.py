@@ -20,7 +20,7 @@ def _make_request(headers: dict[str, str], host: str = "10.0.0.5"):
     return SimpleNamespace(headers=headers, client=SimpleNamespace(host=host))
 
 
-def test_get_client_ip_ignores_forwarded_header_by_default(monkeypatch):
+def test_get_client_ip_ignores_forwarded_header_by_default(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 0)
     req = _make_request({"X-Forwarded-For": "1.2.3.4, 5.6.7.8"})
     assert get_client_ip(cast(Request, req)) == "10.0.0.5"
@@ -64,7 +64,7 @@ def _chunk(content: str, filename: str = "hostile.md") -> HybridSearchResult:
     )
 
 
-def test_sanitize_retrieved_chunks_withholds_injected_chunks(caplog):
+def test_sanitize_retrieved_chunks_withholds_injected_chunks(caplog: pytest.LogCaptureFixture):
     """A passage that matches an injection pattern is reported and not returned."""
     import logging
 
@@ -85,7 +85,9 @@ def test_sanitize_retrieved_chunks_withholds_injected_chunks(caplog):
 
 
 @pytest.mark.asyncio
-async def test_mcp_search_uses_lexical_only_after_the_daily_embedding_budget(monkeypatch):
+async def test_mcp_search_uses_lexical_only_after_the_daily_embedding_budget(
+    monkeypatch: pytest.MonkeyPatch,
+):
     from unittest.mock import AsyncMock
 
     from app.core.rate_limiter import mcp_embedding_budget
@@ -159,7 +161,7 @@ async def test_audit_logs_endpoint_reads_db_rows():
         token = guest.cookies["nexus_session"]
         user_id = UUID(guest.json()["user"]["id"])
 
-        await default_audit_logger.log_tool_audit(
+        _ = await default_audit_logger.log_tool_audit(
             tool_name="hybrid_rag_search",
             input_args={"query": "Raft consensus"},
             output_summary={"rows": 1},
@@ -211,7 +213,7 @@ def test_trusted_proxy_hops_must_stay_between_zero_and_two():
 
     for hops in (3, -1):
         with pytest.raises(ValueError, match="TRUSTED_PROXY_HOPS"):
-            Settings(
+            _ = Settings(
                 _env_file=None,  # pyright: ignore[reportCallIssue]
                 ENVIRONMENT="development",
                 TRUSTED_PROXY_HOPS=hops,
@@ -224,7 +226,7 @@ def test_production_refuses_zero_trusted_proxy_hops():
     from app.config import Settings
 
     with pytest.raises(ValueError, match="TRUSTED_PROXY_HOPS"):
-        Settings(
+        _ = Settings(
             _env_file=None,  # pyright: ignore[reportCallIssue]  (pydantic-settings init kwarg)
             ENVIRONMENT="production",
             JWT_SECRET_KEY="x" * 40,
@@ -267,7 +269,7 @@ def test_neon_endpoint_ignores_the_pooler_suffix():
     assert neon_endpoint("ep-abc") == "ep-abc"
 
 
-def test_security_event_alerts_once_when_auth_failures_repeat(caplog):
+def test_security_event_alerts_once_when_auth_failures_repeat(caplog: pytest.LogCaptureFixture):
     import logging
 
     from app.core.security_events import security_event

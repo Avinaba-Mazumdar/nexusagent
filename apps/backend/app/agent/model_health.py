@@ -15,13 +15,14 @@ import asyncpg
 
 from app.agent.model_router import ModelRouter
 from app.db.neon import DatabaseUnavailable, neon_db
+from app.db.records import col_datetime, col_str
 
 logger = logging.getLogger("nexusagent.agent.model_health")
 
 SYNC_INTERVAL_SECONDS = 30.0
 _DB_ERRORS = (asyncpg.PostgresError, DatabaseUnavailable, OSError, TimeoutError)
 
-_pending_writes: set[asyncio.Task] = set()
+_pending_writes: set[asyncio.Task[None]] = set()
 
 
 def persist_cooldown(scope: str, model: str, reason: str, retry_at: float, error: str) -> None:
@@ -61,7 +62,8 @@ async def sync_cooldowns(routers: Iterable[ModelRouter]) -> None:
         return
     by_scope: dict[str, dict[str, float]] = {}
     for row in rows:
-        by_scope.setdefault(row["scope"], {})[row["model"]] = row["retry_after"].timestamp()
+        retry_after = col_datetime(row, "retry_after").timestamp()
+        by_scope.setdefault(col_str(row, "scope"), {})[col_str(row, "model")] = retry_after
     for router in routers:
         router.load_cooldowns(by_scope.get(router.scope, {}))
 
@@ -78,4 +80,4 @@ async def flush_pending_writes() -> None:
     """Let in-flight cooldown writes finish (used at shutdown)."""
     if _pending_writes:
         with contextlib.suppress(Exception):
-            await asyncio.wait(list(_pending_writes), timeout=5)
+            _ = await asyncio.wait(list(_pending_writes), timeout=5)

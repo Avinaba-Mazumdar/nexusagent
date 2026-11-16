@@ -4,8 +4,8 @@ Security guardrails: untrusted-content delimiters, injection pattern detection, 
 
 import html
 import re
-from collections.abc import Sequence
-from typing import Any
+from collections.abc import Callable, Sequence
+from typing import Protocol
 
 from app.core.security_events import security_event
 
@@ -25,14 +25,14 @@ INJECTION_PATTERNS = [
 ]
 
 # Sensitive Information & Secret Redaction Patterns (OWASP LLM02)
-SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
+SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # Private Key blocks
     (
         # The body may not contain "--", so a stray BEGIN header cannot scan to the end of the file.
         re.compile(
             r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
-            r"(?:[^-]|-(?!--)){0,16384}?"
-            r"-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+            + r"(?:[^-]|-(?!--)){0,16384}?"
+            + r"-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
         ),
         "[REDACTED_PRIVATE_KEY]",
     ),
@@ -50,7 +50,7 @@ SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
         # Start only at the beginning of a token and bound each segment so matching stays linear.
         re.compile(
             r"(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,8192}"
-            r"\.[A-Za-z0-9_-]{10,8192}\.[A-Za-z0-9_-]{10,8192}(?![A-Za-z0-9_-])"
+            + r"\.[A-Za-z0-9_-]{10,8192}\.[A-Za-z0-9_-]{10,8192}(?![A-Za-z0-9_-])"
         ),
         "[REDACTED_JWT_TOKEN]",
     ),
@@ -65,11 +65,20 @@ SECRET_PATTERNS: list[tuple[re.Pattern, str]] = [
     (
         re.compile(
             r"(?<![A-Za-z0-9])(postgresql|postgres|mysql|mongodb|redis)://"
-            r"([^:\s@/]{1,128}):([^@\s]{1,256})@"
+            + r"([^:\s@/]{1,128}):([^@\s]{1,256})@"
         ),
         r"\1://\2:[REDACTED_PASSWORD]@",
     ),
 ]
+
+
+def _keeping_lines(replacement: str) -> Callable[[re.Match[str]], str]:
+    """A replacement that keeps the matched text's newline count."""
+
+    def expand(match: re.Match[str]) -> str:
+        return match.expand(replacement) + "\n" * match.group(0).count("\n")
+
+    return expand
 
 
 def scrub_sensitive_information(text: str, preserve_lines: bool = False) -> str:
@@ -85,10 +94,7 @@ def scrub_sensitive_information(text: str, preserve_lines: bool = False) -> str:
     scrubbed = text
     for pattern, replacement in SECRET_PATTERNS:
         if preserve_lines:
-            scrubbed = pattern.sub(
-                lambda m, r=replacement: m.expand(r) + "\n" * m.group(0).count("\n"),
-                scrubbed,
-            )
+            scrubbed = pattern.sub(_keeping_lines(replacement), scrubbed)
         else:
             scrubbed = pattern.sub(replacement, scrubbed)
     return scrubbed
@@ -182,9 +188,18 @@ def detect_prompt_injection(text: str) -> tuple[bool, str | None]:
     return False, None
 
 
-def sanitize_retrieved_chunks(
-    chunks: Sequence[Any],
-) -> tuple[list[Any], list[dict[str, str]]]:
+class Passage(Protocol):
+    """A retrieved passage: its text (rewritten in place when sanitized) and source file."""
+
+    content: str
+
+    @property
+    def filename(self) -> str: ...
+
+
+def sanitize_retrieved_chunks[P: Passage](
+    chunks: Sequence[P],
+) -> tuple[list[P], list[dict[str, str]]]:
     """
     Defense-in-depth for indirect prompt injection arriving inside retrieved documents.
 
@@ -194,7 +209,7 @@ def sanitize_retrieved_chunks(
     Returns ``(kept_chunks, flagged)`` where ``flagged`` entries carry the filename and the reason.
     """
     flagged: list[dict[str, str]] = []
-    kept: list[Any] = []
+    kept: list[P] = []
     for chunk in chunks:
         safe, reason = screen_passage(chunk.content)
         if safe is None:
@@ -255,8 +270,8 @@ class StreamingScrubber:
     """
 
     def __init__(self, hold: int = _SECRET_HOLD):
-        self.hold = hold
-        self._buf = ""
+        self.hold: int = hold
+        self._buf: str = ""
 
     def push(self, text: str) -> str:
         self._buf += text

@@ -43,7 +43,7 @@ async def test_health_endpoints():
 
 
 @pytest.mark.asyncio
-async def test_health_endpoint_unhealthy_when_db_disconnected(monkeypatch):
+async def test_health_endpoint_unhealthy_when_db_disconnected(monkeypatch: pytest.MonkeyPatch):
     """Test /api/health returns 503 and unhealthy status when pool is disconnected."""
     transport = ASGITransport(app=app)
     monkeypatch.setattr(neon_db, "pool", None)
@@ -72,7 +72,7 @@ async def test_cors_headers():
 
 
 @pytest.mark.asyncio
-async def test_health_hides_fingerprint_and_docs_in_production(monkeypatch):
+async def test_health_hides_fingerprint_and_docs_in_production(monkeypatch: pytest.MonkeyPatch):
     """SEC-11: production health omits DB version/extensions and API docs are not mounted."""
     from app.config import settings
 
@@ -85,7 +85,7 @@ async def test_health_hides_fingerprint_and_docs_in_production(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_database_outage_returns_503(monkeypatch):
+async def test_database_outage_returns_503(monkeypatch: pytest.MonkeyPatch):
     """LOG-19: a missing pool becomes a 503, not an unhandled 500."""
     from app.core.auth import create_access_token
 
@@ -98,7 +98,7 @@ async def test_database_outage_returns_503(monkeypatch):
     assert res.headers["retry-after"] == "30"
 
 
-def test_multiple_workers_are_refused_in_production_r2_sec_06(monkeypatch):
+def test_multiple_workers_are_refused_in_production_r2_sec_06(monkeypatch: pytest.MonkeyPatch):
     import pytest
 
     from app.config import settings
@@ -118,7 +118,9 @@ def test_multiple_workers_are_refused_in_production_r2_sec_06(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_health_reports_unhealthy_when_the_pool_is_saturated_r2_log_13(monkeypatch):
+async def test_health_reports_unhealthy_when_the_pool_is_saturated_r2_log_13(
+    monkeypatch: pytest.MonkeyPatch,
+):
     class SaturatedPool:
         def acquire(self, timeout=None):
             raise TimeoutError
@@ -186,7 +188,7 @@ def test_mcp_global_rate_limiter():
 
 
 @pytest.mark.asyncio
-async def test_stop_background_cleans_up_after_a_crashed_sync_task(monkeypatch):
+async def test_stop_background_cleans_up_after_a_crashed_sync_task(monkeypatch: pytest.MonkeyPatch):
     import asyncio
 
     from app.main import stop_background

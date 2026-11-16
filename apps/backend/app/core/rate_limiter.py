@@ -20,14 +20,15 @@ from app.db.neon import NeonDatabase, neon_db
 logger = logging.getLogger("nexusagent.core.rate_limiter")
 
 MAX_TRACKED_KEYS = 50_000
+ONE_HOUR = timedelta(hours=1)
 
 
 class SlidingWindowCounter:
     """Per-key event counter over a rolling window (per process, bounded memory)."""
 
-    def __init__(self, limit: int, window: timedelta = timedelta(hours=1)):
-        self.limit = limit
-        self.window = window
+    def __init__(self, limit: int, window: timedelta = ONE_HOUR):
+        self.limit: int = limit
+        self.window: timedelta = window
         self._events: dict[str, list[datetime]] = {}
 
     def _prune_stale_keys(self, now: datetime) -> None:
@@ -103,7 +104,7 @@ class ChatQuota:
     """Rolling 24-hour window chat quota limiter backed by the ``chat_usage`` table."""
 
     def __init__(self, db: NeonDatabase):
-        self.db = db
+        self.db: NeonDatabase = db
 
     def limit_for(self, user: User) -> int:
         return settings.GUEST_QUOTA_DEFAULT if user.is_guest else settings.USER_QUOTA_DEFAULT
