@@ -138,7 +138,7 @@ def build_tools(engine: HybridSearchEngine) -> list[StructuredTool]:
     async def _web(query: str) -> str:
         return (await run_web_search(query)).summary
 
-    return [
+    tools = [
         StructuredTool.from_function(
             coroutine=_rag,
             name=RAG_TOOL_NAME,
@@ -148,13 +148,17 @@ def build_tools(engine: HybridSearchEngine) -> list[StructuredTool]:
             ),
             args_schema=RagSearchArgs,
         ),
-        StructuredTool.from_function(
-            coroutine=_web,
-            name=WEB_TOOL_NAME,
-            description="Search the web. Use only when the benchmark documents do not contain the answer.",
-            args_schema=WebSearchArgs,
-        ),
     ]
+    if settings.WEB_SEARCH_ENABLED:
+        tools.append(
+            StructuredTool.from_function(
+                coroutine=_web,
+                name=WEB_TOOL_NAME,
+                description="Search the web. Use only when the benchmark documents do not contain the answer.",
+                args_schema=WebSearchArgs,
+            )
+        )
+    return tools
 
 
 TOOL_ARGS: dict[str, type[BaseModel]] = {

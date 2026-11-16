@@ -389,3 +389,11 @@ def require_db(request):
     """Skip ``db``-marked tests when no live database is available."""
     if request.node.get_closest_marker("db") and not DB_STATE["connected"]:
         pytest.skip("Requires a reachable Neon PostgreSQL instance (set TEST_DATABASE_URL)")
+
+
+@pytest.fixture
+def web_search_on(monkeypatch):
+    """Enable Google Search grounding and the web_search tool (off by default)."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "WEB_SEARCH_ENABLED", True)

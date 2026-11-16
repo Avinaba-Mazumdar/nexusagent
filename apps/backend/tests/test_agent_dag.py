@@ -224,7 +224,7 @@ async def test_router_node_classifies_benchmark(fake_llm):
 
 
 @pytest.mark.asyncio
-async def test_router_node_classifies_smalltalk(fake_llm):
+async def test_router_node_classifies_smalltalk(fake_llm, web_search_on):
     """Router classifies smalltalk / greeting and sets 1 plan step."""
     fake_llm(structured_route="smalltalk")
     state = AgentState(query="hello there")
@@ -338,7 +338,7 @@ async def test_scenario_2_rag_tool_call_then_answers(fake_llm, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_scenario_3_web_search_tool_call_then_answers(fake_llm, monkeypatch):
+async def test_scenario_3_web_search_tool_call_then_answers(fake_llm, monkeypatch, web_search_on):
     """Web search adds webSources, untrusted tool output wrapping, and web_search usage."""
     audit_calls = []
     monkeypatch.setattr(
@@ -616,7 +616,7 @@ async def test_scenario_7_invalid_arguments(fake_llm):
 
 
 @pytest.mark.asyncio
-async def test_scenario_8_web_search_failure_handled(fake_llm, monkeypatch):
+async def test_scenario_8_web_search_failure_handled(fake_llm, monkeypatch, web_search_on):
     """When run_web_search raises, tool message is set and run completes."""
     fake_llm(
         structured_route="benchmark",
@@ -710,3 +710,9 @@ def test_next_node():
 
     state.pending_tool_calls = []
     assert next_node("agent", state) is None
+
+
+def test_web_search_tool_is_off_by_default():
+    from app.agent.tools import RAG_TOOL_NAME, build_tools
+
+    assert [t.name for t in build_tools(None)] == [RAG_TOOL_NAME]

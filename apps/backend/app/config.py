@@ -94,6 +94,8 @@ class Settings(BaseSettings):
     # Further MCP searches keep working on the lexical index.
     MCP_EMBEDDINGS_PER_DAY: int = 200
     GOOGLE_AUTH_PER_IP_PER_HOUR: int = 20
+    # Google Search grounding (chat node) and the agent's web_search tool. Off: RAG-only agent.
+    WEB_SEARCH_ENABLED: bool = False
     REFRESH_PER_IP_PER_HOUR: int = 60
     # Number of trusted reverse proxies in front of the API (Render alone = 1; Cloudflare in front
     # of Render = 2). 0 keys per-IP limits on the socket address, which behind a proxy is the

@@ -32,7 +32,6 @@ export default function Home() {
   const [prompt, setPrompt] = React.useState('');
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [theme, setTheme] = React.useState<ThemeName>('light');
-  const isDarkTheme = theme !== 'light';
   const [gisLoaded, setGisLoaded] = React.useState(false);
   const [hireMeModalOpen, setHireMeModalOpen] = React.useState(false);
   const [docs, setDocs] = React.useState<WorkspaceDoc[]>([]);
@@ -269,7 +268,8 @@ export default function Home() {
       try {
         container.innerHTML = '';
         google.accounts.id.renderButton(container, {
-          theme: isDarkTheme ? 'filled_black' : 'outline',
+          // Rendered invisibly over our own Button in SignInDialog; only its size matters.
+          theme: 'outline',
           size: 'large',
           width: Math.round(Math.min(400, Math.max(200, container.offsetWidth || 320))),
           text: 'continue_with',
@@ -280,7 +280,7 @@ export default function Home() {
         // Graceful fallback
       }
     },
-    [googleClientId, gisLoaded, initGsi, isDarkTheme]
+    [googleClientId, gisLoaded, initGsi]
   );
 
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);

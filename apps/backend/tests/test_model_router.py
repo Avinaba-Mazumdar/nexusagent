@@ -226,7 +226,9 @@ async def test_chat_node_falls_back_when_google_search_rate_limited(models):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("make_error", ["timeout", "server"])
-async def test_chat_node_moves_on_instead_of_retrying_without_tools(models, make_error):
+async def test_chat_node_moves_on_instead_of_retrying_without_tools(
+    models, make_error, web_search_on
+):
     import httpx
     from google.genai.errors import ServerError
 
