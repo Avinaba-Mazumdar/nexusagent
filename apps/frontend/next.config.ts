@@ -12,6 +12,9 @@ const securityHeaders = buildSecurityHeaders({
 
 const nextConfig: NextConfig = {
     reactCompiler: true,
+    experimental: {
+        agentUpgrade: 'security'
+    },
     async headers() {
         return [
             {
