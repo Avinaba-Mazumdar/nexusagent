@@ -21,14 +21,14 @@ export type AgentInvokeResponse = AgentDoneEventWire;
 
 /** Payloads of the other `/api/agent/stream` SSE events, keyed by event name. */
 export type {
-  SseErrorEvent,
-  SseGroundingEvent,
-  SseNodeStartEvent,
-  SsePlanEvent,
-  SseStartEvent,
-  SseTokenEvent,
-  SseToolCallEvent,
-  SseToolResultEvent,
-  SseUsageEvent,
-  WebSourceWire
+    SseErrorEvent,
+    SseGroundingEvent,
+    SseNodeStartEvent,
+    SsePlanEvent,
+    SseStartEvent,
+    SseTokenEvent,
+    SseToolCallEvent,
+    SseToolResultEvent,
+    SseUsageEvent,
+    WebSourceWire
 } from './generated';

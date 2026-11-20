@@ -182,10 +182,10 @@ In `apps/backend/app/db/neon.py`:
 
 1. Keep `SlidingWindowCounter`, `enforce_ip_limit`, `guest_signup_limiter`, `google_auth_limiter` and `refresh_limiter`. **Delete** `guest_ip_llm_limiter`, `TokenBucketLimiter`, `REPLENISH_WINDOW`, `resets_at` and `_quota_exhausted`.
 2. Add a `ChatQuota` class (module instance `default_chat_quota`) with:
-    - `limit_for(user) -> int`: returns `settings.GUEST_QUOTA_DEFAULT` (5) for guests, else `settings.USER_QUOTA_DEFAULT` (25);
+    - `limit_for(user) -> int`: returns `settings.GUEST_QUOTA_DEFAULT` (5) for guests, else `settings.USER_QUOTA_DEFAULT` (15);
     - `_keys(user, client_ip)`: for guests returns `(user.device_id, user.machine_hash, client_ip)`, for Google users `(None, None, None)`;
     - `async reserve(user, client_ip) -> tuple[UUID, int]`: calls `reserve_chat`. If it is blocked, raise HTTP 429 with:
-        - detail `"Daily chat limit reached (5 per 24 hours for guests, 25 for Google accounts)."`;
+        - detail `"Daily chat limit reached (5 per 24 hours for guests, 15 for Google accounts)."`;
         - header `Retry-After` = seconds until `oldest + 24h` (minimum 1).
     - `async status(user, client_ip) -> tuple[int, datetime]`: returns `(remaining, resets_at)`, where `resets_at` is `oldest + 24h`, or now + 24h if there is no usage.
     - `async refund(usage_id)`: best-effort `release_chat`. Log and swallow errors.
@@ -217,7 +217,7 @@ In `apps/backend/app/db/neon.py`:
 3. Change the "hourly" wording to "every 24 hours" in:
     - `hooks/useAgentStream.ts:41` (429 message);
     - `components/sign-in-dialog.tsx:52` and `:96`;
-    - `app/terms/page.tsx:83` and `:187-190` (replace "token bucket" with "rolling 24-hour window: 5 chats for guests, 25 for Google accounts").
+    - `app/terms/page.tsx:83` and `:187-190` (replace "token bucket" with "rolling 24-hour window: 5 chats for guests, 15 for Google accounts").
 4. Add a test `lib/machine-id.test.ts`: the same environment gives the same hash, and the result is 64 hex characters.
 
 ### Step 2.5 Tests for quotas
@@ -228,7 +228,7 @@ Rewrite the quota tests in `tests/test_auth.py` / `tests/test_security_hardening
 - a **new** guest with the same machine hash is blocked;
 - a **new** guest with the same IP is blocked;
 - a **new** guest with a different device, machine and IP is allowed;
-- a Google user gets 25, and is not affected by guest rows sharing their IP;
+- a Google user gets 15, and is not affected by guest rows sharing their IP;
 - after `UPDATE chat_usage SET created_at = NOW() - INTERVAL '24 hours 1 second'`, chats are allowed again;
 - `release_chat` gives the chat back.
 
