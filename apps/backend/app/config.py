@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     JWT_ISSUER: str = "nexusagent-api"
     JWT_AUDIENCE: str = "nexusagent-web"
     GUEST_QUOTA_DEFAULT: int = 5
-    USER_QUOTA_DEFAULT: int = 25
+    USER_QUOTA_DEFAULT: int = 15
     # Guest chats per rolling day from one client network (an IPv4 address or an IPv6 /64).
     # Everyone behind a shared NAT shares it, so it is a multiple of GUEST_QUOTA_DEFAULT.
     GUEST_QUOTA_PER_NETWORK: int = 20

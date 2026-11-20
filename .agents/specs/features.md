@@ -23,7 +23,7 @@
 
 - [x] `chat_usage` table replacing `rate_limit_buckets`
 - [x] Guest users: 5 chats per rolling 24 hours, checked across user ID, device hash, machine hash, and client IP
-- [x] Google users: 25 chats per rolling 24 hours, checked by user ID
+- [x] Google users: 15 chats per rolling 24 hours, checked by user ID
 - [x] Atomic quota deduction in Neon SQL (`count_chat_usage_24h` / `record_chat_usage`)
 - [x] Header quota badge reflects rolling window
 

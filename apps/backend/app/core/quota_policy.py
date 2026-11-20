@@ -2,7 +2,7 @@
 
 A chat is allowed only when every bucket that applies has room:
 
-- user: the account, plus (for guests) the HttpOnly device cookie. 5 for guests, 25 for Google.
+- user: the account, plus (for guests) the HttpOnly device cookie. 5 for guests, 15 for Google.
 - network: guest chats from one client network (an IPv4 address or an IPv6 /64). Shared by
   everyone behind that network, so it is larger than the per-guest bucket.
 - guests: guest chats across the whole service per rolling day.

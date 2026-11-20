@@ -103,7 +103,7 @@ Official `mcp` Python SDK (`MCPServer`) Streamable HTTP server mounted at `/mcp`
 - **Rolling 24-hour quotas**:
     - Tracked in `chat_usage` table. Quota remaining = limit minus count of rows in the last 24 hours.
     - Guests: 5 chats / 24h, enforced against guest UUID, device hash, machine hash, and client IP.
-    - Google accounts: 25 chats / 24h, keyed by user ID.
+    - Google accounts: 15 chats / 24h, keyed by user ID.
 - **Single-worker deployment**: In-memory rate limiters (`SlidingWindowCounter`) and MCP session lifecycle require running one API worker (`uvicorn app.main:app --workers 1`).
 - **Same-site API host**: Session and device cookies are `SameSite=Lax`, so browsers send them only to an API host that is same-site with the frontend. Production serves the API from `api.nexusagent.avinaba.com`. Do not point `NEXT_PUBLIC_API_URL` at `*.onrender.com`. That domain is on the Public Suffix List, so it is cross-site: the cookie is never sent and every authenticated call returns 401.
 - **Request size caps**: 5 MB + 16 KB on `/api/documents/upload` (`config.py:64`), 64 KB elsewhere (`MAX_UPLOAD_REQUEST_BYTES`, `MAX_JSON_REQUEST_BYTES`).
@@ -141,7 +141,7 @@ Official `mcp` Python SDK (`MCPServer`) Streamable HTTP server mounted at `/mcp`
 | LLM07 | System Prompt Leakage            | System prompts contain no secrets or internal credentials, and all authorization is enforced strictly in application code.                                                                                                                                                                                   |
 | LLM08 | Vector and Embedding Weaknesses  | The benchmark corpus is public by design, ingestion is admin-only, and vector searches strictly use a single consistent embedding model.                                                                                                                                                                     |
 | LLM09 | Misinformation                   | `[S1]` labels are checked against the labels the model was given. A cited sentence that does not share wording with its passage downgrades the grounding badge. An answer that cites none of the retrieved passages is not marked grounded.                                                                  |
-| LLM10 | Unbounded Consumption            | Chat quota fails closed at 5 or 25 per rolling 24 hours. Bodies, output tokens, and tool calls are capped. MCP hybrid search may spend at most `MCP_EMBEDDINGS_PER_DAY` embedding calls per rolling day; further MCP searches use lexical retrieval only. Chat and `/api/rag/search` stay on the chat quota. |
+| LLM10 | Unbounded Consumption            | Chat quota fails closed at 5 or 15 per rolling 24 hours. Bodies, output tokens, and tool calls are capped. MCP hybrid search may spend at most `MCP_EMBEDDINGS_PER_DAY` embedding calls per rolling day; further MCP searches use lexical retrieval only. Chat and `/api/rag/search` stay on the chat quota. |
 
 ### 6.2 OWASP Top 10 for Agentic Applications
 

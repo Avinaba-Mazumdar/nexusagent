@@ -214,7 +214,7 @@ async def test_google_oauth_endpoint(monkeypatch: pytest.MonkeyPatch):
         assert me_resp.status_code == 200
         me_data = MeResponse.model_validate_json(me_resp.content)
         assert me_data.user.email == "google.lead@distributed.io"
-        assert me_data.quota.bucketCapacity == 25
+        assert me_data.quota.bucketCapacity == 15
 
         # 3. Repeat authentication with updated name (upsert verification)
         profile["name"] = "Principal Google Architect"

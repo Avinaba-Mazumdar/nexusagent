@@ -1,7 +1,7 @@
 """
 Rolling 24-hour chat quota. The buckets are described in ``app.core.quota_policy``:
 - Guests: 5 per account and device cookie, 20 per client network, and a service-wide guest ceiling.
-- Google accounts: 25 per account.
+- Google accounts: 15 per account.
 - Everyone: a service-wide ceiling on all chats.
 """
 
@@ -80,7 +80,7 @@ def enforce_ip_limit(counter: SlidingWindowCounter, client_ip: str) -> None:
 QUOTA_SCOPE_HEADER = "X-Quota-Scope"
 
 BLOCKED_DETAIL: dict[Bucket, str] = {
-    "user": "Daily chat limit reached (5 per 24 hours for guests, 25 for Google accounts).",
+    "user": "Daily chat limit reached (5 per 24 hours for guests, 15 for Google accounts).",
     "network": (
         "Daily guest chat limit reached for this network. "
         "Sign in with Google to get your own quota."

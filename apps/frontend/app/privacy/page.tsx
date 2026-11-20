@@ -131,7 +131,7 @@ export default function PrivacyPolicyPage() {
                   <strong className="text-foreground">Google OAuth Profile:</strong> If you elect to authenticate using Google Identity
                   Services, we receive your verified email address, full name, and avatar URL. This allows persisting your conversation
                   history across devices. We also store your client IP and record query timestamps in the chat usage ledger to compute your
-                  rolling 24-hour quota (25 chats per rolling 24 hours).
+                  rolling 24-hour quota (15 chats per rolling 24 hours).
                 </div>
               </li>
               <li className="flex items-start gap-2">

@@ -186,12 +186,12 @@ export default function TermsAndConditionsPage() {
                             4. Usage Quotas &amp; Rate Limits
                         </h2>
                         <p>
-                            To prevent abuse and ensure equitable availability, all requests are metered using a rolling 24-hour window: 5 chats for guests, 25
+                            To prevent abuse and ensure equitable availability, all requests are metered using a rolling 24-hour window: 5 chats for guests, 15
                             for Google accounts.
                         </p>
                         <ul className="space-y-1.5 list-disc pl-5">
                             <li>Guest sessions receive 5 chats per rolling 24 hours.</li>
-                            <li>Google-authenticated sessions receive 25 chats per rolling 24 hours. Your remaining allowance is shown in the app header.</li>
+                            <li>Google-authenticated sessions receive 15 chats per rolling 24 hours. Your remaining allowance is shown in the app header.</li>
                             <li>Exceeding the quota results in an HTTP 429 response until the rolling window clears older chats.</li>
                         </ul>
                     </section>

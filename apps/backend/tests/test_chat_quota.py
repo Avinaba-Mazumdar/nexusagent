@@ -75,17 +75,17 @@ async def test_rolling_24h_quota_enforcement():
     assert exc_info.value.status_code == 429
     assert exc_info.value.detail == BLOCKED_DETAIL["network"]
 
-    # 4. A Google user gets 25 and is not affected by guest rows sharing their network
+    # 4. A Google user gets 15 and is not affected by guest rows sharing their network
     google_user = await neon_db.upsert_google_user(
         google_sub=f"sub_{uuid4().hex[:12]}",
         email=f"user_{uuid4().hex[:8]}@example.com",
         name="Google User",
         client_ip=client_ip,
     )
-    for i in range(25):
+    for i in range(15):
         g_usage_id, g_remaining = await default_chat_quota.reserve(google_user, client_ip)
         assert g_usage_id is not None
-        assert g_remaining == (24 - i)
+        assert g_remaining == (14 - i)
 
     with pytest.raises(HTTPException) as exc_info:
         _ = await default_chat_quota.reserve(google_user, client_ip)

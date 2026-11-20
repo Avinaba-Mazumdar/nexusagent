@@ -130,8 +130,8 @@ class GoogleAuthRequest(BaseModel):
 class TokenResponse(BaseModel):
     expiresIn: int
     user: UserSession
-    quotaRemaining: int = 25
-    bucketCapacity: int = 25
+    quotaRemaining: int = 15
+    bucketCapacity: int = 15
 
 
 class DocumentMetadataWire(WireModel):
