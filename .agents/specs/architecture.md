@@ -105,6 +105,7 @@ Official `mcp` Python SDK (`MCPServer`) Streamable HTTP server mounted at `/mcp`
     - Guests: 5 chats / 24h, enforced against guest UUID, device hash, machine hash, and client IP.
     - Google accounts: 25 chats / 24h, keyed by user ID.
 - **Single-worker deployment**: In-memory rate limiters (`SlidingWindowCounter`) and MCP session lifecycle require running one API worker (`uvicorn app.main:app --workers 1`).
+- **Same-site API host**: Session and device cookies are `SameSite=Lax`, so browsers send them only to an API host that is same-site with the frontend. Production serves the API from `api.nexusagent.avinaba.com`. Do not point `NEXT_PUBLIC_API_URL` at `*.onrender.com`. That domain is on the Public Suffix List, so it is cross-site: the cookie is never sent and every authenticated call returns 401.
 - **Request size caps**: 5 MB + 16 KB on `/api/documents/upload` (`config.py:64`), 64 KB elsewhere (`MAX_UPLOAD_REQUEST_BYTES`, `MAX_JSON_REQUEST_BYTES`).
 - **Guest signups**: 5 new guest accounts per IP per hour. The count is recent guest rows in `users`, so a process restart does not clear it. An in-memory limiter is checked as well.
 
