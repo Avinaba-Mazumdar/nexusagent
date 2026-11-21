@@ -1,9 +1,9 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vite-plus/test';
-import { McpInspector } from './McpInspector';
+import { McpConnectCard } from './McpConnectCard';
 import { MCP_URL } from '@/lib/mcp-client-config';
 
-describe('McpInspector Component', () => {
+describe('McpConnectCard Component', () => {
     let writeTextMock: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
@@ -17,7 +17,7 @@ describe('McpInspector Component', () => {
     });
 
     it('renders header, public badge, and note', () => {
-        render(<McpInspector />);
+        render(<McpConnectCard />);
 
         expect(screen.getByText('Connect MCP Client')).toBeInTheDocument();
         expect(screen.getByText(/Public/)).toBeInTheDocument();
@@ -25,7 +25,7 @@ describe('McpInspector Component', () => {
     });
 
     it('renders the MCP URL and allows copying it', async () => {
-        render(<McpInspector />);
+        render(<McpConnectCard />);
 
         expect(screen.getByText(MCP_URL)).toBeInTheDocument();
         const copyButton = screen.getByRole('button', { name: /Copy MCP URL/i });
@@ -37,7 +37,7 @@ describe('McpInspector Component', () => {
     });
 
     it('renders instructions for Claude and ChatGPT', () => {
-        render(<McpInspector />);
+        render(<McpConnectCard />);
 
         expect(screen.getByText(/Claude \(claude\.ai \/ Desktop\)/i)).toBeInTheDocument();
         expect(screen.getByText(/Settings → Connectors → Add custom connector → paste the URL/i)).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe('McpInspector Component', () => {
     });
 
     it('renders JSON client config for Cursor/Claude Code and allows copying it', async () => {
-        render(<McpInspector />);
+        render(<McpConnectCard />);
 
         const pre = screen.getByText(/nexusagent/);
         expect(pre).toBeInTheDocument();

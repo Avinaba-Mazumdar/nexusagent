@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { McpInspector } from '@/components/mcp';
+import { McpConnectCard } from '@/components/mcp';
 import { SidebarChatHistory } from '@/components/sidebar';
 import { MAX_UPLOAD_MB } from '@/lib/limits';
 import type { ChatConversation } from '@nexusagent/contracts';
@@ -329,7 +329,7 @@ export function WorkspaceSidebar({
                     }
                 >
                     <div id="category-mcp-content" className="p-1 pt-0 border-t border-border/50">
-                        <McpInspector />
+                        <McpConnectCard />
                     </div>
                 </CollapsibleSection>
             </div>

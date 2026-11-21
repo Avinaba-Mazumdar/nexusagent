@@ -51,7 +51,7 @@ describe('SidebarChatHistory Component', () => {
             {
                 id: 'c1',
                 userId: 'user-123',
-                title: 'Raft Consensus Protocol Verification',
+                title: 'CursorBench Consensus Protocol Verification',
                 createdAt: new Date().toISOString()
             }
         ];
@@ -70,7 +70,7 @@ describe('SidebarChatHistory Component', () => {
         );
 
         expect(screen.getByRole('searchbox', { name: /search conversation titles/i })).toBeInTheDocument();
-        expect(screen.getByText('Raft Consensus Protocol Verification')).toBeInTheDocument();
+        expect(screen.getByText('CursorBench Consensus Protocol Verification')).toBeInTheDocument();
     });
 
     it('filters conversations by search query', () => {
@@ -78,7 +78,7 @@ describe('SidebarChatHistory Component', () => {
             {
                 id: 'c1',
                 userId: 'user-123',
-                title: 'Raft Consensus Protocol Verification',
+                title: 'CursorBench Consensus Protocol Verification',
                 createdAt: new Date().toISOString()
             },
             {
@@ -102,7 +102,7 @@ describe('SidebarChatHistory Component', () => {
             />
         );
 
-        expect(screen.getByText('Raft Consensus Protocol Verification')).toBeInTheDocument();
+        expect(screen.getByText('CursorBench Consensus Protocol Verification')).toBeInTheDocument();
         expect(screen.getByText('PostgreSQL Vector Search Indexing')).toBeInTheDocument();
 
         rerender(
@@ -110,7 +110,7 @@ describe('SidebarChatHistory Component', () => {
                 isGoogleUser={true}
                 conversations={mockConversations}
                 isLoading={false}
-                searchQuery="Raft"
+                searchQuery="CursorBench"
                 onSearchChange={vi.fn()}
                 onSelectConversation={vi.fn()}
                 onDeleteConversation={vi.fn()}
@@ -118,7 +118,7 @@ describe('SidebarChatHistory Component', () => {
             />
         );
 
-        expect(screen.getByText('Raft Consensus Protocol Verification')).toBeInTheDocument();
+        expect(screen.getByText('CursorBench Consensus Protocol Verification')).toBeInTheDocument();
         expect(screen.queryByText('PostgreSQL Vector Search Indexing')).not.toBeInTheDocument();
     });
 

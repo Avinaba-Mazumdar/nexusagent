@@ -43,10 +43,22 @@ async def main():
     )
     args = parser.parse_args()
 
+    if not neon_db.dsn:
+        # In GitHub Actions an unset secret expands to "", so this is the usual cause of a failed run.
+        logger.error(
+            "NEON_DATABASE_URL is empty. In GitHub, add it under Settings > Secrets and variables > "
+            + "Actions > Repository secrets (name: NEON_DATABASE_URL)."
+        )
+        sys.exit(1)
+
     logger.info("Initializing Neon PostgreSQL connection pool...")
     connected = await neon_db.connect()
     if not connected:
-        logger.error("Failed to connect to Neon database. Please check NEON_DATABASE_URL.")
+        logger.error(
+            "Failed to connect to Neon database (see the error above). Check that the "
+            + "NEON_DATABASE_URL secret is the current connection string and that Neon accepts "
+            + "connections from GitHub-hosted runners (no IP allowlist)."
+        )
         sys.exit(1)
 
     try:

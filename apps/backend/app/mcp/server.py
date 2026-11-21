@@ -116,9 +116,10 @@ async def fetch(id: str) -> dict[str, object]:
 def mcp_transport_security() -> TransportSecuritySettings:
     """DNS rebinding allowlist for the public MCP endpoint.
 
-    Host must be this site, the API host, or localhost. Origin may be absent: Claude, ChatGPT,
-    and Cursor connectors call the server without a browser Origin. A present Origin must be one
-    we already allow for the web app, or a localhost port.
+    Host must be this site, the API host, localhost, or a host named explicitly in
+    EXTRA_ALLOWED_HOSTS / RENDER_EXTERNAL_HOSTNAME (exact names, validated in config; no wildcards).
+    Origin may be absent: Claude, ChatGPT, and Cursor connectors call the server without a browser
+    Origin. A present Origin must be one we already allow for the web app, or a localhost port.
     """
     site = settings.PUBLIC_SITE_HOST
     api = f"api.{site}"
@@ -132,6 +133,10 @@ def mcp_transport_security() -> TransportSecuritySettings:
         "127.0.0.1",
         "127.0.0.1:*",
     ]
+    for extra in settings.extra_allowed_hosts:
+        for entry in (extra, f"{extra}:*"):
+            if entry not in hosts:
+                hosts.append(entry)
     if settings.is_dev:
         hosts.extend(["testserver", "testserver:*"])
     configured = settings.CORS_ORIGINS

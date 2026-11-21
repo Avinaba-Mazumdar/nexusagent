@@ -257,7 +257,7 @@ describe('Home Page - Layout and Header Controls', () => {
         await user.click(screen.getByRole('button', { name: /start as guest/i }));
         await screen.findByRole('button', { name: /user profile menu/i });
 
-        await user.type(screen.getByRole('textbox', { name: /benchmark question/i }), 'Explain Raft quorum{Enter}');
+        await user.type(screen.getByRole('textbox', { name: /benchmark question/i }), 'Explain CursorBench quorum{Enter}');
 
         const errorBubble = await screen.findByTestId('assistant-error');
         expect(errorBubble).toHaveTextContent('Synthesis backend unavailable');

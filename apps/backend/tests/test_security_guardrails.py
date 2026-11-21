@@ -297,7 +297,7 @@ async def test_immutable_audit_logging_and_endpoint():
         # 2. Log tool execution via coordinator for user
         _ = await default_audit_logger.log_tool_audit(
             tool_name="hybrid_rag_search",
-            input_args={"query": "Raft consensus"},
+            input_args={"query": "CursorBench consensus"},
             output_summary={"count": 3},
             duration_ms=12,
             user_id=user_id,

@@ -194,7 +194,7 @@ describe('useAgentStream Hook', () => {
     it('logs the retrieval call before its result arrives', async () => {
         const encoder = new TextEncoder();
         const body = [
-            'event: tool_call\ndata: {"sessionId": "s", "tool": "hybrid_rag_search", "arguments": {"query": "raft", "limit": 5, "documentScoped": false}}\n\n',
+            'event: tool_call\ndata: {"sessionId": "s", "tool": "hybrid_rag_search", "arguments": {"query": "cursorbench", "limit": 5, "documentScoped": false}}\n\n',
             'event: tool_result\ndata: {"tool": "hybrid_rag_search", "chunksRetrieved": 0, "citations": [], "injectionWarnings": []}\n\n',
             'event: done\ndata: {"sessionId": "s", "citations": []}\n\n'
         ].join('');
@@ -210,7 +210,7 @@ describe('useAgentStream Hook', () => {
         const { result } = renderHook(() => useAgentStream({ onLog: (entry) => logs.push(entry) }));
 
         await act(async () => {
-            await result.current.startStream({ query: 'raft' });
+            await result.current.startStream({ query: 'cursorbench' });
         });
 
         const messages = logs.map((entry) => entry.message);

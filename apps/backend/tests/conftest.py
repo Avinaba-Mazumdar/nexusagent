@@ -28,7 +28,7 @@ if "neon.tech" in _test_url:
     if neon_endpoint(_test_url) == neon_endpoint(_prod_url):
         raise RuntimeError(
             "TEST_DATABASE_URL points at the production Neon database. "
-            + "Use the test branch URL instead (roadmap.md H10)."
+            + "Use a Neon test branch URL instead (README: Testing & Verification)."
         )
 
 # db-marked tests only ever touch a dedicated database (e.g. a Neon branch per CI run).

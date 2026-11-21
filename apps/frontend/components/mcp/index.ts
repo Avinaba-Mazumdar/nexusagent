@@ -1,1 +1,1 @@
-export { McpInspector } from './McpInspector';
+export { McpConnectCard } from './McpConnectCard';

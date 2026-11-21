@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import ClassVar, cast
 
@@ -9,6 +10,19 @@ REPO_ROOT = BACKEND_DIR.parent.parent
 KNOWLEDGE_BASE_DIR: Path = REPO_ROOT / "knowledge_base" / "benchmarks"
 # Render = 1 hop, Cloudflare in front of Render = 2. More than that trusts client-supplied forwarding.
 MAX_TRUSTED_PROXY_HOPS = 2
+_HOSTNAME_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_HOSTNAME_RE = re.compile(rf"^{_HOSTNAME_LABEL}(?:\.{_HOSTNAME_LABEL})*$")
+
+
+def validate_hostname(value: str, setting: str) -> str:
+    """Return ``value`` lowercased if it is a bare DNS hostname; reject wildcards, schemes, ports, paths."""
+    host = value.strip().lower()
+    if len(host) > 253 or not _HOSTNAME_RE.fullmatch(host):
+        raise ValueError(
+            f"{setting} entries must be exact hostnames like 'app.example.com' "
+            + f"(no wildcard, scheme, port or path): {value!r}"
+        )
+    return host
 
 
 class Settings(BaseSettings):
@@ -64,6 +78,38 @@ class Settings(BaseSettings):
         if isinstance(v, list):
             return [str(origin) for origin in cast(list[object], v)]
         raise ValueError("CORS_ORIGINS must be a comma-separated string or a JSON list")
+
+    # Extra hostnames the MCP endpoint accepts in the Host header, comma-separated
+    # (e.g. "nexusagent-vq9y.onrender.com"). Exact hostnames only: no wildcards, schemes or paths.
+    EXTRA_ALLOWED_HOSTS: str | list[str] = []
+    # Set by Render to the service's public hostname (xxx.onrender.com). Allowed like an extra host.
+    RENDER_EXTERNAL_HOSTNAME: str = ""
+
+    @field_validator("EXTRA_ALLOWED_HOSTS", mode="before")
+    @classmethod
+    def parse_extra_allowed_hosts(cls, v: object) -> list[str]:
+        if v is None:
+            return []
+        if isinstance(v, list):
+            items = [str(h).strip() for h in cast(list[object], v)]
+        else:
+            items = [h.strip() for h in str(v).split(",")]
+        return [validate_hostname(h, "EXTRA_ALLOWED_HOSTS") for h in items if h]
+
+    @field_validator("RENDER_EXTERNAL_HOSTNAME", mode="before")
+    @classmethod
+    def parse_render_hostname(cls, v: object) -> str:
+        host = str(v or "").strip()
+        return validate_hostname(host, "RENDER_EXTERNAL_HOSTNAME") if host else ""
+
+    @property
+    def extra_allowed_hosts(self) -> list[str]:
+        """Explicitly configured extra hosts (EXTRA_ALLOWED_HOSTS + RENDER_EXTERNAL_HOSTNAME), deduplicated."""
+        configured = self.EXTRA_ALLOWED_HOSTS
+        hosts = list(configured) if isinstance(configured, list) else [configured]
+        if self.RENDER_EXTERNAL_HOSTNAME:
+            hosts.append(self.RENDER_EXTERNAL_HOSTNAME)
+        return list(dict.fromkeys(h for h in hosts if h))
 
     NEON_DATABASE_URL: str = ""
 

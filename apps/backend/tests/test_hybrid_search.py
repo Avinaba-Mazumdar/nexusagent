@@ -72,20 +72,30 @@ async def test_embedding_service_batch():
 def test_rrf_scoring_algorithm():
     """Verify Reciprocal Rank Fusion calculation and ordering."""
     dense_candidates = [
-        {"id": "c1", "document_id": "d1", "content": "Raft leader election", "similarity": 0.95},
-        {"id": "c2", "document_id": "d1", "content": "Paxos commit latency", "similarity": 0.85},
+        {"id": "c1", "document_id": "d1", "content": "CursorBench pass rate", "similarity": 0.95},
+        {
+            "id": "c2",
+            "document_id": "d1",
+            "content": "OpenRouter latency metrics",
+            "similarity": 0.85,
+        },
         {
             "id": "c3",
             "document_id": "d1",
-            "content": "Byzantine fault tolerance",
+            "content": "Artificial Analysis intelligence index",
             "similarity": 0.75,
         },
     ]
 
     sparse_candidates = [
-        {"id": "c2", "document_id": "d1", "content": "Paxos commit latency", "rank_score": 0.8},
-        {"id": "c1", "document_id": "d1", "content": "Raft leader election", "rank_score": 0.6},
-        {"id": "c4", "document_id": "d1", "content": "Gossip protocol", "rank_score": 0.5},
+        {
+            "id": "c2",
+            "document_id": "d1",
+            "content": "OpenRouter latency metrics",
+            "rank_score": 0.8,
+        },
+        {"id": "c1", "document_id": "d1", "content": "CursorBench pass rate", "rank_score": 0.6},
+        {"id": "c4", "document_id": "d1", "content": "BenchLM coding evals", "rank_score": 0.5},
     ]
 
     # c1: dense rank 1, sparse rank 2 -> 0.5 / (60+1) + 0.5 / (60+2) = 0.5/61 + 0.5/62
@@ -135,7 +145,7 @@ async def test_search_raises_runtime_error_when_db_disconnected(monkeypatch: pyt
     monkeypatch.setattr(neon_db, "pool", None)
     engine = HybridSearchEngine(db=None)
     with pytest.raises(RuntimeError, match="Knowledge base unavailable: database not connected"):
-        _ = await engine.search("Raft consensus")
+        _ = await engine.search("CursorBench consensus")
 
 
 @pytest.mark.db
@@ -165,14 +175,14 @@ async def test_hybrid_search_end_to_end_endpoint():
     doc = Document(
         id=doc_id,
         uploaded_by=test_user.id,
-        filename="rfc-104-raft-consensus.md",
+        filename="rfc-104-cursorbench-consensus.md",
         mime_type="text/markdown",
         sha256_hash=uuid4().hex,
         total_chunks=2,
         is_seeded=False,
     )
     emb_chunk1 = generate_deterministic_embedding(
-        "Raft consensus leader heartbeat quorum and election timeout."
+        "CursorBench consensus leader heartbeat quorum and election timeout."
     )
     emb_chunk2 = generate_deterministic_embedding(
         "PostgreSQL B-Tree and GIN indexes for architectural queries."
@@ -182,9 +192,9 @@ async def test_hybrid_search_end_to_end_endpoint():
         id=uuid4(),
         document_id=doc_id,
         chunk_index=0,
-        content="Raft consensus leader heartbeat quorum and election timeout.",
+        content="CursorBench consensus leader heartbeat quorum and election timeout.",
         embedding=emb_chunk1,
-        metadata={"page": 1, "headerPath": ["Raft Consensus", "Heartbeats"]},
+        metadata={"page": 1, "headerPath": ["CursorBench Consensus", "Heartbeats"]},
     )
     chunk2 = DocumentChunk(
         id=uuid4(),
@@ -204,7 +214,7 @@ async def test_hybrid_search_end_to_end_endpoint():
             "/api/rag/search",
             headers={"Authorization": f"Bearer {token}"},
             json={
-                "query": "Raft consensus quorum",
+                "query": "CursorBench consensus quorum",
                 "documentId": str(doc_id),
                 "limit": 3,
                 "denseWeight": 0.6,
@@ -215,15 +225,15 @@ async def test_hybrid_search_end_to_end_endpoint():
         assert resp.status_code == 200
         data = resp.json()
 
-        assert data["query"] == "Raft consensus quorum"
+        assert data["query"] == "CursorBench consensus quorum"
         assert data["totalResults"] >= 1
         top_result = data["results"][0]
         assert top_result["documentId"] == str(doc_id)
-        assert "Raft" in top_result["content"]
+        assert "CursorBench" in top_result["content"]
         assert top_result["similarityScore"] > 0
         assert top_result["page"] == 1
-        assert top_result["headerPath"] == ["Raft Consensus", "Heartbeats"]
-        assert top_result["filename"] == "rfc-104-raft-consensus.md"
+        assert top_result["headerPath"] == ["CursorBench Consensus", "Heartbeats"]
+        assert top_result["filename"] == "rfc-104-cursorbench-consensus.md"
 
 
 @pytest.mark.asyncio
@@ -291,7 +301,7 @@ async def test_search_degrades_to_sparse_only_when_embedding_fails():
                 "id": "c1",
                 "document_id": "d1",
                 "chunk_index": 0,
-                "content": "raft quorum",
+                "content": "cursorbench quorum",
                 "metadata": {},
                 "filename": "a.md",
                 "rank_score": 0.4,
@@ -300,7 +310,9 @@ async def test_search_degrades_to_sparse_only_when_embedding_fails():
     )
     embedder = MagicMock()
     embedder.get_embedding = AsyncMock(side_effect=RuntimeError("down"))
-    results = await HybridSearchEngine(db=db, embedding_service=embedder).search("raft quorum")
+    results = await HybridSearchEngine(db=db, embedding_service=embedder).search(
+        "cursorbench quorum"
+    )
     assert len(results) == 1
     assert results[0].dense_rank is None and results[0].sparse_rank == 1
     db.search_chunks_dense.assert_not_called()
@@ -320,7 +332,7 @@ async def test_search_skips_embeddings_when_the_caller_has_no_budget():
     embedder = MagicMock()
     embedder.get_embedding = AsyncMock(side_effect=AssertionError("embedding called"))
     results = await HybridSearchEngine(db=db, embedding_service=embedder).search(
-        "raft quorum", use_embeddings=False
+        "cursorbench quorum", use_embeddings=False
     )
     assert results == []
     embedder.get_embedding.assert_not_called()
@@ -464,7 +476,7 @@ async def test_invalid_document_id_is_a_422_and_costs_nothing_r2_log_10(fake_rat
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             res = await client.post(
-                "/api/rag/search", json={"query": "raft", "documentId": "not-a-uuid"}
+                "/api/rag/search", json={"query": "cursorbench", "documentId": "not-a-uuid"}
             )
         assert res.status_code == 422
         assert len(fake_rate_db.rows) == 0  # no usage was created

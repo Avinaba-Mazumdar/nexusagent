@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vite-plus/test';
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import type { ChatConversation, ChatMessageRecord } from '@nexusagent/contracts';
 import { apiClient } from '@/lib/api-client';
 import { useChatHistory } from '@/hooks/useChatHistory';
@@ -66,6 +66,10 @@ async function renderReloaded(uncited: boolean, grounding: 'grounded' | 'weak' |
 }
 
 describe('ChatCanvas - uncited warning on a reloaded chat (R6)', () => {
+    // useChatHistory shows the localStorage copy of a conversation first, so a transcript cached by an
+    // earlier test would be rendered instead of this test's mocked answer.
+    beforeEach(() => localStorage.clear());
+
     it('shows the warning when the saved answer was uncited', async () => {
         await renderReloaded(true);
         expect(screen.getByText('An answer from history')).toBeInTheDocument();

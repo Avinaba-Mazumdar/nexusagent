@@ -64,9 +64,11 @@ async def test_chat_history_google_user_crud():
         assert "conversations" in res.json()
 
         # 2. Conversations are created by the agent stream; seed one directly
-        created = await neon_db.create_conversation(user_id, title="Raft Consensus Analysis")
+        created = await neon_db.create_conversation(
+            user_id, title="GPT vs Claude Benchmark Comparison"
+        )
         conv_id = str(created["id"])
-        assert created["title"] == "Raft Consensus Analysis"
+        assert created["title"] == "GPT vs Claude Benchmark Comparison"
 
         # 3. Retrieve conversation detail
         res_detail = await client.get(f"/api/chat/history/{conv_id}", headers=headers)
@@ -103,13 +105,13 @@ async def test_follow_up_turn_keeps_first_title():
     )
     session_id = str(uuid4())
 
-    for query in ("How does Raft elect a leader?", "And what about log compaction?"):
+    for query in ("Which model leads CursorBench?", "And what about its price per token?"):
         state = AgentState(query=query, session_id=session_id, response="answer")
         assert await persist_turn(user_id, session_id, query, state) == session_id
 
     conv, messages = await neon_db.get_conversation_with_messages(user_id, UUID(session_id))
     assert conv is not None
-    assert conv["title"] == "How does Raft elect a leader?"
+    assert conv["title"] == "Which model leads CursorBench?"
     assert len(messages) == 4
 
 

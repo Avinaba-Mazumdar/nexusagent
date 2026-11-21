@@ -117,7 +117,7 @@ def test_conversation_without_a_message_count_reports_zero():
     row = {
         "id": DOC_ID,
         "user_id": USER_ID,
-        "title": "Raft",
+        "title": "CursorBench",
         "created_at": NOW,
         "updated_at": None,
         "message_count": None,
@@ -129,7 +129,7 @@ def test_conversation_without_a_message_count_reports_zero():
     assert dumped == {
         "id": str(DOC_ID),
         "userId": str(USER_ID),
-        "title": "Raft",
+        "title": "CursorBench",
         "createdAt": NOW.isoformat(),
         "updatedAt": None,
         "messageCount": 0,

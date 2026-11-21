@@ -24,7 +24,7 @@ function doneResult(conversationId: string | null) {
     return {
         sessionId: 'session-1',
         conversationId,
-        response: 'Raft consensus answer',
+        response: 'CursorBench consensus answer',
         plan: [],
         citations: [],
         webSources: [],
@@ -53,7 +53,7 @@ describe('Home page - saving a Google user turn (R2-LOG-07)', () => {
     async function ask() {
         const user = userEvent.setup();
         render(<Home />);
-        await user.type(screen.getByLabelText(/benchmark question/i), 'Explain Raft');
+        await user.type(screen.getByLabelText(/benchmark question/i), 'Explain CursorBench');
         await act(async () => {
             await user.click(screen.getByRole('button', { name: /send query/i }));
         });
@@ -70,7 +70,7 @@ describe('Home page - saving a Google user turn (R2-LOG-07)', () => {
         startStream.mockResolvedValue(doneResult('session-1'));
         await ask();
 
-        await screen.findByText('Raft consensus answer');
+        await screen.findByText('CursorBench consensus answer');
         expect(screen.queryByText(/could not be saved to your history/i)).not.toBeInTheDocument();
     });
 });

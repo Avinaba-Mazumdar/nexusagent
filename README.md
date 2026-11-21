@@ -2,6 +2,10 @@
 
 > **NexusAgent: an open-source LLM benchmark assistant**
 
+**Live demo:** [nexusagent.avinaba.com](https://nexusagent.avinaba.com)
+
+[![NexusAgent screenshot](thumbnail-1080p.png)](https://nexusagent.avinaba.com)
+
 NexusAgent is an open-source LLM benchmark assistant that helps developers and technical leaders evaluate frontier AI models. It answers queries against pre-indexed benchmark datasets (Artificial Analysis, BenchLM, CursorBench, and OpenRouter metrics), handles quick chats with live Google Search grounding, and provides transparent token and tool telemetry.
 
 ---
@@ -45,7 +49,15 @@ Local development and production share a single Neon database (`apps/backend/.en
 
 ## 🌐 Connecting External MCP Clients
 
-NexusAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (`https://api.nexusagent.avinaba.com/mcp` in production, or `http://localhost:8000/mcp` for local use):
+NexusAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp`. No sign-in is needed.
+
+| Where                | MCP URL                                    |
+| -------------------- | ------------------------------------------ |
+| Production           | `https://api.nexusagent.avinaba.com/mcp`   |
+| Render host (backup) | `https://nexusagent-vq9y.onrender.com/mcp` |
+| Local                | `http://localhost:8000/mcp`                |
+
+The Render host URL works only once the API has been redeployed with the version that allows it. Until then it returns `421 Invalid Host header`. The server accepts only the hostnames it is configured with: `PUBLIC_SITE_HOST`, `api.<PUBLIC_SITE_HOST>`, localhost, `RENDER_EXTERNAL_HOSTNAME` (Render sets this by itself) and any names listed in `EXTRA_ALLOWED_HOSTS`.
 
 - **Claude (claude.ai / Desktop)**: `Settings` → `Connectors` → `Add custom connector` → paste `https://api.nexusagent.avinaba.com/mcp`.
 - **ChatGPT**: `Settings` → `Apps & Connectors` → `Advanced` → `Developer mode` → `Create connector` → paste `https://api.nexusagent.avinaba.com/mcp` (Authentication: None).
@@ -68,7 +80,7 @@ NexusAgent exposes a public, read-only Streamable HTTP MCP server at `/mcp` (`ht
 ```
 nexusagent/
 ├── apps/
-├── frontend/         # Next.js 16 + React 19 + TypeScript + shadcn/ui + Tailwind v4 + Zustand
+│   ├── frontend/         # Next.js 16 + React 19 + TypeScript + shadcn/ui + Tailwind v4 + Zustand
 │   └── backend/          # FastAPI + Python 3.14 + LangGraph + LlamaIndex + official mcp Python SDK + Neon Postgres 18
 ├── packages/
 │   └── contracts/        # Shared TypeScript interfaces & OpenAPI wire schemas
@@ -81,6 +93,7 @@ nexusagent/
 │       ├── design.md         # UI layout, tokens, accessibility
 │       ├── AGENTs.md         # AI Agent context, system master, coding invariants
 │       └── features.md       # Task board and feature status
+├── scripts/              # OpenAPI export, model check, knowledge-base seeding, guest pruning
 └── knowledge_base/
     └── benchmarks/       # Pre-seeded benchmark corpus (BenchLM, CursorBench, OpenRouter, AA)
 ```
@@ -126,6 +139,8 @@ Backend configuration (`apps/backend/.env.local`):
 - `GEMINI_API_KEY`: required. Generates answers and vector embeddings (`gemini-embedding-001`).
 - `TRUSTED_PROXY_HOPS`: number of proxies in front of the API. Required in production. Render = 1.
 - `PUBLIC_SITE_HOST`: public hostname (default: `nexusagent.avinaba.com`).
+- `EXTRA_ALLOWED_HOSTS`: optional, comma-separated extra hostnames the `/mcp` endpoint accepts (exact names only; wildcards, schemes, ports and paths are rejected at startup).
+- `RENDER_EXTERNAL_HOSTNAME`: set by Render automatically; the `/mcp` endpoint accepts it too. Leave it unset elsewhere.
 
 Frontend configuration (`apps/frontend/.env.local`):
 
@@ -182,7 +197,7 @@ To run the Cloudflare multi-agent security audit:
     ```
 2. Open the repository in a coding agent that supports sub-agents on the release commit.
 3. Ask: `"Run a full security audit of this codebase with the standard profile."` (Do not allow it to write inside the repository).
-4. Review `REPORT.md`. For each confirmed finding of severity medium or higher, address or document acceptance in `roadmap.md`.
+4. Review `REPORT.md`. For each confirmed finding of severity medium or higher, address it or record its acceptance in `.agents/specs/features.md`.
 5. Run the audit a second time after fixes to confirm resolution.
 
 ---

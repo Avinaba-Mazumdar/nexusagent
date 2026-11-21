@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MCP_URL, buildClientConfig } from '@/lib/mcp-client-config';
 
-export function McpInspector() {
+export function McpConnectCard() {
     const [copiedUrl, setCopiedUrl] = React.useState(false);
     const [copiedConfig, setCopiedConfig] = React.useState(false);
 

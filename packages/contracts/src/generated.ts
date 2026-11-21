@@ -826,14 +826,14 @@ export interface components {
         TokenResponse: {
             /**
              * Bucketcapacity
-             * @default 25
+             * @default 15
              */
             bucketCapacity: number;
             /** Expiresin */
             expiresIn: number;
             /**
              * Quotaremaining
-             * @default 25
+             * @default 15
              */
             quotaRemaining: number;
             user: components['schemas']['UserSession'];

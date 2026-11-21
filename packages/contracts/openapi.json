@@ -1072,7 +1072,7 @@
             "TokenResponse": {
                 "properties": {
                     "bucketCapacity": {
-                        "default": 25,
+                        "default": 15,
                         "title": "Bucketcapacity",
                         "type": "integer"
                     },
@@ -1081,7 +1081,7 @@
                         "type": "integer"
                     },
                     "quotaRemaining": {
-                        "default": 25,
+                        "default": 15,
                         "title": "Quotaremaining",
                         "type": "integer"
                     },

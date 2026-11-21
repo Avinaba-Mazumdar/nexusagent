@@ -153,7 +153,7 @@ def models(monkeypatch: pytest.MonkeyPatch) -> UseModels:
 
 
 def _state() -> AgentState:
-    state = AgentState(query="Explain Raft quorum", user_id=uuid4(), intent="benchmark")
+    state = AgentState(query="Explain CursorBench quorum", user_id=uuid4(), intent="benchmark")
     build_agent_messages(state, "")
     return state
 

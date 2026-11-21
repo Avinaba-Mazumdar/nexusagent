@@ -9,10 +9,10 @@ const mockCitation: Citation = {
     label: 'S1',
     chunkId: 'chk-1',
     documentId: 'doc-1',
-    filename: 'RFC-104-Raft.md',
+    filename: 'RFC-104-CursorBench.md',
     page: 12,
     headerPath: ['Consensus', 'Leader Election'],
-    preview: 'In Raft, leader election is initiated when a follower election timeout elapses.'
+    preview: 'In CursorBench, leader election is initiated when a follower election timeout elapses.'
 };
 
 const renderPill = (citation: Citation, onClick?: (c: Citation) => void) =>
@@ -27,7 +27,7 @@ describe('CitationPill Component', () => {
         renderPill(mockCitation);
 
         expect(screen.getByText('S1')).toBeInTheDocument();
-        expect(screen.getByText('RFC-104-Raft.md')).toBeInTheDocument();
+        expect(screen.getByText('RFC-104-CursorBench.md')).toBeInTheDocument();
         expect(screen.getByText('p. 12')).toBeInTheDocument();
     });
 
